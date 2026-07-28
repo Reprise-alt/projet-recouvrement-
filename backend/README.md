@@ -35,12 +35,16 @@ Rôles (cf. cahier des charges §4) :
 - `comptable` — lecture des 3 entités (ou d'une seule s'il y est rattaché), peut enregistrer des
   paiements/actions, mais ne génère pas de courriers et n'a pas accès à la config.
 
+Les tokens réels émis par Supabase sont vérifiés contre le JWKS public du projet
+(`SUPABASE_URL/auth/v1/.well-known/jwks.json`) — pas de secret partagé à configurer pour ça, les
+projets Supabase récents signent avec des clés asymétriques rotatives plutôt qu'un secret unique.
+
 ### Sans projet Supabase connecté (dev/tests)
 
-`POST /api/auth/dev-token` (désactivée si `NODE_ENV=production`) émet un JWT signé avec
+`POST /api/auth/dev-token` (désactivée si `NODE_ENV=production`) émet un JWT signé en HS256 avec
 `SUPABASE_JWT_SECRET` pour un utilisateur déjà provisionné, afin de tester les routes protégées sans
-dépendre d'un vrai projet Supabase. En production, l'émission des tokens est entièrement déléguée à
-Supabase Auth (même secret partagé, configuré côté Supabase dans Project Settings > API).
+dépendre d'un vrai projet Supabase. Ce chemin n'est jamais utilisé pour vérifier un vrai token
+Supabase, et reste désactivé en production quoi qu'il arrive.
 
 ## Envoi Gmail (Phase 1 — validation manuelle systématique)
 

@@ -1,7 +1,7 @@
 import { NextFunction, Request, Response } from 'express';
-import jwt from 'jsonwebtoken';
 import { prisma } from '../db';
 import { Entite, RoleUtilisateur, userCanAccessEntite } from '../lib/entites';
+import { extractEmailFromToken } from '../lib/verifyToken';
 
 export interface AuthedUser {
   id: string;
@@ -20,10 +20,11 @@ declare global {
   }
 }
 
-// Vérifie un JWT émis par Supabase Auth (HS256, secret partagé) et résout
-// l'utilisateur applicatif correspondant via son email — l'identité vient de
-// Supabase, mais le rôle et l'entité de rattachement restent gérés dans la
-// table Utilisateur de cette base (cf. cahier des charges §4).
+// Vérifie un JWT émis par Supabase Auth (signature asymétrique, contre le
+// JWKS public du projet) et résout l'utilisateur applicatif correspondant
+// via son email — l'identité vient de Supabase, mais le rôle et l'entité de
+// rattachement restent gérés dans la table Utilisateur de cette base (cf.
+// cahier des charges §4). Voir lib/verifyToken.ts pour le repli dev-only.
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
   const header = req.headers.authorization;
   if (!header?.startsWith('Bearer ')) {
@@ -31,23 +32,9 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   }
   const token = header.slice('Bearer '.length);
 
-  const secret = process.env.SUPABASE_JWT_SECRET;
-  if (!secret) {
-    return res.status(500).json({ error: "SUPABASE_JWT_SECRET n'est pas configuré côté serveur" });
-  }
-
-  let payload: jwt.JwtPayload;
-  try {
-    const decoded = jwt.verify(token, secret);
-    if (typeof decoded === 'string') throw new Error('unexpected token payload');
-    payload = decoded;
-  } catch {
-    return res.status(401).json({ error: 'Token invalide ou expiré' });
-  }
-
-  const email = payload.email as string | undefined;
+  const email = await extractEmailFromToken(token);
   if (!email) {
-    return res.status(401).json({ error: 'Token invalide (email manquant)' });
+    return res.status(401).json({ error: 'Token invalide ou expiré' });
   }
 
   const utilisateur = await prisma.utilisateur.findUnique({ where: { email } });
