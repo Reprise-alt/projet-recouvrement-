@@ -1,0 +1,154 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Entite {
+  SORAM
+  SIS
+  IRIS
+  COMMUN
+}
+
+enum StatutFacture {
+  impayee
+  payee
+}
+
+enum RoleUtilisateur {
+  admin
+  manager_entite
+  comptable
+}
+
+enum ServiceIntegration {
+  artis
+  mapon
+  gmail
+}
+
+enum StatutIntegration {
+  actif
+  inactif
+}
+
+model Client {
+  id        String   @id @default(cuid())
+  nom       String
+  entite    Entite
+  contact   String?
+  email     String?
+  tel       String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  factures Facture[]
+  contrats Contrat[]
+  actions  ActionRecouvrement[]
+
+  // Clé de rapprochement à l'import (Excel manuel aujourd'hui, sync ARTIS/MAPON demain) :
+  // un même client ne doit jamais être dupliqué d'un import à l'autre.
+  @@unique([nom, entite])
+}
+
+model Facture {
+  id           String         @id @default(cuid())
+  client       Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId     String
+  numero       String
+  montant      Float
+  montantHT    Float?
+  dateFacture  DateTime?
+  dateEcheance DateTime
+  statut       StatutFacture  @default(impayee)
+  datePaiement DateTime?
+  modePaiement String?
+  numPiece     String?
+  remisSur     String?
+  designation  String?
+  commercial   String?
+  traitePar    String?
+  etatFactures String?
+  dateDepot    DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  // Clé de fusion à l'import : le numéro de facture, jamais l'ordre des lignes.
+  @@unique([clientId, numero])
+}
+
+model Contrat {
+  id                String    @id @default(cuid())
+  client            Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId          String
+  numero            String
+  type              String?
+  dateDebut         DateTime
+  dateFin           DateTime
+  tacite            Boolean   @default(false)
+  dateRevisionTarif DateTime?
+  statutSource      String?
+  commentaire       String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  envois EnvoiContrat[]
+
+  @@unique([clientId, numero])
+}
+
+model ActionRecouvrement {
+  id       String   @id @default(cuid())
+  client   Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId String
+  date     DateTime @default(now())
+  palier   Int
+  label    String
+  note     String?
+}
+
+model EnvoiContrat {
+  id           String   @id @default(cuid())
+  contrat      Contrat  @relation(fields: [contratId], references: [id], onDelete: Cascade)
+  contratId    String
+  date         DateTime @default(now())
+  label        String
+  destinataire String?
+  sujet        String?
+  corps        String?
+  statutEnvoi  String?
+}
+
+model Utilisateur {
+  id     String           @id @default(cuid())
+  nom    String
+  email  String           @unique
+  role   RoleUtilisateur
+  entite Entite?
+}
+
+// Seuils de paliers de recouvrement (jours de retard), config unique du groupe.
+model Config {
+  id Int @id @default(1)
+  j1 Int @default(7)
+  j2 Int @default(15)
+  j3 Int @default(30)
+  j4 Int @default(45)
+  j5 Int @default(60)
+  j6 Int @default(75)
+  j7 Int @default(90)
+}
+
+// Statut des connecteurs API externes — les clés elles-mêmes vivent en variables
+// d'environnement / secret manager, jamais dans cette table.
+model IntegrationCredential {
+  id           String             @id @default(cuid())
+  service      ServiceIntegration
+  entite       Entite?
+  statut       StatutIntegration  @default(inactif)
+  derniereSync DateTime?
+}
