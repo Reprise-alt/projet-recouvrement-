@@ -1,8 +1,16 @@
 import { Router } from 'express';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../db';
+import { requireAuth } from '../middleware/auth';
 
 export const authRouter = Router();
+
+// Renvoie l'identité applicative résolue par requireAuth (rôle, entité) —
+// utilisé par le frontend juste après la connexion pour savoir quelles vues
+// et actions afficher, le JWT lui-même ne portant que l'email.
+authRouter.get('/me', requireAuth, (req, res) => {
+  res.json(req.user);
+});
 
 // Outil de développement UNIQUEMENT : mint un JWT au format Supabase (même
 // secret partagé, claim `email`) pour tester les routes protégées sans avoir
