@@ -1,5 +1,15 @@
-export type Entite = 'SORAM' | 'SIS' | 'IRIS' | 'COMMUN';
+// Code d'entité géré dynamiquement via /api/entreprises (plus un type figé) —
+// une chaîne quelconque, validée côté serveur contre la table Entreprise.
+export type Entite = string;
 export type RoleUtilisateur = 'admin' | 'manager_entite' | 'comptable';
+
+export interface Entreprise {
+  id: string;
+  code: string;
+  nom: string;
+  estCommun: boolean;
+  actif: boolean;
+}
 
 export interface CurrentUser {
   id: string;

@@ -57,7 +57,15 @@ describe('resolveEntiteScope', () => {
     expect(resolveEntiteScope(irisManager, undefined)).toBe('IRIS');
   });
 
-  it('ignores an invalid requested value and falls back to ALL for unrestricted users', () => {
-    expect(resolveEntiteScope({ role: 'admin', entite: null }, 'NOT_AN_ENTITE')).toBe('ALL');
+  it('passes an unrecognized code through as-is for unrestricted users (a dynamic entity list can\'t be validated here)', () => {
+    // Une entité créée depuis l'interface n'est pas connue de cette fonction
+    // pure — le filtre passe tel quel, une requête Prisma sur un code
+    // inexistant renvoie simplement une liste vide, sans risque de sécurité.
+    expect(resolveEntiteScope({ role: 'admin', entite: null }, 'NOUVELLE_ENTITE')).toBe('NOUVELLE_ENTITE');
+  });
+
+  it('falls back to ALL only when nothing (or an empty string) is requested', () => {
+    expect(resolveEntiteScope({ role: 'admin', entite: null }, undefined)).toBe('ALL');
+    expect(resolveEntiteScope({ role: 'admin', entite: null }, '')).toBe('ALL');
   });
 });

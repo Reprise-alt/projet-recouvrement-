@@ -168,6 +168,49 @@ describe('parseContractTrackingWorkbook — IRIS-style header ("Client" column, 
   });
 });
 
+describe('dynamic entity recognition (a company added from the admin UI, not hardcoded)', () => {
+  it('parseOluFacturationWorkbook recognizes a newly-added entity from its banner', () => {
+    const rows = [
+      ['NOVA TECH SOLUTIONS', '', '', '', '', ''],
+      ['N° FACTURE', 'DATE', 'NOM CLIENT', 'MONTANT HT', 'MONTANT TTC', 'DATE DE PAIEMENT'],
+      [1, '01/06/2026', 'Client Nova', 100000, 125000, ''],
+    ];
+    const sheet = XLSX.utils.aoa_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, sheet, 'JUIN 2026');
+
+    const knownEntites = [{ code: 'NOVA', nom: 'Nova Tech Solutions' }];
+    const result = parseOluFacturationWorkbook(wb, knownEntites);
+    expect(result.clients).toHaveLength(1);
+    expect(result.clients[0].entite).toBe('NOVA');
+  });
+
+  it('parseContractTrackingWorkbook recognizes a newly-added entity from its banner', () => {
+    const rows = [
+      ['NOVA TECH SOLUTIONS – Suivi des contrats', '', '', ''],
+      ['Raison sociale', 'Début', 'Fin', 'Issue contrat'],
+      ['Client Nova', '01/01/2025', '31/12/2027', ''],
+    ];
+    const sheet = XLSX.utils.aoa_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, sheet, 'Contrats');
+
+    const knownEntites = [{ code: 'NOVA', nom: 'Nova Tech Solutions' }];
+    const result = parseContractTrackingWorkbook(wb, knownEntites);
+    expect(result.clients).toHaveLength(1);
+    expect(result.clients[0].entite).toBe('NOVA');
+  });
+
+  it('processImportRows accepts a newly-added entity code instead of forcing it to SORAM', () => {
+    const knownEntites = [
+      { code: 'SORAM', nom: 'SORAM Afrique' },
+      { code: 'NOVA', nom: 'Nova Tech Solutions' },
+    ];
+    const result = processImportRows([{ client_nom: 'Client Nova', entite: 'NOVA' }], knownEntites);
+    expect(result.clients[0].entite).toBe('NOVA');
+  });
+});
+
 describe('processImportRows (generic CSV/XLSX template)', () => {
   it('groups rows by client and attaches invoices/contracts, skipping rows without a client name', () => {
     const result = processImportRows([

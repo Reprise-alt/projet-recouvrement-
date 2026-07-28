@@ -1,9 +1,8 @@
 import { FormEvent, useState } from 'react';
 import { api, ApiError } from '../api/client';
-import { CurrentUser } from '../api/types';
+import { CurrentUser, Entreprise } from '../api/types';
 import { useResource } from '../hooks/useResource';
 import { useToast } from '../hooks/useToast';
-import { ENTITES } from '../lib/constants';
 
 const ROLE_LABELS: Record<string, string> = {
   admin: 'Admin',
@@ -14,6 +13,7 @@ const ROLE_LABELS: Record<string, string> = {
 export function UsersPanel({ onClose }: { onClose: () => void }) {
   const { showToast } = useToast();
   const { data: users, loading, refetch } = useResource<CurrentUser[]>('/api/users');
+  const { data: entreprises } = useResource<Entreprise[]>('/api/entreprises');
   const [busy, setBusy] = useState(false);
 
   async function handleCreate(e: FormEvent<HTMLFormElement>) {
@@ -108,11 +108,13 @@ export function UsersPanel({ onClose }: { onClose: () => void }) {
             <label>Entité (requis pour un manager)</label>
             <select name="entite" defaultValue="">
               <option value="">Aucune (accès aux 3 pour un comptable)</option>
-              {ENTITES.map((e) => (
-                <option key={e} value={e}>
-                  {e}
-                </option>
-              ))}
+              {(entreprises ?? [])
+                .filter((e) => !e.estCommun)
+                .map((e) => (
+                  <option key={e.code} value={e.code}>
+                    {e.nom}
+                  </option>
+                ))}
             </select>
           </div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>

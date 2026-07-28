@@ -35,6 +35,16 @@ Rôles (cf. cahier des charges §4) :
 - `comptable` — lecture des 3 entités (ou d'une seule s'il y est rattaché), peut enregistrer des
   paiements/actions, mais ne génère pas de courriers et n'a pas accès à la config.
 
+### Ajouter une entreprise
+
+Les entités (SORAM, SIS, IRIS…) sont gérées via la table `Entreprise`, pas un type figé — un admin
+peut en ajouter une depuis l'interface (bouton **Entreprises**), sans migration ni redéploiement.
+Une fois créée, elle est immédiatement disponible partout : filtre par entité, rattachement d'un
+utilisateur, et reconnaissance dans les imports Excel/CSV (le nom ou le code de l'entreprise est
+recherché dans le bandeau/titre du classeur — voir `src/lib/parsers/entiteMatch.ts`). `COMMUN` est un
+code réservé (entité spéciale visible depuis n'importe quel filtre) qu'on ne peut ni créer ni
+désactiver.
+
 Les tokens réels émis par Supabase sont vérifiés contre le JWKS public du projet
 (`SUPABASE_URL/auth/v1/.well-known/jwks.json`) — pas de secret partagé à configurer pour ça, les
 projets Supabase récents signent avec des clés asymétriques rotatives plutôt qu'un secret unique.

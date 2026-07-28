@@ -1,7 +1,6 @@
 import { toISODate } from '../dates';
 import { EntiteImport, ParsedClient } from './types';
-
-const VALID_ENTITES: EntiteImport[] = ['SORAM', 'SIS', 'IRIS', 'COMMUN'];
+import { DEFAULT_KNOWN_ENTITES, KnownEntite } from './entiteMatch';
 
 export interface GenericImportRow {
   entite?: unknown;
@@ -31,8 +30,13 @@ function parseAmount(raw: unknown): number {
 
 // Parseur du modèle CSV/XLSX générique (téléchargeable via /import/template) —
 // une ligne par facture/contrat, fusionnée par nom+entité client.
-export function processImportRows(rows: GenericImportRow[]): GenericImportResult {
+export function processImportRows(
+  rows: GenericImportRow[],
+  knownEntites: KnownEntite[] = DEFAULT_KNOWN_ENTITES,
+): GenericImportResult {
   const map: Record<string, ParsedClient> = {};
+  const knownCodes = knownEntites.map((e) => e.code.toUpperCase());
+  const fallbackCode = knownCodes.includes('SORAM') ? 'SORAM' : (knownCodes[0] ?? 'SORAM');
   let skipped = 0;
 
   rows.forEach((row) => {
@@ -41,8 +45,8 @@ export function processImportRows(rows: GenericImportRow[]): GenericImportResult
       skipped++;
       return;
     }
-    let entite = (row.entite || 'SORAM').toString().trim().toUpperCase() as EntiteImport;
-    if (!VALID_ENTITES.includes(entite)) entite = 'SORAM';
+    let entite = (row.entite || fallbackCode).toString().trim().toUpperCase() as EntiteImport;
+    if (!knownCodes.includes(entite)) entite = fallbackCode;
     const key = nom + '|' + entite;
 
     if (!map[key]) {

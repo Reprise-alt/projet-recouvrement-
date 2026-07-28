@@ -7,13 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Entite {
-  SORAM
-  SIS
-  IRIS
-  COMMUN
-}
-
 enum StatutFacture {
   impayee
   payee
@@ -36,10 +29,26 @@ enum StatutIntegration {
   inactif
 }
 
+// Liste des entités du groupe (SORAM, SIS, IRIS…), gérable depuis
+// l'interface (admin) plutôt que figée dans un type — permet d'ajouter une
+// nouvelle entreprise sans migration de schéma. `code` est ce qui est stocké
+// tel quel dans Client.entite / Utilisateur.entite / IntegrationCredential.entite
+// (pas de clé étrangère stricte, pour ne pas bloquer un import sur une entité
+// pas encore créée) ; `estCommun` marque l'entité spéciale partagée par
+// toutes les autres (remplace l'ancienne valeur figée "COMMUN").
+model Entreprise {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  nom       String
+  estCommun Boolean  @default(false)
+  actif     Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
 model Client {
   id        String   @id @default(cuid())
   nom       String
-  entite    Entite
+  entite    String
   contact   String?
   email     String?
   tel       String?
@@ -124,11 +133,11 @@ model EnvoiContrat {
 }
 
 model Utilisateur {
-  id     String           @id @default(cuid())
+  id     String          @id @default(cuid())
   nom    String
-  email  String           @unique
+  email  String          @unique
   role   RoleUtilisateur
-  entite Entite?
+  entite String?
 }
 
 // Seuils de paliers de recouvrement (jours de retard), config unique du groupe.
@@ -153,7 +162,7 @@ model Config {
 model IntegrationCredential {
   id           String             @id @default(cuid())
   service      ServiceIntegration
-  entite       Entite?
+  entite       String?
   statut       StatutIntegration  @default(inactif)
   derniereSync DateTime?
   compteEmail  String?

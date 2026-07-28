@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import { toISODate } from '../dates';
 import { EntiteImport, ParsedClient } from './types';
+import { DEFAULT_KNOWN_ENTITES, KnownEntite, matchKnownEntite } from './entiteMatch';
 
 function normHeader(s: unknown): string {
   return (s || '')
@@ -42,17 +43,18 @@ function findHeaderRowIndex(rows: unknown[][]): number {
 // Les onglets portent un bandeau titre ("SORAM AFRIQUE – Suivi des contrats…",
 // "IRIS AFRIQUE – Suivi des contrats…") au-dessus de l'en-tête — on s'en sert
 // pour déterminer l'entité plutôt que de la figer en dur, un même parseur
-// servant aussi bien aux classeurs SORAM qu'IRIS.
-function detectEntite(rows: unknown[][]): EntiteImport {
+// servant à toutes les entités du groupe (y compris celles ajoutées depuis
+// l'interface, via `knownEntites`).
+function detectEntite(rows: unknown[][], knownEntites: KnownEntite[]): EntiteImport {
   for (const row of rows.slice(0, 6)) {
     for (const cell of row) {
-      const text = (cell || '').toString().toUpperCase();
-      if (text.includes('IRIS')) return 'IRIS';
-      if (text.includes('SORAM')) return 'SORAM';
-      if (text.includes('SIS')) return 'SIS';
+      const text = (cell || '').toString();
+      if (!text.trim()) continue;
+      const match = matchKnownEntite(text, knownEntites);
+      if (match) return match;
     }
   }
-  return 'SORAM';
+  return knownEntites[0]?.code ?? 'SORAM';
 }
 
 export function isContractTrackingWorkbook(wb: XLSX.WorkBook): boolean {
@@ -70,7 +72,10 @@ export interface ContractTrackingResult {
 
 // Parseur du suivi des contrats (ex: "SORAM Suivi Contrats") — onglets Leasing /
 // Logiciel, détection de la tacite reconduction via la colonne "issue contrat".
-export function parseContractTrackingWorkbook(wb: XLSX.WorkBook): ContractTrackingResult {
+export function parseContractTrackingWorkbook(
+  wb: XLSX.WorkBook,
+  knownEntites: KnownEntite[] = DEFAULT_KNOWN_ENTITES,
+): ContractTrackingResult {
   const clientMap: Record<string, ParsedClient> = {};
   // Quand ni "Libellé contrat" ni "Code" n'existent pour distinguer plusieurs
   // contrats d'un même client (cas du fichier IRIS), on numérote par ordre
@@ -102,7 +107,7 @@ export function parseContractTrackingWorkbook(wb: XLSX.WorkBook): ContractTracki
     const colCode = findCol(header, 'code');
     if (colRaison < 0 || colFin < 0) return;
 
-    const entite = detectEntite(rows);
+    const entite = detectEntite(rows, knownEntites);
     const typeLabel = /leasing/i.test(sheetName) ? 'Leasing' : /logiciel/i.test(sheetName) ? 'Logiciel / Maintenance' : 'Contrat';
 
     for (let r = headerIdx + 1; r < rows.length; r++) {

@@ -7,7 +7,9 @@ import { SettingsModal } from './components/SettingsModal';
 import { ImportPanel } from './components/ImportPanel';
 import { UsersPanel } from './components/UsersPanel';
 import { IntegrationsPanel } from './components/IntegrationsPanel';
-import { Entite } from './api/types';
+import { EntreprisesPanel } from './components/EntreprisesPanel';
+import { Entite, Entreprise } from './api/types';
+import { useResource } from './hooks/useResource';
 
 type MainView = 'recouvrement' | 'contrats';
 type EntityFilter = Entite | 'ALL';
@@ -26,14 +28,21 @@ export function App() {
   const [importOpen, setImportOpen] = useState(false);
   const [usersOpen, setUsersOpen] = useState(false);
   const [integrationsOpen, setIntegrationsOpen] = useState(false);
+  const [entreprisesOpen, setEntreprisesOpen] = useState(false);
   const [dataVersion, setDataVersion] = useState(0);
   const bumpDataVersion = () => setDataVersion((v) => v + 1);
 
+  const { data: entreprises, refetch: refetchEntreprises } = useResource<Entreprise[]>(user ? '/api/entreprises' : null);
+
   const availableEntities = useMemo<EntityFilter[]>(() => {
     if (!user) return ['ALL'];
-    if (user.role === 'admin' || !user.entite) return ['ALL', 'SORAM', 'SIS', 'IRIS'];
+    // L'entité commune ("COMMUN") est un pseudo-groupe partagé, jamais un
+    // onglet de filtre sélectionnable — comme avant l'ajout des entités
+    // dynamiques.
+    const codes = (entreprises ?? []).filter((e) => !e.estCommun).map((e) => e.code);
+    if (user.role === 'admin' || !user.entite) return ['ALL', ...codes];
     return [user.entite];
-  }, [user]);
+  }, [user, entreprises]);
 
   const effectiveEntity: EntityFilter = availableEntities.includes(entityFilter) ? entityFilter : availableEntities[0];
 
@@ -85,6 +94,7 @@ export function App() {
           {isAdmin && <button onClick={() => setImportOpen(true)}>Importer un fichier</button>}
           {isAdmin && <button onClick={() => setUsersOpen(true)}>Utilisateurs</button>}
           {isAdmin && <button onClick={() => setIntegrationsOpen(true)}>Intégrations</button>}
+          {isAdmin && <button onClick={() => setEntreprisesOpen(true)}>Entreprises</button>}
           <div className="topbar-user">
             <strong>{user.nom}</strong>
             <div className="role-badge">{ROLE_LABELS[user.role] ?? user.role}</div>
@@ -112,6 +122,9 @@ export function App() {
       {importOpen && <ImportPanel onClose={() => setImportOpen(false)} onImported={bumpDataVersion} />}
       {usersOpen && <UsersPanel onClose={() => setUsersOpen(false)} />}
       {integrationsOpen && <IntegrationsPanel onClose={() => setIntegrationsOpen(false)} />}
+      {entreprisesOpen && (
+        <EntreprisesPanel onClose={() => setEntreprisesOpen(false)} onChanged={refetchEntreprises} />
+      )}
     </div>
   );
 }

@@ -1,4 +1,6 @@
-export type EntiteImport = 'SORAM' | 'SIS' | 'IRIS' | 'COMMUN';
+// Code d'entité géré par la table Entreprise (dynamique, plus un type figé) —
+// voir src/lib/entites.ts.
+export type EntiteImport = string;
 
 export interface ParsedFacture {
   numero: string;

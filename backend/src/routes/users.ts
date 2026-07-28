@@ -1,12 +1,17 @@
 import { Router } from 'express';
 import { prisma } from '../db';
 import { requireAuth, requireRole } from '../middleware/auth';
-import { VALID_ENTITES } from '../lib/entites';
+import { listEntreprises } from '../services/entrepriseService';
 
 export const usersRouter = Router();
 usersRouter.use(requireAuth, requireRole('admin'));
 
 const VALID_ROLES = ['admin', 'manager_entite', 'comptable'];
+
+async function isKnownEntiteCode(code: string): Promise<boolean> {
+  const entreprises = await listEntreprises(true);
+  return entreprises.some((e) => e.code === code);
+}
 
 usersRouter.get('/', async (_req, res, next) => {
   try {
@@ -22,7 +27,7 @@ usersRouter.post('/', async (req, res, next) => {
     if (!nom || !email || !VALID_ROLES.includes(role)) {
       return res.status(400).json({ error: 'nom, email et role (admin|manager_entite|comptable) sont requis' });
     }
-    if (entite && !VALID_ENTITES.includes(entite)) {
+    if (entite && !(await isKnownEntiteCode(entite))) {
       return res.status(400).json({ error: 'entite invalide' });
     }
     if (role === 'manager_entite' && !entite) {
@@ -43,7 +48,7 @@ usersRouter.patch('/:id', async (req, res, next) => {
     if (role && !VALID_ROLES.includes(role)) {
       return res.status(400).json({ error: 'role invalide' });
     }
-    if (entite && !VALID_ENTITES.includes(entite)) {
+    if (entite && !(await isKnownEntiteCode(entite))) {
       return res.status(400).json({ error: 'entite invalide' });
     }
     const updated = await prisma.utilisateur.update({

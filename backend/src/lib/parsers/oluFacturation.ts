@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import { toISODate } from '../dates';
 import { ParsedClient } from './types';
+import { DEFAULT_KNOWN_ENTITES, KnownEntite, matchKnownEntite } from './entiteMatch';
 
 // Préfixes courts plutôt que noms complets : certains classeurs abrègent les
 // onglets ("JAN", "FEV") quand d'autres utilisent le nom complet
@@ -24,7 +25,10 @@ function parseAmount(raw: unknown): number {
 // Parseur dédié au classeur "TABLEAU_FACTURATION_OLU" : onglets mensuels avec
 // sections SORAM AFRIQUE / SIS, colonnes N° FACTURE / DATE / NOM CLIENT / MONTANT HT / MONTANT TTC / DATE DE PAIEMENT.
 // Échéance = date de facture + 30 jours. Impayée si DATE DE PAIEMENT est vide.
-export function parseOluFacturationWorkbook(wb: XLSX.WorkBook): OluFacturationResult {
+export function parseOluFacturationWorkbook(
+  wb: XLSX.WorkBook,
+  knownEntites: KnownEntite[] = DEFAULT_KNOWN_ENTITES,
+): OluFacturationResult {
   const monthSheets = wb.SheetNames.filter((n) => MONTH_SHEET_REGEX.test(n.trim()));
   const clientMap: Record<string, ParsedClient> = {};
   // Un même N° FACTURE réapparaît parfois pour deux lignes de facturation
@@ -38,7 +42,7 @@ export function parseOluFacturationWorkbook(wb: XLSX.WorkBook): OluFacturationRe
   monthSheets.forEach((sheetName) => {
     const ws = wb.Sheets[sheetName];
     const rows: unknown[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
-    let currentEntity: 'SORAM' | 'SIS' | 'IRIS' | null = null;
+    let currentEntity: string | null = null;
 
     rows.forEach((row) => {
       const c0 = row[0],
@@ -62,19 +66,7 @@ export function parseOluFacturationWorkbook(wb: XLSX.WorkBook): OluFacturationRe
         return;
       }
       if (typeof c0 === 'string' && c0.trim() && !c1 && !c3) {
-        const label = c0.trim().toUpperCase();
-        if (label.startsWith('SIS')) {
-          currentEntity = 'SIS';
-          return;
-        }
-        if (label.includes('SORAM')) {
-          currentEntity = 'SORAM';
-          return;
-        }
-        if (label.includes('IRIS')) {
-          currentEntity = 'IRIS';
-          return;
-        }
+        currentEntity = matchKnownEntite(c0, knownEntites);
         return;
       }
       if (!currentEntity) return;

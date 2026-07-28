@@ -50,5 +50,3 @@ export function fmtDate(d: string | null | undefined): string {
   if (!d) return '—';
   return new Date(d).toLocaleDateString('fr-FR');
 }
-
-export const ENTITES = ['SORAM', 'SIS', 'IRIS'] as const;
