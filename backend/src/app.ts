@@ -7,11 +7,16 @@ import { facturesRouter } from './routes/factures';
 import { contractsRouter } from './routes/contracts';
 import { configRouter } from './routes/config';
 import { importRouter } from './routes/importRoutes';
+import { integrationsRouter } from './routes/integrations';
+import { sendEmailRouter } from './routes/sendEmail';
 import { errorHandler } from './middleware/errorHandler';
 
 export function createApp() {
   const app = express();
-  app.use(cors());
+  // CORS_ORIGIN: comma-separated allowlist for production (e.g. the deployed
+  // frontend's URL). Left permissive by default for local development.
+  const allowedOrigins = process.env.CORS_ORIGIN?.split(',').map((o) => o.trim()).filter(Boolean);
+  app.use(cors({ origin: allowedOrigins?.length ? allowedOrigins : true }));
   app.use(express.json());
 
   app.get('/health', (_req, res) => res.json({ ok: true }));
@@ -23,6 +28,8 @@ export function createApp() {
   app.use('/api/contracts', contractsRouter);
   app.use('/api/config', configRouter);
   app.use('/api/import', importRouter);
+  app.use('/api/integrations', integrationsRouter);
+  app.use('/api/send-email', sendEmailRouter);
 
   app.use(errorHandler);
   return app;

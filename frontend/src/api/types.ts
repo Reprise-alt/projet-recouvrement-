@@ -136,6 +136,14 @@ export interface ContractDoc {
   body: string;
 }
 
+export interface GmailStatus {
+  connected: boolean;
+  compteEmail: string | null;
+  derniereSync: string | null;
+}
+
+export type SendEmailContext = { type: 'client_letter'; clientId: string; palier: number } | { type: 'contract_doc'; contratId: string };
+
 export interface ImportSummary {
   message: string;
   summary: {

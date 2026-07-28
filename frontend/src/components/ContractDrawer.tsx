@@ -16,8 +16,9 @@ export function ContractDrawer({ contratId, role, onClose, onChanged }: Props) {
   const { showToast } = useToast();
   const { data: contrat, loading, error, refetch } = useResource<ContractDetail>(`/api/contracts/${contratId}`);
   const [doc, setDoc] = useState<ContractDoc | null>(null);
-  const [recording, setRecording] = useState(false);
+  const [sending, setSending] = useState(false);
   const [destinataire, setDestinataire] = useState('');
+  const [sendStatus, setSendStatus] = useState<{ kind: 'ok' | 'err'; message: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
   const canAct = role === 'admin' || role === 'manager_entite';
@@ -43,23 +44,25 @@ export function ContractDrawer({ contratId, role, onClose, onChanged }: Props) {
     );
   }
 
-  async function handleRecordEnvoi(e: FormEvent<HTMLFormElement>) {
+  async function handleSendEmail(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!doc) return;
     setBusy(true);
+    setSendStatus(null);
     try {
-      await api.post(`/api/contracts/${contratId}/envois`, {
-        label: doc.subject,
-        destinataire,
-        sujet: doc.subject,
-        corps: doc.body,
+      await api.post('/api/send-email', {
+        to: destinataire,
+        subject: doc.subject,
+        body: doc.body,
+        context: { type: 'contract_doc', contratId },
       });
-      showToast('Envoi enregistré');
-      setRecording(false);
+      setSendStatus({ kind: 'ok', message: 'Message envoyé avec succès.' });
+      setSending(false);
+      setDoc(null);
       refetch();
       onChanged();
     } catch (err) {
-      showToast(err instanceof ApiError ? err.message : 'Erreur');
+      setSendStatus({ kind: 'err', message: err instanceof ApiError ? err.message : "Échec de l'envoi." });
     } finally {
       setBusy(false);
     }
@@ -151,22 +154,27 @@ export function ContractDrawer({ contratId, role, onClose, onChanged }: Props) {
                     <div className="letter-preview">{doc.body}</div>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
                       <button onClick={copyDoc}>Copier le texte</button>
-                      {!recording && <button className="primary" onClick={() => setRecording(true)}>Enregistrer l'envoi</button>}
+                      {!sending && (
+                        <button className="primary" onClick={() => setSending(true)}>
+                          Envoyer par email (validation requise)
+                        </button>
+                      )}
                     </div>
-                    {recording && (
-                      <form onSubmit={handleRecordEnvoi} style={{ marginTop: 10 }}>
+                    {sending && (
+                      <form onSubmit={handleSendEmail} style={{ marginTop: 10 }}>
                         <label>Destinataire</label>
                         <input type="email" value={destinataire} onChange={(e) => setDestinataire(e.target.value)} required />
                         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                           <button className="primary" type="submit" disabled={busy}>
-                            Confirmer l'envoi (manuel)
+                            Confirmer et envoyer
                           </button>
-                          <button type="button" onClick={() => setRecording(false)}>
+                          <button type="button" onClick={() => setSending(false)}>
                             Annuler
                           </button>
                         </div>
                       </form>
                     )}
+                    {sendStatus && <div className={`send-status ${sendStatus.kind === 'ok' ? 'ok' : 'err'}`}>{sendStatus.message}</div>}
                   </>
                 )}
               </div>

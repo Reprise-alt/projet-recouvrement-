@@ -143,12 +143,19 @@ model Config {
   j7 Int @default(90)
 }
 
-// Statut des connecteurs API externes — les clés elles-mêmes vivent en variables
-// d'environnement / secret manager, jamais dans cette table.
+// Statut des connecteurs API externes. Les clés statiques (ARTIS, MAPON à
+// venir) vivent en variables d'environnement / secret manager, jamais ici.
+// Le refresh token OAuth2 de Gmail est une exception : il est généré
+// dynamiquement par le flux de consentement Google et doit être persisté
+// quelque part pour survivre aux redémarrages — il est donc stocké ici, mais
+// n'est jamais renvoyé par l'API (voir routes/integrations.ts) et ne devrait
+// pas non plus être lu en clair depuis un dump de base sans précaution.
 model IntegrationCredential {
   id           String             @id @default(cuid())
   service      ServiceIntegration
   entite       Entite?
   statut       StatutIntegration  @default(inactif)
   derniereSync DateTime?
+  compteEmail  String?
+  refreshToken String?
 }

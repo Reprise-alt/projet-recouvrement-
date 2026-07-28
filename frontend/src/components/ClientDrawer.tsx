@@ -20,6 +20,8 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
   const [addingFacture, setAddingFacture] = useState(false);
   const [actionNote, setActionNote] = useState('');
   const [letterText, setLetterText] = useState<string | null>(null);
+  const [sendTo, setSendTo] = useState('');
+  const [sendStatus, setSendStatus] = useState<{ kind: 'ok' | 'err'; message: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
   const canEditContact = role === 'admin' || role === 'manager_entite';
@@ -92,8 +94,31 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
     try {
       const { text } = await api.get<{ text: string }>(`/api/clients/${clientId}/letters/${palierId}`);
       setLetterText(text);
+      setSendTo(client?.email ?? '');
+      setSendStatus(null);
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSendEmail(palierId: number) {
+    if (!letterText || !client) return;
+    setBusy(true);
+    setSendStatus(null);
+    try {
+      await api.post('/api/send-email', {
+        to: sendTo,
+        subject: `${PALIERS[palierId].label} — ${client.nom}`,
+        body: letterText,
+        context: { type: 'client_letter', clientId, palier: palierId },
+      });
+      setSendStatus({ kind: 'ok', message: 'Message envoyé avec succès.' });
+      setLetterText(null);
+      afterMutation();
+    } catch (err) {
+      setSendStatus({ kind: 'err', message: err instanceof ApiError ? err.message : "Échec de l'envoi." });
     } finally {
       setBusy(false);
     }
@@ -296,9 +321,17 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
                 {letterText && (
                   <>
                     <div className="letter-preview">{letterText}</div>
-                    <button style={{ marginTop: 8 }} onClick={copyLetter}>
-                      Copier le texte
-                    </button>
+                    <div style={{ marginTop: 10 }}>
+                      <label>Destinataire</label>
+                      <input type="email" value={sendTo} onChange={(e) => setSendTo(e.target.value)} />
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                      <button onClick={copyLetter}>Copier le texte</button>
+                      <button className="primary" disabled={busy || !sendTo} onClick={() => handleSendEmail(client.palier)}>
+                        Envoyer par email (validation requise)
+                      </button>
+                    </div>
+                    {sendStatus && <div className={`send-status ${sendStatus.kind === 'ok' ? 'ok' : 'err'}`}>{sendStatus.message}</div>}
                   </>
                 )}
               </div>

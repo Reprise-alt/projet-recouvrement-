@@ -6,6 +6,7 @@ import { ContractsView } from './components/ContractsView';
 import { SettingsModal } from './components/SettingsModal';
 import { ImportPanel } from './components/ImportPanel';
 import { UsersPanel } from './components/UsersPanel';
+import { IntegrationsPanel } from './components/IntegrationsPanel';
 import { Entite } from './api/types';
 
 type MainView = 'recouvrement' | 'contrats';
@@ -24,6 +25,7 @@ export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [usersOpen, setUsersOpen] = useState(false);
+  const [integrationsOpen, setIntegrationsOpen] = useState(false);
   const [dataVersion, setDataVersion] = useState(0);
   const bumpDataVersion = () => setDataVersion((v) => v + 1);
 
@@ -82,6 +84,7 @@ export function App() {
           {isAdmin && <button onClick={() => setSettingsOpen(true)}>Paramètres des paliers</button>}
           {isAdmin && <button onClick={() => setImportOpen(true)}>Importer un fichier</button>}
           {isAdmin && <button onClick={() => setUsersOpen(true)}>Utilisateurs</button>}
+          {isAdmin && <button onClick={() => setIntegrationsOpen(true)}>Intégrations</button>}
           <div className="topbar-user">
             <strong>{user.nom}</strong>
             <div className="role-badge">{ROLE_LABELS[user.role] ?? user.role}</div>
@@ -108,6 +111,7 @@ export function App() {
       {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} onSaved={bumpDataVersion} />}
       {importOpen && <ImportPanel onClose={() => setImportOpen(false)} onImported={bumpDataVersion} />}
       {usersOpen && <UsersPanel onClose={() => setUsersOpen(false)} />}
+      {integrationsOpen && <IntegrationsPanel onClose={() => setIntegrationsOpen(false)} />}
     </div>
   );
 }
