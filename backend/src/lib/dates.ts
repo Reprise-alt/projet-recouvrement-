@@ -25,6 +25,12 @@ function excelSerialToISO(n: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+function isValidCalendarDate(year: number, month: number, day: number): boolean {
+  if (month < 1 || month > 12 || day < 1) return false;
+  const daysInMonth = new Date(year, month, 0).getDate();
+  return day <= daysInMonth;
+}
+
 // Normalise une valeur de cellule Excel/CSV (numéro de série, Date, ou texte
 // dans divers formats) en chaîne ISO YYYY-MM-DD. Renvoie '' si non interprétable.
 export function toISODate(v: unknown): string {
@@ -33,8 +39,22 @@ export function toISODate(v: unknown): string {
   if (typeof v === 'number') return excelSerialToISO(v);
   const s = String(v).trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+
   const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
-  if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+  if (m) {
+    const year = parseInt(m[3], 10);
+    let day = parseInt(m[1], 10);
+    let month = parseInt(m[2], 10);
+    // Convention attendue jour/mois/année, mais certaines colonnes (constaté
+    // sur un vrai fichier) utilisent le format américain mois/jour/année —
+    // si le "mois" détecté est impossible, on retente en permutant.
+    if (!isValidCalendarDate(year, month, day) && isValidCalendarDate(year, day, month)) {
+      [day, month] = [month, day];
+    }
+    if (!isValidCalendarDate(year, month, day)) return '';
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  }
+
   const d = new Date(s);
   return isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
 }
