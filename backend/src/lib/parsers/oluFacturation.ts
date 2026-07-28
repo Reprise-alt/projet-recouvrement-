@@ -2,7 +2,10 @@ import * as XLSX from 'xlsx';
 import { toISODate } from '../dates';
 import { ParsedClient } from './types';
 
-const MONTH_SHEET_REGEX = /^(JANV|F[EÉ]VR|MARS|AVRIL|MAI|JUIN|JUIL|AO[UÛ]T|SEPT|OCT|NOV|D[EÉ]C)/i;
+// Préfixes courts plutôt que noms complets : certains classeurs abrègent les
+// onglets ("JAN", "FEV") quand d'autres utilisent le nom complet
+// ("JANVIER 2026") — un préfixe de 3 lettres matche les deux formes.
+const MONTH_SHEET_REGEX = /^(JAN|F[EÉ]V|MARS|AVRIL|MAI|JUIN|JUIL|AO[UÛ]T|SEPT|OCT|NOV|D[EÉ]C)/i;
 
 export function isOluFacturationWorkbook(wb: XLSX.WorkBook): boolean {
   return wb.SheetNames.some((n) => MONTH_SHEET_REGEX.test(n.trim()));

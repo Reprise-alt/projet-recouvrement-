@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx';
 import { toISODate } from '../dates';
-import { ParsedClient } from './types';
+import { EntiteImport, ParsedClient } from './types';
 
 function normHeader(s: unknown): string {
   return (s || '')
@@ -18,12 +18,41 @@ function findCol(headerRow: unknown[], keyword: string): number {
   return -1;
 }
 
+// La colonne du nom client s'appelle "Raison sociale" sur les fichiers SORAM,
+// mais juste "Client" sur les fichiers IRIS — un `includes('client')` seul
+// matcherait à tort une colonne "Code client".
+function findClientCol(headerRow: unknown[]): number {
+  const raison = findCol(headerRow, 'raison sociale');
+  if (raison >= 0) return raison;
+  return headerRow.findIndex((h) => normHeader(h) === 'client');
+}
+
+function hasClientCol(normalizedHeader: string[]): boolean {
+  return normalizedHeader.some((h) => h.includes('raison sociale') || h === 'client');
+}
+
 function findHeaderRowIndex(rows: unknown[][]): number {
   for (let i = 0; i < Math.min(rows.length, 6); i++) {
     const norm = (rows[i] || []).map(normHeader);
-    if (norm.some((h) => h.includes('raison sociale')) && norm.some((h) => h.includes('début') || h.includes('fin'))) return i;
+    if (hasClientCol(norm) && norm.some((h) => h.includes('début') || h.includes('fin'))) return i;
   }
   return -1;
+}
+
+// Les onglets portent un bandeau titre ("SORAM AFRIQUE – Suivi des contrats…",
+// "IRIS AFRIQUE – Suivi des contrats…") au-dessus de l'en-tête — on s'en sert
+// pour déterminer l'entité plutôt que de la figer en dur, un même parseur
+// servant aussi bien aux classeurs SORAM qu'IRIS.
+function detectEntite(rows: unknown[][]): EntiteImport {
+  for (const row of rows.slice(0, 6)) {
+    for (const cell of row) {
+      const text = (cell || '').toString().toUpperCase();
+      if (text.includes('IRIS')) return 'IRIS';
+      if (text.includes('SORAM')) return 'SORAM';
+      if (text.includes('SIS')) return 'SIS';
+    }
+  }
+  return 'SORAM';
 }
 
 export function isContractTrackingWorkbook(wb: XLSX.WorkBook): boolean {
@@ -43,6 +72,15 @@ export interface ContractTrackingResult {
 // Logiciel, détection de la tacite reconduction via la colonne "issue contrat".
 export function parseContractTrackingWorkbook(wb: XLSX.WorkBook): ContractTrackingResult {
   const clientMap: Record<string, ParsedClient> = {};
+  // Quand ni "Libellé contrat" ni "Code" n'existent pour distinguer plusieurs
+  // contrats d'un même client (cas du fichier IRIS), on numérote par ordre
+  // d'apparition plutôt que de tous les nommer pareil et les faire s'écraser.
+  // Limite connue : si l'ordre des lignes de ce client change d'un import à
+  // l'autre, un réimport peut créer un doublon plutôt que mettre à jour le
+  // bon contrat — pas de perte de données, juste une ligne à nettoyer à la
+  // main le cas échéant. Sans identifiant stable dans la source, impossible
+  // de garantir mieux.
+  const contractSeqByClient: Record<string, number> = {};
   let totalContrats = 0;
   let sheetsRead = 0;
 
@@ -54,7 +92,7 @@ export function parseContractTrackingWorkbook(wb: XLSX.WorkBook): ContractTracki
     sheetsRead++;
 
     const header = rows[headerIdx];
-    const colRaison = findCol(header, 'raison sociale');
+    const colRaison = findClientCol(header);
     const colDebut = findCol(header, 'début');
     const colFin = findCol(header, 'fin');
     const colIssue = findCol(header, 'issue contrat');
@@ -64,6 +102,7 @@ export function parseContractTrackingWorkbook(wb: XLSX.WorkBook): ContractTracki
     const colCode = findCol(header, 'code');
     if (colRaison < 0 || colFin < 0) return;
 
+    const entite = detectEntite(rows);
     const typeLabel = /leasing/i.test(sheetName) ? 'Leasing' : /logiciel/i.test(sheetName) ? 'Logiciel / Maintenance' : 'Contrat';
 
     for (let r = headerIdx + 1; r < rows.length; r++) {
@@ -80,14 +119,21 @@ export function parseContractTrackingWorkbook(wb: XLSX.WorkBook): ContractTracki
       const libelle = colLibelle >= 0 ? (row[colLibelle] || '').toString().trim() : '';
       const code = colCode >= 0 ? row[colCode] : '';
       const nom = nomRaw.replace(/\s+/g, ' ').trim();
-      const key = nom.toUpperCase() + '|SORAM';
+      const key = nom.toUpperCase() + '|' + entite;
 
       if (!clientMap[key]) {
-        clientMap[key] = { nom, entite: 'SORAM', contact: '', email: '', tel: '', factures: [], contrats: [] };
+        clientMap[key] = { nom, entite, contact: '', email: '', tel: '', factures: [], contrats: [] };
       }
+
+      let numero = libelle || (code ? 'Contrat ' + code : '');
+      if (!numero) {
+        const seq = (contractSeqByClient[key] = (contractSeqByClient[key] || 0) + 1);
+        numero = seq === 1 ? typeLabel : `${typeLabel} ${seq}`;
+      }
+
       totalContrats++;
       clientMap[key].contrats.push({
-        numero: libelle || (code ? 'Contrat ' + code : typeLabel),
+        numero,
         type: typeLabel,
         dateDebut,
         dateFin,

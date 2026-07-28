@@ -24,6 +24,7 @@ function buildFacturationWorkbook(): XLSX.WorkBook {
 
 function buildContractTrackingWorkbook(): XLSX.WorkBook {
   const rows = [
+    ['SORAM AFRIQUE – Suivi des contrats Leasing', '', '', '', '', '', '', ''],
     ['RAISON SOCIALE', 'DATE DE DÉBUT', 'DATE DE FIN', 'ISSUE CONTRAT', 'STATUT', 'COMMENTAIRE', 'LIBELLÉ CONTRAT', 'CODE'],
     ['Teranga Négoce SA', '01/01/2025', '31/12/2027', 'Tacite reconduction', 'Actif', 'RAS', 'Leasing imprimante X200', 'C-001'],
     ['Baobab Distribution', '01/01/2024', '01/08/2026', 'Résiliation', 'Actif', '', '', 'C-002'],
@@ -31,6 +32,22 @@ function buildContractTrackingWorkbook(): XLSX.WorkBook {
   const sheet = XLSX.utils.aoa_to_sheet(rows);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, sheet, 'Leasing');
+  return wb;
+}
+
+// Variante rencontrée sur les vrais fichiers IRIS : colonne "Client" au lieu
+// de "Raison sociale", et ni "Libellé contrat" ni "Code" pour distinguer
+// plusieurs contrats d'un même client.
+function buildIrisStyleContractWorkbook(): XLSX.WorkBook {
+  const rows = [
+    ["IRIS AFRIQUE – Suivi des contrats GPS Fleet Management", '', '', '', ''],
+    ['Client', 'Début', 'Fin contrat', 'Statut', 'Issue contrat'],
+    ['Societe Generale', '01/01/2024', '16/06/2027', 'En cours', 'Tacite reconduction'],
+    ['Societe Generale', '01/01/2024', '16/06/2027', 'En cours', 'Tacite reconduction'],
+  ];
+  const sheet = XLSX.utils.aoa_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, sheet, '📡 Clients IRIS Afrique');
   return wb;
 }
 
@@ -62,6 +79,22 @@ describe('parseOluFacturationWorkbook', () => {
     expect(baobab.factures[0].statut).toBe('payee');
     expect(baobab.factures[0].datePaiement).toBe('2026-05-20');
   });
+
+  it('recognizes 3-letter month abbreviations ("JAN", "FEV"), not just the 4-letter ones', () => {
+    const rows = [
+      ['IRIS', '', '', '', '', ''],
+      ['N° FACTURE', 'DATE', 'NOM CLIENT', 'MONTANT HT', 'MONTANT TTC', 'DATE DE PAIEMENT'],
+      [1, '15/01/2026', 'Client Janvier', 100000, 125000, ''],
+    ];
+    const sheet = XLSX.utils.aoa_to_sheet(rows);
+    const wbJan = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wbJan, sheet, 'JAN');
+
+    expect(isOluFacturationWorkbook(wbJan)).toBe(true);
+    const result = parseOluFacturationWorkbook(wbJan);
+    expect(result.sheetsRead).toBe(1);
+    expect(result.totalFactures).toBe(1);
+  });
 });
 
 describe('parseContractTrackingWorkbook', () => {
@@ -87,9 +120,30 @@ describe('parseContractTrackingWorkbook', () => {
     expect(baobab.contrats[0].numero).toBe('Contrat C-002');
   });
 
-  it('assigns all contracts from this tracking sheet to SORAM', () => {
+  it('detects the entité from the sheet banner rather than assuming SORAM', () => {
     const result = parseContractTrackingWorkbook(wb);
     expect(result.clients.every((c) => c.entite === 'SORAM')).toBe(true);
+  });
+});
+
+describe('parseContractTrackingWorkbook — IRIS-style header ("Client" column, no libellé/code)', () => {
+  const wb = buildIrisStyleContractWorkbook();
+
+  it('detects the workbook via a "Client" header column, not just "Raison sociale"', () => {
+    expect(isContractTrackingWorkbook(wb)).toBe(true);
+  });
+
+  it('detects IRIS as the entité from the sheet banner text', () => {
+    const result = parseContractTrackingWorkbook(wb);
+    expect(result.clients.every((c) => c.entite === 'IRIS')).toBe(true);
+  });
+
+  it('disambiguates two contracts for the same client instead of colliding on the same numero', () => {
+    const result = parseContractTrackingWorkbook(wb);
+    const sg = result.clients.find((c) => c.nom === 'Societe Generale')!;
+    expect(sg.contrats).toHaveLength(2);
+    const numeros = sg.contrats.map((c) => c.numero);
+    expect(new Set(numeros).size).toBe(2);
   });
 });
 
