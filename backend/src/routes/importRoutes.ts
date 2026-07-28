@@ -3,9 +3,15 @@ import multer from 'multer';
 import { buildTemplateCsv } from '../lib/csvTemplate';
 import { parseImportBuffer } from '../lib/parsers';
 import { applyImport } from '../services/importService';
+import { requireAuth, requireRole } from '../middleware/auth';
 
 export const importRouter = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+
+// L'import de fichiers touche potentiellement les 3 entités et crée des
+// clients — traité comme une opération globale, réservée à l'admin (§4),
+// au même titre que la configuration et les futurs connecteurs.
+importRouter.use(requireAuth, requireRole('admin'));
 
 importRouter.get('/template', (_req, res) => {
   const csv = buildTemplateCsv();

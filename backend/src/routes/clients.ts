@@ -3,17 +3,20 @@ import { prisma } from '../db';
 import { getConfig } from '../services/configService';
 import { clientEncours, clientJoursRetard, clientOldestEcheance, clientPalier, computePalier, PALIERS } from '../lib/paliers';
 import { generateLetter } from '../lib/letters';
+import { Entite, resolveEntiteScope } from '../lib/entites';
+import { assertEntiteInScope, requireAuth, requireRole } from '../middleware/auth';
 
 export const clientsRouter = Router();
+clientsRouter.use(requireAuth);
 
-function entiteWhere(entiteFilter: string) {
+function entiteWhere(entiteFilter: Entite | 'ALL') {
   if (entiteFilter === 'ALL') return {};
   return { OR: [{ entite: entiteFilter as any }, { entite: 'COMMUN' as any }] };
 }
 
 clientsRouter.get('/kpis', async (req, res, next) => {
   try {
-    const entiteFilter = (req.query.entite as string) || 'ALL';
+    const entiteFilter = resolveEntiteScope(req.user!, req.query.entite);
     const config = await getConfig();
     const clients = await prisma.client.findMany({ where: entiteWhere(entiteFilter), include: { factures: true } });
 
@@ -36,7 +39,7 @@ clientsRouter.get('/kpis', async (req, res, next) => {
 
 clientsRouter.get('/', async (req, res, next) => {
   try {
-    const entiteFilter = (req.query.entite as string) || 'ALL';
+    const entiteFilter = resolveEntiteScope(req.user!, req.query.entite);
     const palierFilter = req.query.palier !== undefined ? parseInt(req.query.palier as string, 10) : null;
     const sortKey = (req.query.sort as string) || 'joursRetard';
     const sortDir = req.query.dir === 'asc' ? 1 : -1;
@@ -101,6 +104,7 @@ clientsRouter.get('/:id', async (req, res, next) => {
       },
     });
     if (!client) return res.status(404).json({ error: 'Client introuvable' });
+    if (!assertEntiteInScope(req, res, client.entite as Entite)) return;
 
     const config = await getConfig();
     res.json({
@@ -114,8 +118,12 @@ clientsRouter.get('/:id', async (req, res, next) => {
   }
 });
 
-clientsRouter.patch('/:id/contact', async (req, res, next) => {
+clientsRouter.patch('/:id/contact', requireRole('admin', 'manager_entite'), async (req, res, next) => {
   try {
+    const existing = await prisma.client.findUnique({ where: { id: req.params.id } });
+    if (!existing) return res.status(404).json({ error: 'Client introuvable' });
+    if (!assertEntiteInScope(req, res, existing.entite as Entite)) return;
+
     const { contact, email, tel } = req.body ?? {};
     const client = await prisma.client.update({
       where: { id: req.params.id },
@@ -131,8 +139,12 @@ clientsRouter.patch('/:id/contact', async (req, res, next) => {
   }
 });
 
-clientsRouter.post('/:id/factures', async (req, res, next) => {
+clientsRouter.post('/:id/factures', requireRole('admin', 'manager_entite'), async (req, res, next) => {
   try {
+    const existing = await prisma.client.findUnique({ where: { id: req.params.id } });
+    if (!existing) return res.status(404).json({ error: 'Client introuvable' });
+    if (!assertEntiteInScope(req, res, existing.entite as Entite)) return;
+
     const { numero, montant, dateFacture, dateEcheance, designation } = req.body ?? {};
     if (!numero || !montant || !dateEcheance) {
       return res.status(400).json({ error: 'Numéro, montant et échéance sont requis' });
@@ -154,8 +166,12 @@ clientsRouter.post('/:id/factures', async (req, res, next) => {
   }
 });
 
-clientsRouter.post('/:id/actions', async (req, res, next) => {
+clientsRouter.post('/:id/actions', requireRole('admin', 'manager_entite', 'comptable'), async (req, res, next) => {
   try {
+    const existing = await prisma.client.findUnique({ where: { id: req.params.id } });
+    if (!existing) return res.status(404).json({ error: 'Client introuvable' });
+    if (!assertEntiteInScope(req, res, existing.entite as Entite)) return;
+
     const palier = Number(req.body?.palier);
     const note = typeof req.body?.note === 'string' ? req.body.note.trim() : '';
     const pal = PALIERS[palier];
@@ -170,10 +186,12 @@ clientsRouter.post('/:id/actions', async (req, res, next) => {
   }
 });
 
-clientsRouter.get('/:id/letters/:palierId', async (req, res, next) => {
+clientsRouter.get('/:id/letters/:palierId', requireRole('admin', 'manager_entite'), async (req, res, next) => {
   try {
     const client = await prisma.client.findUnique({ where: { id: req.params.id }, include: { factures: true } });
     if (!client) return res.status(404).json({ error: 'Client introuvable' });
+    if (!assertEntiteInScope(req, res, client.entite as Entite)) return;
+
     const palierId = parseInt(req.params.palierId, 10);
     if (!PALIERS[palierId]) return res.status(400).json({ error: 'Palier invalide' });
 
