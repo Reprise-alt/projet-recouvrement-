@@ -80,6 +80,27 @@ describe('parseOluFacturationWorkbook', () => {
     expect(baobab.factures[0].datePaiement).toBe('2026-05-20');
   });
 
+  it('disambiguates two distinct billing lines that reuse the same N° FACTURE for the same client', () => {
+    const rows = [
+      ['SORAM AFRIQUE', '', '', '', '', ''],
+      ['N° FACTURE', 'DATE', 'NOM CLIENT', 'MONTANT HT', 'MONTANT TTC', 'DATE DE PAIEMENT'],
+      [9001, '20/02/2026', "SEN'EAU", 946000, 19470, ''],
+      [9001, '20/02/2026', "SEN'EAU", 197500, 1116280, ''],
+    ];
+    const sheet = XLSX.utils.aoa_to_sheet(rows);
+    const wb2 = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb2, sheet, 'FEVRIER 2026');
+
+    const result = parseOluFacturationWorkbook(wb2);
+    expect(result.totalFactures).toBe(2);
+    const seneau = result.clients.find((c) => c.nom === "SEN'EAU")!;
+    expect(seneau.factures).toHaveLength(2);
+    const numeros = seneau.factures.map((f) => f.numero);
+    expect(new Set(numeros).size).toBe(2);
+    // Les deux montants distincts doivent être conservés, pas juste le dernier.
+    expect(seneau.factures.map((f) => f.montant).sort((a, b) => a - b)).toEqual([19470, 1116280]);
+  });
+
   it('recognizes 3-letter month abbreviations ("JAN", "FEV"), not just the 4-letter ones', () => {
     const rows = [
       ['IRIS', '', '', '', '', ''],

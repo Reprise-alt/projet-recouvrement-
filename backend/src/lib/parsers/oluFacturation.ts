@@ -27,6 +27,12 @@ function parseAmount(raw: unknown): number {
 export function parseOluFacturationWorkbook(wb: XLSX.WorkBook): OluFacturationResult {
   const monthSheets = wb.SheetNames.filter((n) => MONTH_SHEET_REGEX.test(n.trim()));
   const clientMap: Record<string, ParsedClient> = {};
+  // Un même N° FACTURE réapparaît parfois pour deux lignes de facturation
+  // bien distinctes chez un même client (même date, montants différents) —
+  // constaté sur les fichiers réels. On désambiguïse plutôt que de planter
+  // sur la contrainte d'unicité (clientId, numero) ou d'écraser une des deux
+  // lignes en silence.
+  const factureSeqByClientNumero: Record<string, number> = {};
   let totalFactures = 0;
 
   monthSheets.forEach((sheetName) => {
@@ -89,8 +95,13 @@ export function parseOluFacturationWorkbook(wb: XLSX.WorkBook): OluFacturationRe
       const ech = new Date(dateFacture);
       ech.setDate(ech.getDate() + 30);
 
+      let numero = 'FA-' + c0;
+      const dedupeKey = key + '|' + numero;
+      const occurrence = (factureSeqByClientNumero[dedupeKey] = (factureSeqByClientNumero[dedupeKey] || 0) + 1);
+      if (occurrence > 1) numero = `${numero}-${occurrence}`;
+
       clientMap[key].factures.push({
-        numero: 'FA-' + c0,
+        numero,
         montant,
         montantHT,
         dateFacture,
