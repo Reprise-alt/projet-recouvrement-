@@ -49,3 +49,7 @@ pour le backend.
   `/api/auth/dev-token` resterait accessible publiquement.
 - `GOOGLE_REDIRECT_URI` doit être exactement l'URL enregistrée sur le client OAuth2 dans Google
   Cloud Console (Authorized redirect URIs), schéma HTTPS inclus.
+- `NODE_ENV=production` étant déjà actif pendant le build lui-même (pas seulement à l'exécution),
+  `npm install` seul ignore les devDependencies (TypeScript, `@types/*`) et le build plante. C'est
+  pour ça que `buildCommand` utilise `npm install --include=dev` plutôt qu'un simple `npm install` —
+  à garder si jamais la commande de build est modifiée.

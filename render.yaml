@@ -9,7 +9,7 @@ services:
     runtime: node
     rootDir: backend
     plan: free
-    buildCommand: npm install && npm run build
+    buildCommand: npm install --include=dev && npm run build
     startCommand: npm run prisma:deploy && npm start
     healthCheckPath: /health
     envVars:
@@ -36,7 +36,7 @@ services:
     name: recouvrement-frontend
     runtime: static
     rootDir: frontend
-    buildCommand: npm install && npm run build
+    buildCommand: npm install --include=dev && npm run build
     staticPublishPath: dist
     envVars:
       - key: VITE_API_URL
