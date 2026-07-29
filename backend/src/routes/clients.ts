@@ -188,7 +188,10 @@ clientsRouter.post('/:id/actions', requireRole('admin', 'manager_entite', 'compt
 
 clientsRouter.get('/:id/letters/:palierId', requireRole('admin', 'manager_entite'), async (req, res, next) => {
   try {
-    const client = await prisma.client.findUnique({ where: { id: req.params.id }, include: { factures: true } });
+    const client = await prisma.client.findUnique({
+      where: { id: req.params.id },
+      include: { factures: true, actions: { orderBy: { date: 'desc' } } },
+    });
     if (!client) return res.status(404).json({ error: 'Client introuvable' });
     if (!assertEntiteInScope(req, res, client.entite as Entite)) return;
 
@@ -196,7 +199,13 @@ clientsRouter.get('/:id/letters/:palierId', requireRole('admin', 'manager_entite
     if (!PALIERS[palierId]) return res.status(400).json({ error: 'Palier invalide' });
 
     const text = generateLetter(
-      { nom: client.nom, entite: client.entite as any, contact: client.contact ?? '', factures: client.factures },
+      {
+        nom: client.nom,
+        entite: client.entite as any,
+        contact: client.contact ?? '',
+        factures: client.factures,
+        actions: client.actions,
+      },
       palierId,
     );
     res.json({ text });

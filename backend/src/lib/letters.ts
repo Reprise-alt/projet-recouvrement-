@@ -4,10 +4,23 @@ import { ContractEcheance, ContractLike, contractEcheance } from './contracts';
 
 export type Entite = 'SORAM' | 'SIS' | 'IRIS' | 'COMMUN';
 
+export interface LetterAction {
+  palier: number;
+  date: Date | string;
+}
+
 export interface LetterClient extends ClientWithFactures {
   nom: string;
   entite: Entite;
   contact: string;
+  actions?: LetterAction[];
+}
+
+function lastActionDate(client: LetterClient, palier: number): string | null {
+  const matches = (client.actions ?? [])
+    .filter((a) => a.palier === palier)
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  return matches.length ? fmtDate(matches[0].date) : null;
 }
 
 function entiteNom(entite: Entite): string {
@@ -19,7 +32,10 @@ function entiteNom(entite: Entite): string {
 
 function letterHeader(client: LetterClient): string {
   const today = fmtDateLong(new Date());
-  return `${entiteNom(client.entite)}\nAmitié 3, École Police, Dakar — Sénégal\n\nDakar, le ${today}\n\nÀ l'attention de : ${client.contact}\n${client.nom}\n\n`;
+  return (
+    `Dakar, le ${today}\n\nÀ l'attention de : ${client.contact}\n${client.nom}\n\n` +
+    `Bonjour,\n\nJ'espère que vous allez bien. Je suis le responsable du recouvrement de l'entreprise ${entiteNom(client.entite)}.\n\n`
+  );
 }
 
 function letterFooter(): string {
@@ -27,8 +43,8 @@ function letterFooter(): string {
 }
 
 // Génère le texte du courrier de recouvrement correspondant au palier atteint.
-// Ports fidèles des templates du prototype — ne pas modifier le ton/contenu
-// juridique sans validation métier (mise en demeure, huissier notamment).
+// La mise en demeure (palier 6) reste un document juridique — ne pas modifier
+// son contenu sans validation métier.
 export function generateLetter(client: LetterClient, palierId: number): string {
   const encours = fmtFCFA(clientEncours(client));
   const jours = clientJoursRetard(client);
@@ -40,8 +56,8 @@ export function generateLetter(client: LetterClient, palierId: number): string {
   if (palierId <= 3) {
     body =
       `Objet : Rappel de règlement — Facture ${numFacture}\n\n` +
-      `Sauf erreur ou omission de notre part, nous constatons que la facture ${numFacture} d'un montant de ${encours}, échue depuis le ${dateEch} (${jours} jours), demeure impayée à ce jour.\n\n` +
-      `Nous vous serions reconnaissants de bien vouloir procéder à son règlement dans les meilleurs délais, ou de nous contacter si un différend justifie ce retard.`;
+      `Je me permets de revenir vers vous au sujet de la facture ${numFacture}, d'un montant de ${encours}, échue depuis le ${dateEch} (${jours} jours). Sauf erreur de notre part, elle reste à ce jour impayée.\n\n` +
+      `N'hésitez pas à me recontacter si un point particulier justifie ce retard — sinon, je vous serais reconnaissant de bien vouloir procéder au règlement dans les meilleurs délais.`;
   } else if (palierId === 4) {
     const serviceLabel =
       client.entite === 'IRIS'
@@ -51,24 +67,28 @@ export function generateLetter(client: LetterClient, palierId: number): string {
           : 'les livraisons de consommables (toners) et interventions techniques';
     body =
       `Objet : Avis de suspension de service\n\n` +
-      `Malgré nos relances successives, votre compte présente à ce jour un encours impayé de ${encours}, la facture la plus ancienne (${numFacture}) étant échue depuis ${jours} jours.\n\n` +
-      `Sans régularisation de votre situation sous 8 jours à compter de la présente, nous nous verrons contraints de suspendre ${serviceLabel} prévu(e)s à votre contrat, jusqu'à apurement du solde.\n\n` +
-      `Nous restons naturellement disposés à examiner un échéancier si votre situation le justifie.`;
+      `Malgré mes relances précédentes, votre compte présente encore un encours impayé de ${encours}, la facture la plus ancienne (${numFacture}) étant échue depuis ${jours} jours.\n\n` +
+      `Je suis désolé d'en arriver là, mais sans régularisation de votre situation sous 8 jours à compter de ce message, nous serons contraints de suspendre ${serviceLabel} prévu(e)s à votre contrat, jusqu'à l'apurement du solde.\n\n` +
+      `Si votre situation le justifie, je reste ouvert à discuter d'un échéancier — n'hésitez pas à me contacter directement.`;
   } else if (palierId === 5) {
     body =
       `Objet : Application des pénalités de retard contractuelles\n\n` +
-      `Votre compte demeurant impayé à hauteur de ${encours} (retard de ${jours} jours sur la facture ${numFacture}), nous vous informons que les pénalités de retard prévues à l'article [Article X] de votre contrat sont applicables à compter de ce jour et viendront s'ajouter au principal dû.\n\n` +
-      `Nous vous invitons à régulariser votre situation sans délai afin d'éviter toute majoration supplémentaire.`;
+      `Votre compte reste impayé à hauteur de ${encours} (retard de ${jours} jours sur la facture ${numFacture}). Je me vois donc contraint de vous informer que les pénalités de retard prévues à l'article [Article X] de votre contrat s'appliquent à compter de ce jour et viendront s'ajouter au montant dû.\n\n` +
+      `Je vous invite à régulariser votre situation dès que possible afin d'éviter toute majoration supplémentaire.`;
   } else if (palierId === 6) {
     body =
       `Objet : MISE EN DEMEURE de payer\n\n` +
       `Par la présente, nous vous mettons en demeure de régler, sous quinzaine à compter de la réception de ce courrier (envoyé en lettre recommandée avec accusé de réception), la somme de ${encours} correspondant à la facture ${numFacture} échue depuis le ${dateEch}, majorée des pénalités contractuelles applicables.\n\n` +
       `À défaut de règlement dans ce délai, nous nous verrons contraints d'engager toute voie de droit utile au recouvrement de notre créance, sans autre préavis, y compris par voie d'huissier.`;
   } else {
+    const miseEnDemeureDate = lastActionDate(client, 6);
+    const miseEnDemeurePhrase = miseEnDemeureDate
+      ? `La mise en demeure du ${miseEnDemeureDate} étant restée sans effet, ce dossier`
+      : `La mise en demeure envoyée précédemment étant restée sans effet, ce dossier`;
     body =
       `Objet : Note interne — Transmission au contentieux\n\n` +
       `Dossier : ${client.nom} (${client.entite})\nEncours : ${encours}\nFacture de référence : ${numFacture}, échue depuis ${jours} jours\n\n` +
-      `La mise en demeure du [date] étant restée sans effet, ce dossier est transmis à l'étude d'huissier pour engagement d'une procédure de recouvrement contentieux.\n\n` +
+      `${miseEnDemeurePhrase} est transmis à l'étude d'huissier pour engagement d'une procédure de recouvrement contentieux.\n\n` +
       `Pièces jointes suggérées : factures impayées, historique des relances, copie de la mise en demeure.`;
   }
   return letterHeader(client) + body + (palierId < 7 ? letterFooter() : '');
@@ -95,7 +115,9 @@ export function generateContractDoc(client: ContractDocClient, c: LetterContract
   const e: ContractEcheance = contractEcheance(c);
   const today = fmtDateLong(new Date());
   const nomEntite = entiteNom(client.entite);
-  const preamble = `${nomEntite}\nAmitié 3, École Police, Dakar — Sénégal\n\nDakar, le ${today}\n\nÀ l'attention de : ${client.contact}\n${client.nom}\n\n`;
+  const preamble =
+    `Dakar, le ${today}\n\nÀ l'attention de : ${client.contact}\n${client.nom}\n\n` +
+    `Bonjour,\n\nJ'espère que vous allez bien. Je suis le responsable du recouvrement de l'entreprise ${nomEntite}.\n\n`;
 
   if (e.type === 'revision_tarif') {
     const subject = `${nomEntite} — Révision tarifaire annuelle — Contrat ${c.numero}`;
