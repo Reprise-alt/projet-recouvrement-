@@ -26,10 +26,20 @@ export interface ClientListItem {
   contact: string | null;
   email: string | null;
   tel: string | null;
+  note: string | null;
   encours: number;
   joursRetard: number;
   palier: number;
   echeanceLaPlusAncienne: string | null;
+}
+
+export interface Contact {
+  id: string;
+  clientId: string;
+  nom: string;
+  fonction: string | null;
+  email: string | null;
+  tel: string | null;
 }
 
 export interface Facture {
@@ -87,9 +97,11 @@ export interface ClientDetail {
   contact: string | null;
   email: string | null;
   tel: string | null;
+  note: string | null;
   factures: Facture[];
   contrats: Contrat[];
   actions: ActionRecouvrement[];
+  contacts: Contact[];
   encours: number;
   joursRetard: number;
   palier: number;

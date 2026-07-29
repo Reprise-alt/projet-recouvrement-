@@ -123,7 +123,14 @@ export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
                   const pal = PALIERS[c.palier];
                   return (
                     <tr key={c.id} className="row-hover" onClick={() => setSelectedClientId(c.id)}>
-                      <td>{c.nom}</td>
+                      <td>
+                        {c.nom}
+                        {c.note && (
+                          <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 2, maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {c.note}
+                          </div>
+                        )}
+                      </td>
                       <td>
                         <span className="entity-tag" style={{ borderLeftColor: entityAccent(c.entite), borderLeftWidth: 3 }}>
                           <EntityLogo entite={c.entite} size={12} />

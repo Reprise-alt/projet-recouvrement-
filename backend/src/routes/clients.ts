@@ -59,6 +59,7 @@ clientsRouter.get('/', async (req, res, next) => {
         contact: c.contact,
         email: c.email,
         tel: c.tel,
+        note: c.note,
         encours,
         joursRetard,
         palier,
@@ -101,6 +102,7 @@ clientsRouter.get('/:id', async (req, res, next) => {
         factures: true,
         contrats: { include: { envois: { orderBy: { date: 'desc' } } } },
         actions: { orderBy: { date: 'desc' } },
+        contacts: { orderBy: { createdAt: 'asc' } },
       },
     });
     if (!client) return res.status(404).json({ error: 'Client introuvable' });
@@ -134,6 +136,89 @@ clientsRouter.patch('/:id/contact', requireRole('admin', 'manager_entite'), asyn
       },
     });
     res.json(client);
+  } catch (err) {
+    next(err);
+  }
+});
+
+clientsRouter.patch('/:id/note', requireRole('admin', 'manager_entite', 'comptable'), async (req, res, next) => {
+  try {
+    const existing = await prisma.client.findUnique({ where: { id: req.params.id } });
+    if (!existing) return res.status(404).json({ error: 'Client introuvable' });
+    if (!assertEntiteInScope(req, res, existing.entite as Entite)) return;
+
+    const note = typeof req.body?.note === 'string' ? req.body.note.trim() : '';
+    const client = await prisma.client.update({
+      where: { id: req.params.id },
+      data: { note: note || null },
+    });
+    res.json(client);
+  } catch (err) {
+    next(err);
+  }
+});
+
+clientsRouter.post('/:id/contacts', requireRole('admin', 'manager_entite'), async (req, res, next) => {
+  try {
+    const existing = await prisma.client.findUnique({ where: { id: req.params.id } });
+    if (!existing) return res.status(404).json({ error: 'Client introuvable' });
+    if (!assertEntiteInScope(req, res, existing.entite as Entite)) return;
+
+    const { nom, fonction, email, tel } = req.body ?? {};
+    if (!nom || typeof nom !== 'string' || !nom.trim()) {
+      return res.status(400).json({ error: 'Le nom du contact est requis' });
+    }
+    const contact = await prisma.contact.create({
+      data: {
+        clientId: req.params.id,
+        nom: nom.trim(),
+        fonction: typeof fonction === 'string' && fonction.trim() ? fonction.trim() : undefined,
+        email: typeof email === 'string' && email.trim() ? email.trim() : undefined,
+        tel: typeof tel === 'string' && tel.trim() ? tel.trim() : undefined,
+      },
+    });
+    res.status(201).json(contact);
+  } catch (err) {
+    next(err);
+  }
+});
+
+clientsRouter.patch('/:id/contacts/:contactId', requireRole('admin', 'manager_entite'), async (req, res, next) => {
+  try {
+    const existing = await prisma.client.findUnique({ where: { id: req.params.id } });
+    if (!existing) return res.status(404).json({ error: 'Client introuvable' });
+    if (!assertEntiteInScope(req, res, existing.entite as Entite)) return;
+
+    const contact = await prisma.contact.findUnique({ where: { id: req.params.contactId } });
+    if (!contact || contact.clientId !== req.params.id) return res.status(404).json({ error: 'Contact introuvable' });
+
+    const { nom, fonction, email, tel } = req.body ?? {};
+    const updated = await prisma.contact.update({
+      where: { id: req.params.contactId },
+      data: {
+        nom: typeof nom === 'string' && nom.trim() ? nom.trim() : undefined,
+        fonction: typeof fonction === 'string' ? fonction.trim() || null : undefined,
+        email: typeof email === 'string' ? email.trim() || null : undefined,
+        tel: typeof tel === 'string' ? tel.trim() || null : undefined,
+      },
+    });
+    res.json(updated);
+  } catch (err) {
+    next(err);
+  }
+});
+
+clientsRouter.delete('/:id/contacts/:contactId', requireRole('admin', 'manager_entite'), async (req, res, next) => {
+  try {
+    const existing = await prisma.client.findUnique({ where: { id: req.params.id } });
+    if (!existing) return res.status(404).json({ error: 'Client introuvable' });
+    if (!assertEntiteInScope(req, res, existing.entite as Entite)) return;
+
+    const contact = await prisma.contact.findUnique({ where: { id: req.params.contactId } });
+    if (!contact || contact.clientId !== req.params.id) return res.status(404).json({ error: 'Contact introuvable' });
+
+    await prisma.contact.delete({ where: { id: req.params.contactId } });
+    res.status(204).end();
   } catch (err) {
     next(err);
   }

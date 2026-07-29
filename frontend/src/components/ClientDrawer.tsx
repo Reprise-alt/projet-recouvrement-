@@ -1,6 +1,6 @@
 import { FormEvent, useState } from 'react';
 import { api, ApiError } from '../api/client';
-import { ClientDetail, RoleUtilisateur } from '../api/types';
+import { ClientDetail, Contact, RoleUtilisateur } from '../api/types';
 import { useResource } from '../hooks/useResource';
 import { useToast } from '../hooks/useToast';
 import { fmtDate, fmtFCFA, PALIERS } from '../lib/constants';
@@ -17,6 +17,8 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
   const { data: client, loading, error, refetch } = useResource<ClientDetail>(`/api/clients/${clientId}`);
 
   const [editingContact, setEditingContact] = useState(false);
+  const [editingNote, setEditingNote] = useState(false);
+  const [addingContact, setAddingContact] = useState(false);
   const [addingFacture, setAddingFacture] = useState(false);
   const [actionNote, setActionNote] = useState('');
   const [letterText, setLetterText] = useState<string | null>(null);
@@ -26,6 +28,7 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
   const [busy, setBusy] = useState(false);
 
   const canEditContact = role === 'admin' || role === 'manager_entite';
+  const canEditNote = role === 'admin' || role === 'manager_entite' || role === 'comptable';
   const canAddFacture = role === 'admin' || role === 'manager_entite';
   const canRecordAction = role === 'admin' || role === 'manager_entite' || role === 'comptable';
   const canGenerateLetter = role === 'admin' || role === 'manager_entite';
@@ -48,6 +51,57 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
       });
       showToast('Contact mis à jour');
       setEditingContact(false);
+      afterMutation();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSaveNote(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = new FormData(e.currentTarget);
+    setBusy(true);
+    try {
+      await api.patch(`/api/clients/${clientId}/note`, { note: form.get('note') });
+      showToast('Note enregistrée');
+      setEditingNote(false);
+      afterMutation();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleAddContact(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = new FormData(e.currentTarget);
+    setBusy(true);
+    try {
+      await api.post(`/api/clients/${clientId}/contacts`, {
+        nom: form.get('nom'),
+        fonction: form.get('fonction'),
+        email: form.get('email'),
+        tel: form.get('tel'),
+      });
+      showToast('Contact ajouté');
+      setAddingContact(false);
+      afterMutation();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDeleteContact(contact: Contact) {
+    if (!confirm(`Supprimer le contact « ${contact.nom} » ?`)) return;
+    setBusy(true);
+    try {
+      await api.delete(`/api/clients/${clientId}/contacts/${contact.id}`);
+      showToast('Contact supprimé');
       afterMutation();
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Erreur');
@@ -214,6 +268,83 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
               </div>
             )}
             <div style={{ fontSize: 12, color: 'var(--ink-soft)', margin: '4px 0 0' }}>Jours de retard : {client.joursRetard} j</div>
+
+            <div className="section-title">
+              <span>Note</span>
+              {canEditNote && !editingNote && <button onClick={() => setEditingNote(true)}>{client.note ? 'Modifier' : '+ Ajouter'}</button>}
+            </div>
+            {editingNote ? (
+              <form onSubmit={handleSaveNote} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <textarea
+                  name="note"
+                  rows={2}
+                  placeholder="Ex : en litige, attend un virement, contact injoignable…"
+                  defaultValue={client.note ?? ''}
+                />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="primary" type="submit" disabled={busy}>
+                    Enregistrer
+                  </button>
+                  <button type="button" onClick={() => setEditingNote(false)}>
+                    Annuler
+                  </button>
+                </div>
+              </form>
+            ) : (
+              client.note && <div style={{ fontSize: 13, color: 'var(--ink-soft)', whiteSpace: 'pre-wrap' }}>{client.note}</div>
+            )}
+
+            <div className="section-title">
+              <span>Contacts</span>
+              {canEditContact && !addingContact && <button onClick={() => setAddingContact(true)}>+ Ajouter</button>}
+            </div>
+            {addingContact && (
+              <form onSubmit={handleAddContact} className="card-mini" style={{ borderColor: 'var(--accent)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div>
+                  <label>Nom</label>
+                  <input type="text" name="nom" required />
+                </div>
+                <div>
+                  <label>Fonction (optionnel)</label>
+                  <input type="text" name="fonction" placeholder="Ex : Comptabilité, Direction…" />
+                </div>
+                <div>
+                  <label>Email</label>
+                  <input type="email" name="email" />
+                </div>
+                <div>
+                  <label>Téléphone</label>
+                  <input type="text" name="tel" />
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="primary" type="submit" disabled={busy}>
+                    Ajouter
+                  </button>
+                  <button type="button" onClick={() => setAddingContact(false)}>
+                    Annuler
+                  </button>
+                </div>
+              </form>
+            )}
+            {client.contacts.length === 0 && !addingContact ? (
+              <div style={{ color: 'var(--ink-soft)', fontSize: 12.5 }}>Aucun contact supplémentaire.</div>
+            ) : (
+              client.contacts.map((c) => (
+                <div className="card-mini" key={c.id}>
+                  <div className="row">
+                    <strong>{c.nom}</strong>
+                    {canEditContact && (
+                      <button style={{ padding: '3px 9px', fontSize: 11 }} disabled={busy} onClick={() => handleDeleteContact(c)}>
+                        Supprimer
+                      </button>
+                    )}
+                  </div>
+                  <div style={{ color: 'var(--ink-soft)', fontSize: 12 }}>
+                    {[c.fonction, c.email, c.tel].filter(Boolean).join(' · ') || '—'}
+                  </div>
+                </div>
+              ))
+            )}
 
             <div className="section-title">
               <span>Palier actuel</span>

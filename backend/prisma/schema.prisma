@@ -52,16 +52,33 @@ model Client {
   contact   String?
   email     String?
   tel       String?
+  note      String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   factures Facture[]
   contrats Contrat[]
   actions  ActionRecouvrement[]
+  contacts Contact[]
 
   // Clé de rapprochement à l'import (Excel manuel aujourd'hui, sync ARTIS/MAPON demain) :
   // un même client ne doit jamais être dupliqué d'un import à l'autre.
   @@unique([nom, entite])
+}
+
+// Contacts supplémentaires d'un client (au-delà du contact principal
+// contact/email/tel ci-dessus, alimenté par l'import Excel) — gérés
+// manuellement depuis la fiche client par les agents (plusieurs
+// interlocuteurs chez un même client : comptabilité, direction, etc.).
+model Contact {
+  id        String   @id @default(cuid())
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId  String
+  nom       String
+  fonction  String?
+  email     String?
+  tel       String?
+  createdAt DateTime @default(now())
 }
 
 model Facture {
