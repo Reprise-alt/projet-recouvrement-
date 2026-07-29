@@ -320,7 +320,13 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
                 </div>
                 {letterText && (
                   <>
-                    <div className="letter-preview">{letterText}</div>
+                    <textarea
+                      className="letter-preview"
+                      rows={10}
+                      value={letterText}
+                      onChange={(e) => setLetterText(e.target.value)}
+                      style={{ width: '100%', resize: 'vertical' }}
+                    />
                     <div style={{ marginTop: 10 }}>
                       <label>Destinataire</label>
                       <input type="email" value={sendTo} onChange={(e) => setSendTo(e.target.value)} />

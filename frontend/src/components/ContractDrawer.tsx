@@ -151,7 +151,13 @@ export function ContractDrawer({ contratId, role, onClose, onChanged }: Props) {
                   </button>
                 ) : (
                   <>
-                    <div className="letter-preview">{doc.body}</div>
+                    <textarea
+                      className="letter-preview"
+                      rows={10}
+                      value={doc.body}
+                      onChange={(e) => setDoc({ ...doc, body: e.target.value })}
+                      style={{ width: '100%', resize: 'vertical' }}
+                    />
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
                       <button onClick={copyDoc}>Copier le texte</button>
                       {!sending && (
