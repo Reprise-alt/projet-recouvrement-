@@ -102,7 +102,7 @@ export function generateLetter(client: LetterClient, palierId: number): string {
       `Dossier : ${client.nom} (${client.entite})\nEncours : ${encours}\nFacture de référence : ${numFacture}, échue depuis ${jours} jours\n\n` +
       `${miseEnDemeurePhrase} est transmis à l'étude d'huissier pour engagement d'une procédure de recouvrement contentieux.`;
   }
-  return letterHeader(client) + body + (palierId < 7 ? letterFooter(client.entite) : '');
+  return letterHeader(client) + body + letterFooter(client.entite);
 }
 
 export interface ContractDocClient {

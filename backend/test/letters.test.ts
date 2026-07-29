@@ -43,10 +43,11 @@ describe('generateLetter', () => {
     expect(text).toContain('quinzaine');
   });
 
-  it('generates an internal note without the client-facing footer at palier 7 (huissier)', () => {
+  it('generates an internal note with the service signature at palier 7 (huissier)', () => {
     const text = generateLetter(baseClient, 7);
     expect(text).toContain('Transmission au contentieux');
-    expect(text).not.toContain('Cordialement');
+    expect(text).toContain('Cordialement');
+    expect(text).toContain('Service Facturation et Recouvrement');
   });
 });
 
