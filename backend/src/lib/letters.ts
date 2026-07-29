@@ -34,12 +34,24 @@ function letterHeader(client: LetterClient): string {
   const today = fmtDateLong(new Date());
   return (
     `Dakar, le ${today}\n\nÀ l'attention de : ${client.contact}\n${client.nom}\n\n` +
-    `Bonjour,\n\nJ'espère que vous allez bien. Je suis le responsable du recouvrement de l'entreprise ${entiteNom(client.entite)}.\n\n`
+    `Bonjour,\n\nJ'espère que vous allez bien. Je vous contacte au nom du service recouvrement de l'entreprise ${entiteNom(client.entite)}.\n\n`
   );
 }
 
-function letterFooter(): string {
-  return `\n\nNous restons à votre disposition pour toute question relative à ce dossier.\n\nCordialement,\n\nFlorian Baudoin\nFondateur & Président, Olu Ecosystems (SORAM · SIS · IRIS Afrique)\nf.baudoin@soram-afrique.com · +221 33 824 30 06`;
+function entiteSignoff(entite: Entite): string {
+  if (entite === 'IRIS') return 'Service Facturation et Recouvrement\nGaëtan — +221 78 300 29 01';
+  if (entite === 'COMMUN') {
+    return (
+      'Service Facturation et Recouvrement\n' +
+      'SORAM · SIS — Téléphone : +221 33 824 30 06\n' +
+      'IRIS Afrique — Gaëtan — +221 78 300 29 01'
+    );
+  }
+  return 'Service Facturation et Recouvrement\nTéléphone : +221 33 824 30 06';
+}
+
+function letterFooter(entite: Entite): string {
+  return `\n\nNous restons à votre disposition pour toute question relative à ce dossier.\n\nCordialement,\n\n${entiteSignoff(entite)}`;
 }
 
 // Génère le texte du courrier de recouvrement correspondant au palier atteint.
@@ -88,10 +100,9 @@ export function generateLetter(client: LetterClient, palierId: number): string {
     body =
       `Objet : Note interne — Transmission au contentieux\n\n` +
       `Dossier : ${client.nom} (${client.entite})\nEncours : ${encours}\nFacture de référence : ${numFacture}, échue depuis ${jours} jours\n\n` +
-      `${miseEnDemeurePhrase} est transmis à l'étude d'huissier pour engagement d'une procédure de recouvrement contentieux.\n\n` +
-      `Pièces jointes suggérées : factures impayées, historique des relances, copie de la mise en demeure.`;
+      `${miseEnDemeurePhrase} est transmis à l'étude d'huissier pour engagement d'une procédure de recouvrement contentieux.`;
   }
-  return letterHeader(client) + body + (palierId < 7 ? letterFooter() : '');
+  return letterHeader(client) + body + (palierId < 7 ? letterFooter(client.entite) : '');
 }
 
 export interface ContractDocClient {
@@ -117,7 +128,7 @@ export function generateContractDoc(client: ContractDocClient, c: LetterContract
   const nomEntite = entiteNom(client.entite);
   const preamble =
     `Dakar, le ${today}\n\nÀ l'attention de : ${client.contact}\n${client.nom}\n\n` +
-    `Bonjour,\n\nJ'espère que vous allez bien. Je suis le responsable du recouvrement de l'entreprise ${nomEntite}.\n\n`;
+    `Bonjour,\n\nJ'espère que vous allez bien. Je vous contacte au nom du service recouvrement de l'entreprise ${nomEntite}.\n\n`;
 
   if (e.type === 'revision_tarif') {
     const subject = `${nomEntite} — Révision tarifaire annuelle — Contrat ${c.numero}`;
@@ -126,7 +137,7 @@ export function generateContractDoc(client: ContractDocClient, c: LetterContract
       `Objet : Révision tarifaire annuelle — Contrat ${c.numero}\n\n` +
       `Conformément à l'article 7.4 de votre contrat prévoyant une révision tarifaire annuelle, nous vous informons que les nouvelles conditions tarifaires entreront en vigueur à compter du ${fmtDate(c.dateRevisionTarif!)}.\n\n` +
       `Un avenant détaillant la grille tarifaire actualisée vous sera transmis séparément pour signature. Nous restons à votre disposition pour toute question.` +
-      letterFooter();
+      letterFooter(client.entite);
     return { subject, body };
   }
 
@@ -139,6 +150,6 @@ export function generateContractDoc(client: ContractDocClient, c: LetterContract
     (c.tacite
       ? `Sauf dénonciation de votre part par lettre recommandée dans les délais prévus au contrat, celui-ci se renouvellera par tacite reconduction. Nous vous transmettons ci-joint un avenant actualisant les conditions pour la période à venir, à votre disposition pour validation.`
       : `Nous vous proposons de formaliser dès à présent le renouvellement de ce contrat. Un projet de nouveau contrat, reprenant vos conditions actuelles et intégrant les éventuelles évolutions convenues, est joint à ce courrier pour relecture et signature.`) +
-    letterFooter();
+    letterFooter(client.entite);
   return { subject, body };
 }

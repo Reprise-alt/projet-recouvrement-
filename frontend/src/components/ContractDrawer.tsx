@@ -172,8 +172,8 @@ export function ContractDrawer({ contratId, role, onClose, onChanged }: Props) {
                     </div>
                     {sending && (
                       <form onSubmit={handleSendEmail} style={{ marginTop: 10 }}>
-                        <label>Destinataire</label>
-                        <input type="email" value={destinataire} onChange={(e) => setDestinataire(e.target.value)} required />
+                        <label>Destinataire(s) — séparés par une virgule</label>
+                        <input type="email" multiple value={destinataire} onChange={(e) => setDestinataire(e.target.value)} required />
                         <div style={{ marginTop: 10 }}>
                           <label>Pièces jointes (5 max, 15 Mo/fichier)</label>
                           <input

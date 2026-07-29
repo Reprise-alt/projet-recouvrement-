@@ -332,8 +332,8 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
                       style={{ width: '100%', resize: 'vertical' }}
                     />
                     <div style={{ marginTop: 10 }}>
-                      <label>Destinataire</label>
-                      <input type="email" value={sendTo} onChange={(e) => setSendTo(e.target.value)} />
+                      <label>Destinataire(s) — séparés par une virgule</label>
+                      <input type="email" multiple value={sendTo} onChange={(e) => setSendTo(e.target.value)} />
                     </div>
                     <div style={{ marginTop: 10 }}>
                       <label>Pièces jointes (5 max, 15 Mo/fichier)</label>
