@@ -88,6 +88,22 @@ describe('gmail lib', () => {
     expect(decoded).toContain('Merci de régulariser.');
   });
 
+  it('sendViaGmail builds a multipart message with attachments when provided', async () => {
+    const { messagesSend } = await mocks();
+    messagesSend.mockResolvedValue({ data: { id: 'msg-456' } });
+
+    const { sendViaGmail } = await import('../src/lib/gmail');
+    const attachment = { filename: 'facture.pdf', mimeType: 'application/pdf', content: Buffer.from('%PDF-fake-content') };
+    await sendViaGmail('refresh-token', 'client@example.sn', 'Sujet', 'Corps du message', [attachment]);
+
+    const call = messagesSend.mock.calls[0][0];
+    const decoded = Buffer.from(call.requestBody.raw.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf-8');
+    expect(decoded).toContain('Content-Type: multipart/mixed');
+    expect(decoded).toContain('Content-Disposition: attachment; filename="facture.pdf"');
+    expect(decoded).toContain('Corps du message');
+    expect(decoded).toContain(Buffer.from('%PDF-fake-content').toString('base64'));
+  });
+
   it('sendViaGmail rewraps invalid_grant errors with an actionable message', async () => {
     const { messagesSend } = await mocks();
     messagesSend.mockRejectedValue(new Error('invalid_grant: Token has been revoked'));

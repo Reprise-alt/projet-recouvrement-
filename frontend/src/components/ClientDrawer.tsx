@@ -21,6 +21,7 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
   const [actionNote, setActionNote] = useState('');
   const [letterText, setLetterText] = useState<string | null>(null);
   const [sendTo, setSendTo] = useState('');
+  const [attachments, setAttachments] = useState<File[]>([]);
   const [sendStatus, setSendStatus] = useState<{ kind: 'ok' | 'err'; message: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -95,6 +96,7 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
       const { text } = await api.get<{ text: string }>(`/api/clients/${clientId}/letters/${palierId}`);
       setLetterText(text);
       setSendTo(client?.email ?? '');
+      setAttachments([]);
       setSendStatus(null);
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Erreur');
@@ -108,14 +110,16 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
     setBusy(true);
     setSendStatus(null);
     try {
-      await api.post('/api/send-email', {
-        to: sendTo,
-        subject: `${PALIERS[palierId].label} — ${client.nom}`,
-        body: letterText,
-        context: { type: 'client_letter', clientId, palier: palierId },
-      });
+      const formData = new FormData();
+      formData.append('to', sendTo);
+      formData.append('subject', `${PALIERS[palierId].label} — ${client.nom}`);
+      formData.append('body', letterText);
+      formData.append('context', JSON.stringify({ type: 'client_letter', clientId, palier: palierId }));
+      attachments.forEach((file) => formData.append('attachments', file));
+      await api.upload('/api/send-email', formData);
       setSendStatus({ kind: 'ok', message: 'Message envoyé avec succès.' });
       setLetterText(null);
+      setAttachments([]);
       afterMutation();
     } catch (err) {
       setSendStatus({ kind: 'err', message: err instanceof ApiError ? err.message : "Échec de l'envoi." });
@@ -330,6 +334,30 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
                     <div style={{ marginTop: 10 }}>
                       <label>Destinataire</label>
                       <input type="email" value={sendTo} onChange={(e) => setSendTo(e.target.value)} />
+                    </div>
+                    <div style={{ marginTop: 10 }}>
+                      <label>Pièces jointes (5 max, 15 Mo/fichier)</label>
+                      <input
+                        type="file"
+                        multiple
+                        onChange={(e) => setAttachments((prev) => [...prev, ...Array.from(e.target.files ?? [])].slice(0, 5))}
+                      />
+                      {attachments.length > 0 && (
+                        <ul style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 12.5 }}>
+                          {attachments.map((file, i) => (
+                            <li key={`${file.name}-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              {file.name} ({(file.size / 1024 / 1024).toFixed(1)} Mo)
+                              <button
+                                type="button"
+                                style={{ padding: '1px 6px', fontSize: 11 }}
+                                onClick={() => setAttachments((prev) => prev.filter((_, j) => j !== i))}
+                              >
+                                Retirer
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
                     <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                       <button onClick={copyLetter}>Copier le texte</button>

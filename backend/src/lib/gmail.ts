@@ -1,4 +1,5 @@
 import { google } from 'googleapis';
+import { randomBytes } from 'crypto';
 
 const SCOPES = ['https://www.googleapis.com/auth/gmail.send', 'https://www.googleapis.com/auth/userinfo.email'];
 
@@ -49,36 +50,86 @@ export async function exchangeCodeForTokens(code: string): Promise<ExchangedToke
   return { refreshToken: tokens.refresh_token, email: data.email };
 }
 
+export interface EmailAttachment {
+  filename: string;
+  mimeType: string;
+  content: Buffer;
+}
+
 function encodeSubject(subject: string): string {
   return `=?utf-8?B?${Buffer.from(subject, 'utf-8').toString('base64')}?=`;
 }
 
-function buildRawMessage(to: string, subject: string, body: string): string {
-  const lines = [
-    `To: ${to}`,
-    `Subject: ${encodeSubject(subject)}`,
-    'MIME-Version: 1.0',
-    'Content-Type: text/plain; charset="UTF-8"',
-    'Content-Transfer-Encoding: 7bit',
-    '',
-    body,
-  ];
-  return Buffer.from(lines.join('\r\n'))
+function encodeBase64Url(raw: string): string {
+  return Buffer.from(raw)
     .toString('base64')
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
     .replace(/=+$/, '');
 }
 
+// Sécurise le nom de fichier utilisé dans les en-têtes MIME : retire tout
+// caractère qui permettrait d'injecter des lignes d'en-tête (CR/LF, guillemets).
+function sanitizeFilename(filename: string): string {
+  return filename.replace(/[\r\n"]/g, '').slice(0, 200) || 'piece-jointe';
+}
+
+function base64Wrap(base64: string): string {
+  return base64.replace(/(.{76})/g, '$1\r\n');
+}
+
+function buildRawMessage(to: string, subject: string, body: string, attachments: EmailAttachment[] = []): string {
+  const headerLines = [`To: ${to}`, `Subject: ${encodeSubject(subject)}`, 'MIME-Version: 1.0'];
+
+  if (!attachments.length) {
+    const lines = [...headerLines, 'Content-Type: text/plain; charset="UTF-8"', 'Content-Transfer-Encoding: 7bit', '', body];
+    return encodeBase64Url(lines.join('\r\n'));
+  }
+
+  const boundary = `----olu360-${randomBytes(12).toString('hex')}`;
+  const parts = [
+    ...headerLines,
+    `Content-Type: multipart/mixed; boundary="${boundary}"`,
+    '',
+    `--${boundary}`,
+    'Content-Type: text/plain; charset="UTF-8"',
+    'Content-Transfer-Encoding: 7bit',
+    '',
+    body,
+  ];
+
+  for (const att of attachments) {
+    const filename = sanitizeFilename(att.filename);
+    parts.push(
+      '',
+      `--${boundary}`,
+      `Content-Type: ${att.mimeType}; name="${filename}"`,
+      'Content-Transfer-Encoding: base64',
+      `Content-Disposition: attachment; filename="${filename}"`,
+      '',
+      base64Wrap(att.content.toString('base64')),
+    );
+  }
+  parts.push('', `--${boundary}--`);
+
+  return encodeBase64Url(parts.join('\r\n'));
+}
+
 // Envoie un email via l'API Gmail avec le refresh token stocké pour le
 // compte dédié (ex: recouvrement@soram-afrique.com). Lève une erreur
 // explicite si le token a été révoqué côté Google (invalid_grant).
-export async function sendViaGmail(refreshToken: string, to: string, subject: string, body: string): Promise<string> {
+export async function sendViaGmail(
+  refreshToken: string,
+  to: string,
+  subject: string,
+  body: string,
+  attachments: EmailAttachment[] = [],
+): Promise<string> {
   const client = getOAuth2Client();
   client.setCredentials({ refresh_token: refreshToken });
   const gmail = google.gmail({ version: 'v1', auth: client });
   try {
-    const res = await gmail.users.messages.send({ userId: 'me', requestBody: { raw: buildRawMessage(to, subject, body) } });
+    const res = await gmail.users.messages.send({ userId: 'me', requestBody: { raw: buildRawMessage(to, subject, body, attachments) } });
     if (!res.data.id) throw new Error("Réponse Gmail inattendue : pas d'identifiant de message");
     return res.data.id;
   } catch (err) {
