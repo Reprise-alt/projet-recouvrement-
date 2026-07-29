@@ -4,7 +4,7 @@ import { useResource } from '../hooks/useResource';
 import { ContractRow, ContractsKpis, Entite, RoleUtilisateur } from '../api/types';
 import { CONTRACT_ALERTS, fmtDate } from '../lib/constants';
 import { ContractDrawer } from './ContractDrawer';
-import { EntityLogo } from './EntityLogo';
+import { EntityLogo, entityAccent } from './EntityLogo';
 
 interface Props {
   entityFilter: Entite | 'ALL';
@@ -84,7 +84,7 @@ export function ContractsView({ entityFilter, role, reloadKey }: Props) {
                     <tr key={r.contratId} className="row-hover" onClick={() => setSelectedId(r.contratId)}>
                       <td>{r.clientNom}</td>
                       <td>
-                        <span className="entity-tag">
+                        <span className="entity-tag" style={{ borderLeftColor: entityAccent(r.entite), borderLeftWidth: 3 }}>
                           <EntityLogo entite={r.entite} size={12} />
                           {r.entite}
                         </span>

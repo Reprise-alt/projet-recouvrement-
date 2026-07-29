@@ -8,7 +8,7 @@ import { ImportPanel } from './components/ImportPanel';
 import { UsersPanel } from './components/UsersPanel';
 import { IntegrationsPanel } from './components/IntegrationsPanel';
 import { EntreprisesPanel } from './components/EntreprisesPanel';
-import { EntityLogo } from './components/EntityLogo';
+import { EntityLogo, entityAccent } from './components/EntityLogo';
 import { Entite, Entreprise } from './api/types';
 import { useResource } from './hooks/useResource';
 
@@ -89,9 +89,12 @@ export function App() {
           <div className="brand-eyebrow">SORAM · IRIS · SIS — écosystème IT</div>
           <h1 className="brand-title">Suivi du recouvrement</h1>
           <div className="brand-partners">
-            <EntityLogo entite="SORAM" size={18} />
-            <EntityLogo entite="SIS" size={18} />
-            <EntityLogo entite="IRIS" size={18} />
+            {(['SORAM', 'SIS', 'IRIS'] as const).map((code) => (
+              <div key={code} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                <EntityLogo entite={code} size={18} />
+                <div style={{ width: 22, height: 2, borderRadius: 1, background: entityAccent(code) }} />
+              </div>
+            ))}
           </div>
         </div>
         <div className="topbar-actions">
@@ -102,7 +105,12 @@ export function App() {
                 className={effectiveEntity === k ? 'active' : ''}
                 onClick={() => setEntityFilter(k)}
                 disabled={availableEntities.length === 1}
-                style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  boxShadow: k !== 'ALL' ? `inset 2px 0 0 ${entityAccent(k)}` : undefined,
+                }}
               >
                 {k !== 'ALL' && <EntityLogo entite={k} size={13} />}
                 {k === 'ALL' ? 'Tous' : k}

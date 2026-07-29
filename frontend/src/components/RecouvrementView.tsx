@@ -4,7 +4,7 @@ import { useResource } from '../hooks/useResource';
 import { ClientListItem, Entite, RecouvrementKpis, RoleUtilisateur } from '../api/types';
 import { fmtDate, fmtFCFA, PALIERS } from '../lib/constants';
 import { ClientDrawer } from './ClientDrawer';
-import { EntityLogo } from './EntityLogo';
+import { EntityLogo, entityAccent } from './EntityLogo';
 
 interface Props {
   entityFilter: Entite | 'ALL';
@@ -125,7 +125,7 @@ export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
                     <tr key={c.id} className="row-hover" onClick={() => setSelectedClientId(c.id)}>
                       <td>{c.nom}</td>
                       <td>
-                        <span className="entity-tag">
+                        <span className="entity-tag" style={{ borderLeftColor: entityAccent(c.entite), borderLeftWidth: 3 }}>
                           <EntityLogo entite={c.entite} size={12} />
                           {c.entite}
                         </span>
