@@ -75,8 +75,8 @@ export function ContractDrawer({ contratId, role, onClose, onChanged }: Props) {
   return (
     <div className="overlay open" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="drawer">
-        <button className="drawer-close" onClick={onClose}>
-          Fermer ✕
+        <button className="drawer-close" onClick={onClose} aria-label="Fermer" title="Fermer">
+          ✕
         </button>
         {loading || !contrat ? (
           <div>{error || 'Chargement…'}</div>

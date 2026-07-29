@@ -154,8 +154,8 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
   return (
     <div className="overlay open" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="drawer">
-        <button className="drawer-close" onClick={onClose}>
-          Fermer ✕
+        <button className="drawer-close" onClick={onClose} aria-label="Fermer" title="Fermer">
+          ✕
         </button>
         {loading || !client ? (
           <div>{error || 'Chargement…'}</div>

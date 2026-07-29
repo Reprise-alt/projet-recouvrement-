@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from './auth/AuthContext';
 import { LoginPage } from './components/LoginPage';
 import { RecouvrementView } from './components/RecouvrementView';
@@ -8,6 +8,7 @@ import { ImportPanel } from './components/ImportPanel';
 import { UsersPanel } from './components/UsersPanel';
 import { IntegrationsPanel } from './components/IntegrationsPanel';
 import { EntreprisesPanel } from './components/EntreprisesPanel';
+import { EntityLogo } from './components/EntityLogo';
 import { Entite, Entreprise } from './api/types';
 import { useResource } from './hooks/useResource';
 
@@ -29,8 +30,19 @@ export function App() {
   const [usersOpen, setUsersOpen] = useState(false);
   const [integrationsOpen, setIntegrationsOpen] = useState(false);
   const [entreprisesOpen, setEntreprisesOpen] = useState(false);
+  const [adminMenuOpen, setAdminMenuOpen] = useState(false);
+  const adminMenuRef = useRef<HTMLDivElement>(null);
   const [dataVersion, setDataVersion] = useState(0);
   const bumpDataVersion = () => setDataVersion((v) => v + 1);
+
+  useEffect(() => {
+    if (!adminMenuOpen) return;
+    function onClickOutside(e: MouseEvent) {
+      if (adminMenuRef.current && !adminMenuRef.current.contains(e.target as Node)) setAdminMenuOpen(false);
+    }
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, [adminMenuOpen]);
 
   const { data: entreprises, refetch: refetchEntreprises } = useResource<Entreprise[]>(user ? '/api/entreprises' : null);
 
@@ -76,6 +88,11 @@ export function App() {
           <div className="brand-rule"></div>
           <div className="brand-eyebrow">SORAM · IRIS · SIS — écosystème IT</div>
           <h1 className="brand-title">Suivi du recouvrement</h1>
+          <div className="brand-partners">
+            <EntityLogo entite="SORAM" size={18} />
+            <EntityLogo entite="SIS" size={18} />
+            <EntityLogo entite="IRIS" size={18} />
+          </div>
         </div>
         <div className="topbar-actions">
           <div className="entity-toggle">
@@ -85,19 +102,77 @@ export function App() {
                 className={effectiveEntity === k ? 'active' : ''}
                 onClick={() => setEntityFilter(k)}
                 disabled={availableEntities.length === 1}
+                style={{ display: 'flex', alignItems: 'center', gap: 6 }}
               >
+                {k !== 'ALL' && <EntityLogo entite={k} size={13} />}
                 {k === 'ALL' ? 'Tous' : k}
               </button>
             ))}
           </div>
-          {isAdmin && <button onClick={() => setSettingsOpen(true)}>Paramètres des paliers</button>}
-          {isAdmin && <button onClick={() => setImportOpen(true)}>Importer un fichier</button>}
-          {isAdmin && <button onClick={() => setUsersOpen(true)}>Utilisateurs</button>}
-          {isAdmin && <button onClick={() => setIntegrationsOpen(true)}>Intégrations</button>}
-          {isAdmin && <button onClick={() => setEntreprisesOpen(true)}>Entreprises</button>}
+          {isAdmin && (
+            <div className="admin-menu" ref={adminMenuRef}>
+              <button className="admin-menu-trigger" onClick={() => setAdminMenuOpen((v) => !v)}>
+                Administration ▾
+              </button>
+              {adminMenuOpen && (
+                <div className="admin-menu-panel">
+                  <button
+                    onClick={() => {
+                      setSettingsOpen(true);
+                      setAdminMenuOpen(false);
+                    }}
+                  >
+                    Paramètres des paliers
+                  </button>
+                  <button
+                    onClick={() => {
+                      setImportOpen(true);
+                      setAdminMenuOpen(false);
+                    }}
+                  >
+                    Importer un fichier
+                  </button>
+                  <button
+                    onClick={() => {
+                      setUsersOpen(true);
+                      setAdminMenuOpen(false);
+                    }}
+                  >
+                    Utilisateurs
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIntegrationsOpen(true);
+                      setAdminMenuOpen(false);
+                    }}
+                  >
+                    Intégrations
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEntreprisesOpen(true);
+                      setAdminMenuOpen(false);
+                    }}
+                  >
+                    Entreprises
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
           <div className="topbar-user">
-            <strong>{user.nom}</strong>
-            <div className="role-badge">{ROLE_LABELS[user.role] ?? user.role}</div>
+            <div className="avatar">
+              {user.nom
+                .split(' ')
+                .map((p) => p[0])
+                .slice(0, 2)
+                .join('')
+                .toUpperCase()}
+            </div>
+            <div className="topbar-user-info">
+              <strong>{user.nom}</strong>
+              <div className="role-badge">{ROLE_LABELS[user.role] ?? user.role}</div>
+            </div>
           </div>
           <button onClick={() => logout()}>Déconnexion</button>
         </div>

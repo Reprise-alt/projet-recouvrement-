@@ -34,9 +34,27 @@ export function LoginPage() {
 
   return (
     <div className="login-wrap">
+      <div className="login-brand">
+        <svg viewBox="0 0 100 100" width="30" height="30">
+          <circle
+            cx="50"
+            cy="50"
+            r="34"
+            fill="none"
+            stroke="#1D9E75"
+            strokeWidth="13"
+            strokeLinecap="round"
+            strokeDasharray="168 46"
+            transform="rotate(100 50 50)"
+          />
+        </svg>
+        <div className="brand-wordmark">
+          <span className="w-olu">OLU</span> <span className="w-360">360</span>
+        </div>
+      </div>
       <div className="login-card">
-        <h1>OLU 360</h1>
-        <div className="sub">Suivi du recouvrement — connexion</div>
+        <h1>Connexion</h1>
+        <div className="sub">Suivi du recouvrement — SORAM · SIS · IRIS Afrique</div>
 
         {supabaseAvailable ? (
           <form onSubmit={handleSubmit}>
