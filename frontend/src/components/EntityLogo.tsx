@@ -1,9 +1,9 @@
 import { useState } from 'react';
 
 const LOGO_PATHS: Record<string, string> = {
-  SORAM: '/logos/soram.svg',
-  SIS: '/logos/sis.svg',
-  IRIS: '/logos/iris.svg',
+  SORAM: '/logos/soram.png',
+  SIS: '/logos/sis.png',
+  IRIS: '/logos/iris-icon.png',
 };
 
 interface Props {
