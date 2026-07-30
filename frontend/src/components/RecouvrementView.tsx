@@ -4,6 +4,7 @@ import { useResource } from '../hooks/useResource';
 import { ClientListItem, Entite, RecouvrementKpis, RoleUtilisateur } from '../api/types';
 import { fmtDate, fmtFCFA, PALIERS } from '../lib/constants';
 import { ClientDrawer } from './ClientDrawer';
+import { BulkRelanceModal } from './BulkRelanceModal';
 import { EntityLogo, entityAccent } from './EntityLogo';
 
 interface Props {
@@ -25,6 +26,7 @@ export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [onlyATraiter, setOnlyATraiter] = useState(false);
+  const [bulkRelance, setBulkRelance] = useState(false);
 
   const kpisPath = `/api/clients/kpis${buildQuery({ entite: entityFilter })}`;
   const listPath = `/api/clients${buildQuery({
@@ -54,6 +56,8 @@ export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
   const rep = kpis.data?.repartition;
   const pct = (n: number) => (rep && rep.total > 0 ? Math.round((n / rep.total) * 100) : 0);
   const aTraiter = list.data?.filter(needsAction) ?? [];
+  const filtered = list.data?.filter((c) => c.nom.toLowerCase().includes(search.trim().toLowerCase()) && (!onlyATraiter || needsAction(c))) ?? [];
+  const canBulkRelance = role === 'admin' || role === 'manager_entite';
 
   return (
     <div>
@@ -150,12 +154,13 @@ export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
             />
             {onlyATraiter && <button onClick={() => setOnlyATraiter(false)}>Afficher tous les clients</button>}
             {palierFilter !== null && <button onClick={() => setPalierFilter(null)}>Effacer le filtre</button>}
+            {palierFilter !== null && palierFilter > 0 && canBulkRelance && filtered.length > 0 && (
+              <button onClick={() => setBulkRelance(true)}>Relance groupée</button>
+            )}
           </div>
         </div>
         <div>
           {(() => {
-            const filtered =
-              list.data?.filter((c) => c.nom.toLowerCase().includes(search.trim().toLowerCase()) && (!onlyATraiter || needsAction(c))) ?? [];
             if (list.loading) {
               return <div className="empty-state">Chargement…</div>;
             }
@@ -255,6 +260,15 @@ export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
 
       {selectedClientId && (
         <ClientDrawer clientId={selectedClientId} role={role} onClose={() => setSelectedClientId(null)} onChanged={refetchAll} />
+      )}
+
+      {bulkRelance && palierFilter !== null && (
+        <BulkRelanceModal
+          palierId={palierFilter}
+          clients={filtered}
+          onClose={() => setBulkRelance(false)}
+          onDone={refetchAll}
+        />
       )}
     </div>
   );
