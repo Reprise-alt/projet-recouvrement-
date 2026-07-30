@@ -5,7 +5,9 @@ import { prisma } from '../db';
 import { requireAuth } from '../middleware/auth';
 import { Entite, resolveEntiteScope } from '../lib/entites';
 import { fmtDate, fmtFCFA } from '../lib/dates';
-import { buildReportingSummary } from '../lib/reporting';
+import { buildReportingSummary, lastNMonthKeys } from '../lib/reporting';
+
+const EVOLUTION_MONTHS = 6;
 
 export const reportingRouter = Router();
 reportingRouter.use(requireAuth);
@@ -47,11 +49,29 @@ async function fetchReportingData(req: Request) {
     where: { date: { gte: period.from, lte: period.to }, client: where },
   });
 
+  // Évolution du délai d'encaissement sur les derniers mois glissants —
+  // indépendante de la période choisie ci-dessus, pour suivre une vraie
+  // tendance dans le temps plutôt qu'un instantané.
+  const evolutionMonths = lastNMonthKeys(EVOLUTION_MONTHS);
+  const evolutionFrom = new Date(`${evolutionMonths[0]}-01T00:00:00.000Z`);
+  const facturesEvolution = await prisma.facture.findMany({
+    where: { statut: 'payee', datePaiement: { gte: evolutionFrom }, client: where },
+  });
+
   const summary = buildReportingSummary(
     period.fromStr,
     period.toStr,
-    factures.map((f) => ({ numero: f.numero, montant: f.montant, datePaiement: f.datePaiement!, clientNom: f.client.nom })),
+    factures.map((f) => ({
+      numero: f.numero,
+      montant: f.montant,
+      dateFacture: f.dateFacture,
+      datePaiement: f.datePaiement!,
+      clientNom: f.client.nom,
+      entite: f.client.entite,
+    })),
     actions,
+    facturesEvolution.map((f) => ({ montant: f.montant, dateFacture: f.dateFacture, datePaiement: f.datePaiement! })),
+    evolutionMonths,
   );
 
   return { summary, factures, period };
@@ -79,11 +99,24 @@ reportingRouter.get('/export.xlsx', async (req, res, next) => {
       ['Période', `${fmtDate(period.from)} au ${fmtDate(period.to)}`],
       ['Factures payées (nombre)', summary.facturesPayees.nombre],
       ['Montant total encaissé (FCFA)', summary.facturesPayees.montantTotal],
+      ['Délai moyen d\'encaissement pondéré (jours)', summary.delaiEncaissement.global !== null ? Math.round(summary.delaiEncaissement.global) : 'N/A'],
       [],
       ['Palier', 'Nombre de relances effectuées'],
       ...summary.relances.map((r) => [r.label, r.nombre]),
     ];
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(resumeRows), 'Résumé');
+
+    const delaiRows: (string | number)[][] = [
+      ['Entité', 'Délai moyen pondéré (jours)', 'Montant encaissé (FCFA)', 'Nombre de factures'],
+      ...summary.delaiEncaissement.parEntite.map((r) => [r.entite, r.delaiJours !== null ? Math.round(r.delaiJours) : 'N/A', r.montantTotal, r.nombre]),
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(delaiRows), 'Délai par entité');
+
+    const evolutionRows: (string | number)[][] = [
+      ['Mois', 'Délai moyen pondéré (jours)', 'Montant encaissé (FCFA)', 'Nombre de factures'],
+      ...summary.evolutionMensuelle.map((r) => [r.mois, r.delaiJours !== null ? Math.round(r.delaiJours) : 'N/A', r.montantTotal, r.nombre]),
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(evolutionRows), 'Évolution mensuelle');
 
     const facturesRows: (string | number)[][] = [
       ['Client', 'N° facture', 'Montant (FCFA)', 'Date de paiement'],
@@ -129,12 +162,31 @@ reportingRouter.get('/export.pdf', async (req, res, next) => {
     doc.moveDown(0.3);
     doc.fontSize(11).fillColor('#1B2430').text(`Nombre : ${summary.facturesPayees.nombre}`);
     doc.text(pdfSafe(`Montant total encaissé : ${fmtFCFA(summary.facturesPayees.montantTotal)}`));
+    doc.text(
+      `Délai moyen d'encaissement (pondéré) : ${summary.delaiEncaissement.global !== null ? `${Math.round(summary.delaiEncaissement.global)} jours` : 'N/A'}`,
+    );
     doc.moveDown(1.2);
+
+    if (summary.delaiEncaissement.parEntite.length > 1) {
+      doc.fontSize(13).text('Délai d\'encaissement par entité');
+      doc.moveDown(0.4);
+      summary.delaiEncaissement.parEntite.forEach((r) => {
+        doc.fontSize(11).text(`${r.entite} : ${r.delaiJours !== null ? `${Math.round(r.delaiJours)} jours` : 'N/A'}`);
+      });
+      doc.moveDown(1.2);
+    }
 
     doc.fontSize(13).text('Relances effectuées par palier');
     doc.moveDown(0.4);
     summary.relances.forEach((r) => {
       doc.fontSize(11).text(`${r.label} : ${r.nombre}`);
+    });
+    doc.moveDown(1.2);
+
+    doc.fontSize(13).text(`Évolution du délai d'encaissement (${EVOLUTION_MONTHS} derniers mois)`);
+    doc.moveDown(0.4);
+    summary.evolutionMensuelle.forEach((r) => {
+      doc.fontSize(11).text(`${r.mois} : ${r.delaiJours !== null ? `${Math.round(r.delaiJours)} jours` : 'N/A'} (${r.nombre} facture(s))`);
     });
 
     doc.end();

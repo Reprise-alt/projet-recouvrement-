@@ -81,6 +81,80 @@ export function ReportingView({ entityFilter }: Props) {
               <div className="kpi-label">Montant encaissé</div>
               <div className="kpi-value">{fmtFCFA(summary.facturesPayees.montantTotal)}</div>
             </div>
+            <div className="kpi">
+              <div className="kpi-label">Délai moyen d'encaissement (pondéré)</div>
+              <div className="kpi-value">
+                {summary.delaiEncaissement.global !== null ? `${Math.round(summary.delaiEncaissement.global)} j` : '—'}
+              </div>
+            </div>
+          </div>
+
+          {summary.delaiEncaissement.parEntite.length > 1 && (
+            <div className="table-card" style={{ marginBottom: 24 }}>
+              <div className="table-head">
+                <div style={{ fontWeight: 600, fontSize: 14 }}>Délai d'encaissement par entité</div>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Entité</th>
+                    <th>Délai moyen pondéré</th>
+                    <th>Montant encaissé</th>
+                    <th>Nb factures</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {summary.delaiEncaissement.parEntite.map((r) => (
+                    <tr key={r.entite}>
+                      <td>{r.entite}</td>
+                      <td className="mono">{r.delaiJours !== null ? `${Math.round(r.delaiJours)} j` : '—'}</td>
+                      <td className="mono">{fmtFCFA(r.montantTotal)}</td>
+                      <td className="mono">{r.nombre}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div className="table-card" style={{ marginBottom: 24 }}>
+            <div className="table-head">
+              <div style={{ fontWeight: 600, fontSize: 14 }}>Évolution du délai d'encaissement (6 derniers mois)</div>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Mois</th>
+                  <th>Délai moyen pondéré</th>
+                  <th>Montant encaissé</th>
+                  <th>Nb factures</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(() => {
+                  const maxDelai = Math.max(1, ...summary.evolutionMensuelle.map((r) => r.delaiJours ?? 0));
+                  return summary.evolutionMensuelle.map((r) => (
+                    <tr key={r.mois}>
+                      <td className="mono">{r.mois}</td>
+                      <td>
+                        {r.delaiJours !== null ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <div style={{ width: 100, height: 8, borderRadius: 4, background: 'var(--paper-2)', overflow: 'hidden' }}>
+                              <div style={{ width: `${(r.delaiJours / maxDelai) * 100}%`, height: '100%', background: 'var(--accent)' }} />
+                            </div>
+                            <span className="mono">{Math.round(r.delaiJours)} j</span>
+                          </div>
+                        ) : (
+                          <span style={{ color: 'var(--ink-soft)' }}>—</span>
+                        )}
+                      </td>
+                      <td className="mono">{fmtFCFA(r.montantTotal)}</td>
+                      <td className="mono">{r.nombre}</td>
+                    </tr>
+                  ));
+                })()}
+              </tbody>
+            </table>
           </div>
 
           <div className="table-card">

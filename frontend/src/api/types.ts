@@ -139,11 +139,27 @@ export interface PalierCount {
   nombre: number;
 }
 
+export interface DelaiParEntite {
+  entite: string;
+  delaiJours: number | null;
+  montantTotal: number;
+  nombre: number;
+}
+
+export interface EvolutionMoisEntry {
+  mois: string;
+  delaiJours: number | null;
+  montantTotal: number;
+  nombre: number;
+}
+
 export interface ReportingSummary {
   from: string;
   to: string;
   facturesPayees: { nombre: number; montantTotal: number };
   relances: PalierCount[];
+  delaiEncaissement: { global: number | null; parEntite: DelaiParEntite[] };
+  evolutionMensuelle: EvolutionMoisEntry[];
 }
 
 export interface PalierConfig {
