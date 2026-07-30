@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { prisma } from '../db';
 import { Entite } from '../lib/entites';
 import { assertEntiteInScope, requireAuth, requireRole } from '../middleware/auth';
+import { fmtDate, fmtFCFA } from '../lib/dates';
 
 export const facturesRouter = Router();
 facturesRouter.use(requireAuth);
@@ -65,6 +66,33 @@ facturesRouter.patch('/:factureId', requireRole('admin', 'manager_entite'), asyn
         designation: typeof designation === 'string' ? designation.trim() || null : undefined,
       },
     });
+
+    // Trace de qui a corrigé quoi — nécessaire depuis qu'une donnée corrompue
+    // à l'import a pu fausser le reporting sans qu'on sache qui l'a réparée.
+    const changements: string[] = [];
+    if (typeof montant === 'number' && montant !== facture.montant) {
+      changements.push(`montant ${fmtFCFA(facture.montant)} → ${fmtFCFA(montant)}`);
+    }
+    if (dateFacture && (!facture.dateFacture || new Date(dateFacture).getTime() !== facture.dateFacture.getTime())) {
+      changements.push(`date facture → ${fmtDate(dateFacture)}`);
+    }
+    if (dateEcheance && new Date(dateEcheance).getTime() !== facture.dateEcheance.getTime()) {
+      changements.push(`échéance → ${fmtDate(dateEcheance)}`);
+    }
+    if (typeof designation === 'string' && designation.trim() !== (facture.designation ?? '')) {
+      changements.push('désignation modifiée');
+    }
+    if (changements.length) {
+      await prisma.actionRecouvrement.create({
+        data: {
+          clientId: facture.clientId,
+          palier: 0,
+          label: 'Facture corrigée',
+          note: `${facture.numero} — ${changements.join(', ')} (par ${req.user!.nom})`,
+        },
+      });
+    }
+
     res.json(updated);
   } catch (err) {
     next(err);
@@ -78,6 +106,14 @@ facturesRouter.delete('/:factureId', requireRole('admin'), async (req, res, next
     if (!assertEntiteInScope(req, res, facture.client.entite as Entite)) return;
 
     await prisma.facture.delete({ where: { id: facture.id } });
+    await prisma.actionRecouvrement.create({
+      data: {
+        clientId: facture.clientId,
+        palier: 0,
+        label: 'Facture supprimée',
+        note: `${facture.numero} — ${fmtFCFA(facture.montant)} (par ${req.user!.nom})`,
+      },
+    });
     res.status(204).end();
   } catch (err) {
     next(err);
