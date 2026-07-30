@@ -12,12 +12,19 @@ interface Props {
   reloadKey: unknown;
 }
 
+function needsAction(c: ClientListItem): boolean {
+  const actionStale = c.palier > 0 && (!c.derniereAction || c.derniereAction.palier < c.palier);
+  const relanceOverdue = c.prochaineRelance ? new Date(c.prochaineRelance) < new Date() : false;
+  return actionStale || relanceOverdue;
+}
+
 export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
   const [palierFilter, setPalierFilter] = useState<number | null>(null);
   const [sortKey, setSortKey] = useState<'nom' | 'encours' | 'joursRetard'>('joursRetard');
   const [sortDir, setSortDir] = useState<1 | -1>(-1);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [onlyATraiter, setOnlyATraiter] = useState(false);
 
   const kpisPath = `/api/clients/kpis${buildQuery({ entite: entityFilter })}`;
   const listPath = `/api/clients${buildQuery({
@@ -46,9 +53,23 @@ export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
   const ladder = kpis.data?.ladder ?? {};
   const rep = kpis.data?.repartition;
   const pct = (n: number) => (rep && rep.total > 0 ? Math.round((n / rep.total) * 100) : 0);
+  const aTraiter = list.data?.filter(needsAction) ?? [];
 
   return (
     <div>
+      {aTraiter.length > 0 && (
+        <div
+          className="digest-banner"
+          onClick={() => {
+            setOnlyATraiter((v) => !v);
+            setPalierFilter(null);
+          }}
+        >
+          ⚠ {aTraiter.length} client{aTraiter.length > 1 ? 's' : ''} à traiter aujourd'hui — palier atteint sans action correspondante, ou promesse de paiement dépassée.
+          {onlyATraiter && <strong> Filtre actif — cliquer pour tout réafficher.</strong>}
+        </div>
+      )}
+
       <div className="kpis">
         <div className="kpi">
           <div className="kpi-label">Encours total</div>
@@ -117,7 +138,7 @@ export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
       <div className="table-card">
         <div className="table-head">
           <div style={{ fontWeight: 600, fontSize: 14 }}>
-            {palierFilter !== null ? `Palier — ${PALIERS[palierFilter].label}` : 'Tous les clients'}
+            {onlyATraiter ? 'À traiter aujourd\'hui' : palierFilter !== null ? `Palier — ${PALIERS[palierFilter].label}` : 'Tous les clients'}
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <input
@@ -127,12 +148,14 @@ export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
               onChange={(e) => setSearch(e.target.value)}
               style={{ width: 220 }}
             />
+            {onlyATraiter && <button onClick={() => setOnlyATraiter(false)}>Afficher tous les clients</button>}
             {palierFilter !== null && <button onClick={() => setPalierFilter(null)}>Effacer le filtre</button>}
           </div>
         </div>
         <div>
           {(() => {
-            const filtered = list.data?.filter((c) => c.nom.toLowerCase().includes(search.trim().toLowerCase())) ?? [];
+            const filtered =
+              list.data?.filter((c) => c.nom.toLowerCase().includes(search.trim().toLowerCase()) && (!onlyATraiter || needsAction(c))) ?? [];
             if (list.loading) {
               return <div className="empty-state">Chargement…</div>;
             }
