@@ -37,6 +37,13 @@ describe('computePalier', () => {
     expect(computePalier(3, custom)).toBe(1);
     expect(computePalier(2, custom)).toBe(0);
   });
+
+  it('scales every threshold by the multiplier for non-monthly billing clients', () => {
+    // 80 jours de retard : palier 6 (Mise en demeure) en mensuel, mais un
+    // client trimestriel (x3) doit rester au palier 2 (80 < 3*30=90).
+    expect(computePalier(80, DEFAULT_CONFIG, 1)).toBe(6);
+    expect(computePalier(80, DEFAULT_CONFIG, 3)).toBe(2);
+  });
 });
 
 describe('client-level helpers', () => {
@@ -85,5 +92,20 @@ describe('client-level helpers', () => {
     const client = { factures: [{ montant: 1000, dateEcheance: '2026-09-01', statut: 'impayee' as const }] };
     expect(clientJoursRetard(client)).toBe(0);
     expect(clientPalier(client)).toBe(0);
+  });
+
+  it('defaults to the monthly (x1) scale when frequenceFacturation is unset', () => {
+    // 2026-07-28 - 2026-05-10 = 79 jours -> palier 6 en mensuel (>= j6=75)
+    const client = { factures: [{ montant: 1000, dateEcheance: '2026-05-10', statut: 'impayee' as const }] };
+    expect(clientPalier(client)).toBe(6);
+  });
+
+  it('spares a quarterly-billed client from a false "en retard" reading', () => {
+    // Même retard (79 jours) mais un client trimestriel (x3) reste palier 2.
+    const client = {
+      factures: [{ montant: 1000, dateEcheance: '2026-05-10', statut: 'impayee' as const }],
+      frequenceFacturation: 'trimestrielle' as const,
+    };
+    expect(clientPalier(client)).toBe(2);
   });
 });

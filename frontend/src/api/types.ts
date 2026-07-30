@@ -2,6 +2,7 @@
 // une chaîne quelconque, validée côté serveur contre la table Entreprise.
 export type Entite = string;
 export type RoleUtilisateur = 'admin' | 'manager_entite' | 'comptable';
+export type FrequenceFacturation = 'mensuelle' | 'trimestrielle' | 'annuelle';
 
 export interface Entreprise {
   id: string;
@@ -34,6 +35,7 @@ export interface ClientListItem {
   tel: string | null;
   note: string | null;
   prochaineRelance: string | null;
+  frequenceFacturation: FrequenceFacturation;
   encours: number;
   joursRetard: number;
   palier: number;
@@ -107,6 +109,7 @@ export interface ClientDetail {
   tel: string | null;
   note: string | null;
   prochaineRelance: string | null;
+  frequenceFacturation: FrequenceFacturation;
   factures: Facture[];
   contrats: Contrat[];
   actions: ActionRecouvrement[];

@@ -12,6 +12,17 @@ export interface PalierConfig {
 
 export const DEFAULT_CONFIG: PalierConfig = { j1: 7, j2: 15, j3: 30, j4: 45, j5: 60, j6: 75, j7: 90 };
 
+export type FrequenceFacturation = 'mensuelle' | 'trimestrielle' | 'annuelle';
+
+// Multiplie l'échelle de paliers pour les clients qui ne payent pas chaque
+// mois — un compte trimestriel à J+80 est simplement dans son cycle normal,
+// pas "en retard" au même titre qu'un client mensuel.
+export const FREQUENCE_MULTIPLIER: Record<FrequenceFacturation, number> = {
+  mensuelle: 1,
+  trimestrielle: 3,
+  annuelle: 12,
+};
+
 export type PalierTone = 'success' | 'amber' | 'danger';
 
 export interface Palier {
@@ -39,15 +50,15 @@ export const PALIERS: Palier[] = [
   { id: 7, label: 'Huissier', tone: 'danger', key: 'j7', desc: 'Transmission au contentieux / huissier de justice' },
 ];
 
-export function computePalier(joursRetard: number, config: PalierConfig = DEFAULT_CONFIG): number {
+export function computePalier(joursRetard: number, config: PalierConfig = DEFAULT_CONFIG, multiplier = 1): number {
   if (joursRetard <= 0) return 0;
-  if (joursRetard < config.j1) return 0;
-  if (joursRetard < config.j2) return 1;
-  if (joursRetard < config.j3) return 2;
-  if (joursRetard < config.j4) return 3;
-  if (joursRetard < config.j5) return 4;
-  if (joursRetard < config.j6) return 5;
-  if (joursRetard < config.j7) return 6;
+  if (joursRetard < config.j1 * multiplier) return 0;
+  if (joursRetard < config.j2 * multiplier) return 1;
+  if (joursRetard < config.j3 * multiplier) return 2;
+  if (joursRetard < config.j4 * multiplier) return 3;
+  if (joursRetard < config.j5 * multiplier) return 4;
+  if (joursRetard < config.j6 * multiplier) return 5;
+  if (joursRetard < config.j7 * multiplier) return 6;
   return 7;
 }
 
@@ -60,6 +71,7 @@ export interface FactureLike {
 
 export interface ClientWithFactures {
   factures: FactureLike[];
+  frequenceFacturation?: FrequenceFacturation;
 }
 
 export function clientEncours(client: ClientWithFactures): number {
@@ -79,5 +91,6 @@ export function clientJoursRetard(client: ClientWithFactures): number {
 }
 
 export function clientPalier(client: ClientWithFactures, config: PalierConfig = DEFAULT_CONFIG): number {
-  return computePalier(clientJoursRetard(client), config);
+  const multiplier = FREQUENCE_MULTIPLIER[client.frequenceFacturation ?? 'mensuelle'];
+  return computePalier(clientJoursRetard(client), config, multiplier);
 }

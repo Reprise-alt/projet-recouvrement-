@@ -105,6 +105,19 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
     }
   }
 
+  async function handleChangeFrequence(frequenceFacturation: string) {
+    setBusy(true);
+    try {
+      await api.patch(`/api/clients/${clientId}/frequence-facturation`, { frequenceFacturation });
+      showToast('Fréquence de facturation mise à jour');
+      afterMutation();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleAddContact(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
@@ -413,6 +426,31 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
                   </div>
                 </div>
               ))
+            )}
+
+            <div className="section-title">
+              <span>Fréquence de facturation</span>
+            </div>
+            {canEditContact ? (
+              <select
+                value={client.frequenceFacturation}
+                disabled={busy}
+                onChange={(e) => handleChangeFrequence(e.target.value)}
+                style={{ maxWidth: 220 }}
+              >
+                <option value="mensuelle">Mensuelle</option>
+                <option value="trimestrielle">Trimestrielle</option>
+                <option value="annuelle">Annuelle</option>
+              </select>
+            ) : (
+              <div style={{ fontSize: 13 }}>
+                {client.frequenceFacturation === 'trimestrielle' ? 'Trimestrielle' : client.frequenceFacturation === 'annuelle' ? 'Annuelle' : 'Mensuelle'}
+              </div>
+            )}
+            {client.frequenceFacturation !== 'mensuelle' && (
+              <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 4 }}>
+                L'échelle de paliers est adaptée en conséquence (seuils ×{client.frequenceFacturation === 'trimestrielle' ? 3 : 12}).
+              </div>
             )}
 
             <div className="section-title">

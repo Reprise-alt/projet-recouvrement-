@@ -196,6 +196,11 @@ export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
                     <tr key={c.id} className="row-hover" onClick={() => setSelectedClientId(c.id)}>
                       <td>
                         {c.nom}
+                        {c.frequenceFacturation !== 'mensuelle' && (
+                          <span className="entity-tag" style={{ marginLeft: 8, fontSize: 10 }} title="L'échelle de paliers est adaptée à ce rythme de facturation">
+                            {c.frequenceFacturation === 'trimestrielle' ? 'Trimestriel' : 'Annuel'}
+                          </span>
+                        )}
                         {c.note && (
                           <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 2, maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {c.note}

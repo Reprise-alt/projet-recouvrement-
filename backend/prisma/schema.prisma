@@ -29,6 +29,15 @@ enum StatutIntegration {
   inactif
 }
 
+// Rythme de facturation d'un client — les gros comptes payant à un rythme
+// trimestriel ou annuel ne doivent pas être jugés "en retard" avec la même
+// échelle qu'un client mensuel (cf. multiplicateur dans lib/paliers.ts).
+enum FrequenceFacturation {
+  mensuelle
+  trimestrielle
+  annuelle
+}
+
 // Liste des entités du groupe (SORAM, SIS, IRIS…), gérable depuis
 // l'interface (admin) plutôt que figée dans un type — permet d'ajouter une
 // nouvelle entreprise sans migration de schéma. `code` est ce qui est stocké
@@ -54,6 +63,7 @@ model Client {
   tel       String?
   note      String?
   prochaineRelance DateTime?
+  frequenceFacturation FrequenceFacturation @default(mensuelle)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

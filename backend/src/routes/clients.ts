@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { prisma } from '../db';
 import { getConfig } from '../services/configService';
-import { clientEncours, clientJoursRetard, clientOldestEcheance, clientPalier, computePalier, PALIERS } from '../lib/paliers';
+import { clientEncours, clientJoursRetard, clientOldestEcheance, clientPalier, PALIERS } from '../lib/paliers';
 import { generateLetter } from '../lib/letters';
 import { Entite, resolveEntiteScope } from '../lib/entites';
 import { assertEntiteInScope, requireAuth, requireRole } from '../middleware/auth';
@@ -65,7 +65,7 @@ clientsRouter.get('/', async (req, res, next) => {
     let list = clients.map((c) => {
       const encours = clientEncours(c);
       const joursRetard = clientJoursRetard(c);
-      const palier = computePalier(joursRetard, config);
+      const palier = clientPalier(c, config);
       const oldest = clientOldestEcheance(c);
       const derniere = c.actions[0];
       return {
@@ -77,6 +77,7 @@ clientsRouter.get('/', async (req, res, next) => {
         tel: c.tel,
         note: c.note,
         prochaineRelance: c.prochaineRelance,
+        frequenceFacturation: c.frequenceFacturation,
         encours,
         joursRetard,
         palier,
@@ -219,6 +220,28 @@ clientsRouter.post('/:id/contacts', requireRole('admin', 'manager_entite'), asyn
       },
     });
     res.status(201).json(contact);
+  } catch (err) {
+    next(err);
+  }
+});
+
+const FREQUENCES_VALIDES = ['mensuelle', 'trimestrielle', 'annuelle'];
+
+clientsRouter.patch('/:id/frequence-facturation', requireRole('admin', 'manager_entite'), async (req, res, next) => {
+  try {
+    const existing = await prisma.client.findUnique({ where: { id: req.params.id } });
+    if (!existing) return res.status(404).json({ error: 'Client introuvable' });
+    if (!assertEntiteInScope(req, res, existing.entite as Entite)) return;
+
+    const frequence = req.body?.frequenceFacturation;
+    if (typeof frequence !== 'string' || !FREQUENCES_VALIDES.includes(frequence)) {
+      return res.status(400).json({ error: `Fréquence invalide — attendu : ${FREQUENCES_VALIDES.join(', ')}` });
+    }
+    const client = await prisma.client.update({
+      where: { id: req.params.id },
+      data: { frequenceFacturation: frequence as any },
+    });
+    res.json(client);
   } catch (err) {
     next(err);
   }
