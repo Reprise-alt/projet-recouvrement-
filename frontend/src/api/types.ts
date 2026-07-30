@@ -131,6 +131,19 @@ export interface RecouvrementKpis {
   config: PalierConfig;
 }
 
+export interface PalierCount {
+  palier: number;
+  label: string;
+  nombre: number;
+}
+
+export interface ReportingSummary {
+  from: string;
+  to: string;
+  facturesPayees: { nombre: number; montantTotal: number };
+  relances: PalierCount[];
+}
+
 export interface PalierConfig {
   j1: number;
   j2: number;

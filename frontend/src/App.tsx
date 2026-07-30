@@ -3,6 +3,7 @@ import { useAuth } from './auth/AuthContext';
 import { LoginPage } from './components/LoginPage';
 import { RecouvrementView } from './components/RecouvrementView';
 import { ContractsView } from './components/ContractsView';
+import { ReportingView } from './components/ReportingView';
 import { SettingsModal } from './components/SettingsModal';
 import { ImportPanel } from './components/ImportPanel';
 import { UsersPanel } from './components/UsersPanel';
@@ -12,7 +13,7 @@ import { EntityLogo, entityAccent } from './components/EntityLogo';
 import { Entite, Entreprise } from './api/types';
 import { useResource } from './hooks/useResource';
 
-type MainView = 'recouvrement' | 'contrats';
+type MainView = 'recouvrement' | 'contrats' | 'reporting';
 type EntityFilter = Entite | 'ALL';
 
 const ROLE_LABELS: Record<string, string> = {
@@ -193,12 +194,17 @@ export function App() {
         <button className={view === 'contrats' ? 'active' : ''} onClick={() => setView('contrats')}>
           Échéances de contrats
         </button>
+        <button className={view === 'reporting' ? 'active' : ''} onClick={() => setView('reporting')}>
+          Reporting
+        </button>
       </div>
 
       {view === 'recouvrement' ? (
         <RecouvrementView entityFilter={effectiveEntity} role={user.role} reloadKey={dataVersion} />
-      ) : (
+      ) : view === 'contrats' ? (
         <ContractsView entityFilter={effectiveEntity} role={user.role} reloadKey={dataVersion} />
+      ) : (
+        <ReportingView entityFilter={effectiveEntity} />
       )}
 
       {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} onSaved={bumpDataVersion} />}
