@@ -17,6 +17,7 @@ export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
   const [sortKey, setSortKey] = useState<'nom' | 'encours' | 'joursRetard'>('joursRetard');
   const [sortDir, setSortDir] = useState<1 | -1>(-1);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
 
   const kpisPath = `/api/clients/kpis${buildQuery({ entite: entityFilter })}`;
   const listPath = `/api/clients${buildQuery({
@@ -118,22 +119,40 @@ export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
           <div style={{ fontWeight: 600, fontSize: 14 }}>
             {palierFilter !== null ? `Palier — ${PALIERS[palierFilter].label}` : 'Tous les clients'}
           </div>
-          {palierFilter !== null && <button onClick={() => setPalierFilter(null)}>Effacer le filtre</button>}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input
+              type="text"
+              placeholder="Rechercher un client…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{ width: 220 }}
+            />
+            {palierFilter !== null && <button onClick={() => setPalierFilter(null)}>Effacer le filtre</button>}
+          </div>
         </div>
         <div>
-          {list.loading ? (
-            <div className="empty-state">Chargement…</div>
-          ) : list.error ? (
-            <div className="empty-state">
-              <h3>Erreur</h3>
-              <p>{list.error}</p>
-            </div>
-          ) : !list.data?.length ? (
-            <div className="empty-state">
-              <h3>Aucun client sur ce filtre</h3>
-              <p>Essayez un autre palier ou une autre entité.</p>
-            </div>
-          ) : (
+          {(() => {
+            const filtered = list.data?.filter((c) => c.nom.toLowerCase().includes(search.trim().toLowerCase())) ?? [];
+            if (list.loading) {
+              return <div className="empty-state">Chargement…</div>;
+            }
+            if (list.error) {
+              return (
+                <div className="empty-state">
+                  <h3>Erreur</h3>
+                  <p>{list.error}</p>
+                </div>
+              );
+            }
+            if (!filtered.length) {
+              return (
+                <div className="empty-state">
+                  <h3>Aucun client sur ce filtre</h3>
+                  <p>{search.trim() ? 'Aucun résultat pour cette recherche.' : 'Essayez un autre palier ou une autre entité.'}</p>
+                </div>
+              );
+            }
+            return (
             <table>
               <thead>
                 <tr>
@@ -144,10 +163,11 @@ export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
                   <th onClick={() => toggleSort('joursRetard')}>Jours de retard</th>
                   <th>Palier</th>
                   <th>Dernière action</th>
+                  <th>Prochaine relance</th>
                 </tr>
               </thead>
               <tbody>
-                {list.data.map((c) => {
+                {filtered.map((c) => {
                   const pal = PALIERS[c.palier];
                   return (
                     <tr key={c.id} className="row-hover" onClick={() => setSelectedClientId(c.id)}>
@@ -185,12 +205,23 @@ export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
                           <span style={{ color: 'var(--ink-soft)' }}>—</span>
                         )}
                       </td>
+                      <td style={{ fontSize: 12 }}>
+                        {c.prochaineRelance ? (
+                          <span style={{ color: new Date(c.prochaineRelance) < new Date() ? 'var(--danger)' : 'var(--ink-soft)' }}>
+                            {new Date(c.prochaineRelance) < new Date() && '⚠ '}
+                            {fmtDate(c.prochaineRelance)}
+                          </span>
+                        ) : (
+                          <span style={{ color: 'var(--ink-soft)' }}>—</span>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
-          )}
+            );
+          })()}
         </div>
       </div>
 

@@ -18,6 +18,7 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
 
   const [editingContact, setEditingContact] = useState(false);
   const [editingNote, setEditingNote] = useState(false);
+  const [editingRelance, setEditingRelance] = useState(false);
   const [addingContact, setAddingContact] = useState(false);
   const [addingFacture, setAddingFacture] = useState(false);
   const [actionNote, setActionNote] = useState('');
@@ -67,6 +68,35 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
       await api.patch(`/api/clients/${clientId}/note`, { note: form.get('note') });
       showToast('Note enregistrée');
       setEditingNote(false);
+      afterMutation();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSaveRelance(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = new FormData(e.currentTarget);
+    setBusy(true);
+    try {
+      await api.patch(`/api/clients/${clientId}/prochaine-relance`, { date: form.get('date') });
+      showToast('Prochaine relance enregistrée');
+      setEditingRelance(false);
+      afterMutation();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleClearRelance() {
+    setBusy(true);
+    try {
+      await api.patch(`/api/clients/${clientId}/prochaine-relance`, { date: null });
+      showToast('Prochaine relance effacée');
       afterMutation();
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Erreur');
@@ -292,6 +322,45 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
               </form>
             ) : (
               client.note && <div style={{ fontSize: 13, color: 'var(--ink-soft)', whiteSpace: 'pre-wrap' }}>{client.note}</div>
+            )}
+
+            <div className="section-title">
+              <span>Prochaine relance (promesse de paiement)</span>
+              {canEditNote && !editingRelance && (
+                <button onClick={() => setEditingRelance(true)}>{client.prochaineRelance ? 'Modifier' : '+ Ajouter'}</button>
+              )}
+            </div>
+            {editingRelance ? (
+              <form onSubmit={handleSaveRelance} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <input type="date" name="date" defaultValue={client.prochaineRelance?.slice(0, 10) ?? ''} />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="primary" type="submit" disabled={busy}>
+                    Enregistrer
+                  </button>
+                  <button type="button" onClick={() => setEditingRelance(false)}>
+                    Annuler
+                  </button>
+                </div>
+              </form>
+            ) : client.prochaineRelance ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
+                <span
+                  style={{
+                    color: new Date(client.prochaineRelance) < new Date() ? 'var(--danger)' : 'var(--ink-soft)',
+                    fontWeight: new Date(client.prochaineRelance) < new Date() ? 600 : 400,
+                  }}
+                >
+                  {new Date(client.prochaineRelance) < new Date() && '⚠ '}
+                  {fmtDate(client.prochaineRelance)}
+                </span>
+                {canEditNote && (
+                  <button style={{ padding: '3px 9px', fontSize: 11 }} disabled={busy} onClick={handleClearRelance}>
+                    Effacer
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div style={{ color: 'var(--ink-soft)', fontSize: 12.5 }}>Aucune date enregistrée.</div>
             )}
 
             <div className="section-title">

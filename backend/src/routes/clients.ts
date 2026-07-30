@@ -76,6 +76,7 @@ clientsRouter.get('/', async (req, res, next) => {
         email: c.email,
         tel: c.tel,
         note: c.note,
+        prochaineRelance: c.prochaineRelance,
         encours,
         joursRetard,
         palier,
@@ -168,6 +169,29 @@ clientsRouter.patch('/:id/note', requireRole('admin', 'manager_entite', 'comptab
     const client = await prisma.client.update({
       where: { id: req.params.id },
       data: { note: note || null },
+    });
+    res.json(client);
+  } catch (err) {
+    next(err);
+  }
+});
+
+clientsRouter.patch('/:id/prochaine-relance', requireRole('admin', 'manager_entite', 'comptable'), async (req, res, next) => {
+  try {
+    const existing = await prisma.client.findUnique({ where: { id: req.params.id } });
+    if (!existing) return res.status(404).json({ error: 'Client introuvable' });
+    if (!assertEntiteInScope(req, res, existing.entite as Entite)) return;
+
+    const raw = req.body?.date;
+    let prochaineRelance: Date | null = null;
+    if (typeof raw === 'string' && raw.trim()) {
+      const parsed = new Date(raw);
+      if (Number.isNaN(parsed.getTime())) return res.status(400).json({ error: 'Date invalide' });
+      prochaineRelance = parsed;
+    }
+    const client = await prisma.client.update({
+      where: { id: req.params.id },
+      data: { prochaineRelance },
     });
     res.json(client);
   } catch (err) {

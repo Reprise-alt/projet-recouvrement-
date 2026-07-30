@@ -33,6 +33,7 @@ export interface ClientListItem {
   email: string | null;
   tel: string | null;
   note: string | null;
+  prochaineRelance: string | null;
   encours: number;
   joursRetard: number;
   palier: number;
@@ -105,6 +106,7 @@ export interface ClientDetail {
   email: string | null;
   tel: string | null;
   note: string | null;
+  prochaineRelance: string | null;
   factures: Facture[];
   contrats: Contrat[];
   actions: ActionRecouvrement[];
