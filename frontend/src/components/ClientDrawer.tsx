@@ -21,6 +21,7 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
   const [editingRelance, setEditingRelance] = useState(false);
   const [addingContact, setAddingContact] = useState(false);
   const [addingFacture, setAddingFacture] = useState(false);
+  const [editingFactureId, setEditingFactureId] = useState<string | null>(null);
   const [actionNote, setActionNote] = useState('');
   const [letterText, setLetterText] = useState<string | null>(null);
   const [sendTo, setSendTo] = useState('');
@@ -31,6 +32,8 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
   const canEditContact = role === 'admin' || role === 'manager_entite';
   const canEditNote = role === 'admin' || role === 'manager_entite' || role === 'comptable';
   const canAddFacture = role === 'admin' || role === 'manager_entite';
+  const canEditFacture = role === 'admin' || role === 'manager_entite';
+  const canDeleteFacture = role === 'admin';
   const canRecordAction = role === 'admin' || role === 'manager_entite' || role === 'comptable';
   const canGenerateLetter = role === 'admin' || role === 'manager_entite';
   const canTogglePaid = role === 'admin' || role === 'manager_entite' || role === 'comptable';
@@ -179,6 +182,41 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
     setBusy(true);
     try {
       await api.patch(`/api/factures/${factureId}/toggle-paid`);
+      afterMutation();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSaveFacture(e: FormEvent<HTMLFormElement>, factureId: string) {
+    e.preventDefault();
+    const form = new FormData(e.currentTarget);
+    setBusy(true);
+    try {
+      await api.patch(`/api/factures/${factureId}`, {
+        montant: Number(form.get('montant')),
+        dateFacture: form.get('dateFacture'),
+        dateEcheance: form.get('dateEcheance'),
+        designation: form.get('designation'),
+      });
+      showToast('Facture corrigée');
+      setEditingFactureId(null);
+      afterMutation();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDeleteFacture(factureId: string, numero: string) {
+    if (!confirm(`Supprimer définitivement la facture ${numero} ?`)) return;
+    setBusy(true);
+    try {
+      await api.delete(`/api/factures/${factureId}`);
+      showToast('Facture supprimée');
       afterMutation();
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Erreur');
@@ -498,27 +536,78 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
                 </div>
               </form>
             )}
-            {client.factures.map((f) => (
-              <div className="card-mini" key={f.id}>
-                <div className="row">
-                  <strong>{f.numero}</strong>
-                  <span className="mono">{fmtFCFA(f.montant)}</span>
-                </div>
-                <div className="row" style={{ color: 'var(--ink-soft)', fontSize: 12 }}>
-                  <span>Échéance {fmtDate(f.dateEcheance)}</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ color: f.statut === 'impayee' ? 'var(--danger)' : 'var(--success)', fontWeight: 600 }}>
-                      {f.statut === 'impayee' ? 'Impayée' : 'Payée'}
+            {client.factures.map((f) =>
+              editingFactureId === f.id ? (
+                <form
+                  key={f.id}
+                  onSubmit={(e) => handleSaveFacture(e, f.id)}
+                  className="card-mini"
+                  style={{ borderColor: 'var(--accent)' }}
+                >
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                    <div>
+                      <label>Montant (FCFA)</label>
+                      <input type="number" name="montant" step="any" defaultValue={f.montant} required />
+                    </div>
+                    <div>
+                      <label>Date de facture</label>
+                      <input type="date" name="dateFacture" defaultValue={f.dateFacture?.slice(0, 10) ?? ''} />
+                    </div>
+                    <div>
+                      <label>Échéance</label>
+                      <input type="date" name="dateEcheance" defaultValue={f.dateEcheance.slice(0, 10)} required />
+                    </div>
+                    <div style={{ gridColumn: '1 / -1' }}>
+                      <label>Désignation (optionnel)</label>
+                      <input type="text" name="designation" defaultValue={f.designation ?? ''} />
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button className="primary" type="submit" disabled={busy}>
+                      Enregistrer
+                    </button>
+                    <button type="button" onClick={() => setEditingFactureId(null)}>
+                      Annuler
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <div className="card-mini" key={f.id}>
+                  <div className="row">
+                    <strong>{f.numero}</strong>
+                    <span className="mono">{fmtFCFA(f.montant)}</span>
+                  </div>
+                  <div className="row" style={{ color: 'var(--ink-soft)', fontSize: 12 }}>
+                    <span>Échéance {fmtDate(f.dateEcheance)}</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ color: f.statut === 'impayee' ? 'var(--danger)' : 'var(--success)', fontWeight: 600 }}>
+                        {f.statut === 'impayee' ? 'Impayée' : 'Payée'}
+                      </span>
+                      {canTogglePaid && (
+                        <button style={{ padding: '3px 9px', fontSize: 11 }} disabled={busy} onClick={() => toggleFacturePaid(f.id)}>
+                          {f.statut === 'impayee' ? 'Marquer payée' : 'Annuler'}
+                        </button>
+                      )}
+                      {canEditFacture && (
+                        <button style={{ padding: '3px 9px', fontSize: 11 }} disabled={busy} onClick={() => setEditingFactureId(f.id)}>
+                          Modifier
+                        </button>
+                      )}
+                      {canDeleteFacture && (
+                        <button
+                          className="danger-btn"
+                          style={{ padding: '3px 9px', fontSize: 11 }}
+                          disabled={busy}
+                          onClick={() => handleDeleteFacture(f.id, f.numero)}
+                        >
+                          Supprimer
+                        </button>
+                      )}
                     </span>
-                    {canTogglePaid && (
-                      <button style={{ padding: '3px 9px', fontSize: 11 }} disabled={busy} onClick={() => toggleFacturePaid(f.id)}>
-                        {f.statut === 'impayee' ? 'Marquer payée' : 'Annuler'}
-                      </button>
-                    )}
-                  </span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ),
+            )}
 
             <div className="section-title">Historique des actions</div>
             {client.actions.length ? (

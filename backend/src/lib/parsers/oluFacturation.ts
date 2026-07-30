@@ -18,8 +18,16 @@ export interface OluFacturationResult {
   sheetsRead: number;
 }
 
+// Aucune facture réelle de ce type de PME n'atteint mille milliards de FCFA —
+// au-delà, c'est presque certainement une cellule corrompue (fusion de
+// colonnes, format nombre malformé...) plutôt qu'un vrai montant. On rejette
+// plutôt que d'importer silencieusement une valeur aberrante qui fausserait
+// ensuite tous les totaux/rapports.
+const MAX_MONTANT_PLAUSIBLE = 1_000_000_000_000;
+
 function parseAmount(raw: unknown): number {
-  return parseFloat(String(raw || '0').replace(/[^0-9.,-]/g, '').replace(',', '.')) || 0;
+  const value = parseFloat(String(raw || '0').replace(/[^0-9.,-]/g, '').replace(',', '.')) || 0;
+  return value > 0 && value <= MAX_MONTANT_PLAUSIBLE ? value : 0;
 }
 
 // Parseur dédié au classeur "TABLEAU_FACTURATION_OLU" : onglets mensuels avec

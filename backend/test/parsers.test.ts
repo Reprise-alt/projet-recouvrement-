@@ -116,6 +116,25 @@ describe('parseOluFacturationWorkbook', () => {
     expect(result.sheetsRead).toBe(1);
     expect(result.totalFactures).toBe(1);
   });
+
+  it('rejects an implausibly large montant (corrupted cell) instead of importing it as-is', () => {
+    const rows = [
+      ['SORAM AFRIQUE', '', '', '', '', ''],
+      ['N° FACTURE', 'DATE', 'NOM CLIENT', 'MONTANT HT', 'MONTANT TTC', 'DATE DE PAIEMENT'],
+      // Montant corrompu (des ordres de grandeur au-dessus de toute facture réelle) : la ligne
+      // doit être ignorée plutôt que de fausser silencieusement tous les totaux en aval.
+      [42, '15/01/2026', 'Client Corrompu', 100000, 1771470074949788, ''],
+      [43, '15/01/2026', 'Client Sain', 100000, 250000, ''],
+    ];
+    const sheet = XLSX.utils.aoa_to_sheet(rows);
+    const wbBad = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wbBad, sheet, 'JAN');
+
+    const result = parseOluFacturationWorkbook(wbBad);
+    expect(result.totalFactures).toBe(1);
+    expect(result.clients.find((c) => c.nom === 'Client Corrompu')).toBeUndefined();
+    expect(result.clients.find((c) => c.nom === 'Client Sain')?.factures[0].montant).toBe(250000);
+  });
 });
 
 describe('parseContractTrackingWorkbook', () => {
