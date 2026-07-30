@@ -45,13 +45,17 @@ clientsRouter.get('/', async (req, res, next) => {
     const sortDir = req.query.dir === 'asc' ? 1 : -1;
 
     const config = await getConfig();
-    const clients = await prisma.client.findMany({ where: entiteWhere(entiteFilter), include: { factures: true } });
+    const clients = await prisma.client.findMany({
+      where: entiteWhere(entiteFilter),
+      include: { factures: true, actions: { orderBy: { date: 'desc' }, take: 1 } },
+    });
 
     let list = clients.map((c) => {
       const encours = clientEncours(c);
       const joursRetard = clientJoursRetard(c);
       const palier = computePalier(joursRetard, config);
       const oldest = clientOldestEcheance(c);
+      const derniere = c.actions[0];
       return {
         id: c.id,
         nom: c.nom,
@@ -64,6 +68,7 @@ clientsRouter.get('/', async (req, res, next) => {
         joursRetard,
         palier,
         echeanceLaPlusAncienne: oldest?.dateEcheance ?? null,
+        derniereAction: derniere ? { label: derniere.label, date: derniere.date, palier: derniere.palier } : null,
       };
     });
 

@@ -116,6 +116,7 @@ export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
                   <th>Échéance la + ancienne</th>
                   <th onClick={() => toggleSort('joursRetard')}>Jours de retard</th>
                   <th>Palier</th>
+                  <th>Dernière action</th>
                 </tr>
               </thead>
               <tbody>
@@ -144,6 +145,18 @@ export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
                         <span className="badge" data-tone={pal.tone}>
                           {pal.label}
                         </span>
+                      </td>
+                      <td style={{ fontSize: 12 }}>
+                        {c.derniereAction ? (
+                          <span style={{ color: c.derniereAction.palier < c.palier ? 'var(--amber)' : 'var(--ink-soft)' }}>
+                            {c.derniereAction.palier < c.palier && '⚠ '}
+                            {c.derniereAction.label} · {fmtDate(c.derniereAction.date)}
+                          </span>
+                        ) : c.palier > 0 ? (
+                          <span style={{ color: 'var(--amber)' }}>Aucune action</span>
+                        ) : (
+                          <span style={{ color: 'var(--ink-soft)' }}>—</span>
+                        )}
                       </td>
                     </tr>
                   );

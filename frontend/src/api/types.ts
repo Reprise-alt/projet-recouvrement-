@@ -19,6 +19,12 @@ export interface CurrentUser {
   entite: Entite | null;
 }
 
+export interface DerniereAction {
+  label: string;
+  date: string;
+  palier: number;
+}
+
 export interface ClientListItem {
   id: string;
   nom: string;
@@ -31,6 +37,7 @@ export interface ClientListItem {
   joursRetard: number;
   palier: number;
   echeanceLaPlusAncienne: string | null;
+  derniereAction: DerniereAction | null;
 }
 
 export interface Contact {
