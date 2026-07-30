@@ -9,6 +9,15 @@ const baseClient = {
   factures: [{ numero: 'FA-2026-1042', montant: 1250000, dateEcheance: '2026-06-01', statut: 'impayee' as const }],
 };
 
+const multiFactureClient = {
+  ...baseClient,
+  factures: [
+    { numero: 'FA-2026-1042', montant: 1250000, dateEcheance: '2026-06-01', statut: 'impayee' as const },
+    { numero: 'FA-2026-1099', montant: 400000, dateEcheance: '2026-06-20', statut: 'impayee' as const },
+    { numero: 'FA-2026-0900', montant: 300000, dateEcheance: '2026-05-01', statut: 'payee' as const },
+  ],
+};
+
 describe('generateLetter', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -24,6 +33,37 @@ describe('generateLetter', () => {
     expect(text).toContain('FA-2026-1042');
     expect(text).toContain(fmtFCFA(1250000));
     expect(text).toContain('Cordialement');
+  });
+
+  it('lists every unpaid facture (not just one) when the client has several, with the correct total', () => {
+    const text = generateLetter(multiFactureClient, 2);
+    expect(text).toContain('FA-2026-1042');
+    expect(text).toContain('FA-2026-1099');
+    expect(text).not.toContain('FA-2026-0900'); // payée — exclue
+    expect(text).toContain(fmtFCFA(1650000)); // 1 250 000 + 400 000, pas la facture payée
+  });
+
+  it('still cites a single facture naturally when only one is unpaid', () => {
+    const text = generateLetter(baseClient, 2);
+    expect(text).toContain('la facture FA-2026-1042');
+  });
+
+  it('contracts the article correctly with plural factures ("des"/"aux", never "de les"/"à les")', () => {
+    for (const palier of [2, 6]) {
+      const text = generateLetter(multiFactureClient, palier);
+      expect(text, `palier ${palier}`).not.toContain('de les factures');
+      expect(text, `palier ${palier}`).not.toContain('à les factures');
+    }
+    expect(generateLetter(multiFactureClient, 2)).toContain('au sujet des factures');
+    expect(generateLetter(multiFactureClient, 6)).toContain('correspondant aux factures');
+  });
+
+  it('lists all unpaid factures at every palier that cites the debt (4, 5, 6, 7)', () => {
+    for (const palier of [4, 5, 6, 7]) {
+      const text = generateLetter(multiFactureClient, palier);
+      expect(text, `palier ${palier}`).toContain('FA-2026-1042');
+      expect(text, `palier ${palier}`).toContain('FA-2026-1099');
+    }
   });
 
   it('mentions the right service for a suspension notice, per entité', () => {

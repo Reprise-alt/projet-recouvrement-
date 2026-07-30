@@ -16,6 +16,43 @@ export interface LetterClient extends ClientWithFactures {
   actions?: LetterAction[];
 }
 
+// Toutes les factures impayées, triées de la plus ancienne à la plus
+// récente — l'encours (montant total) couvre souvent plusieurs factures,
+// pas seulement la plus ancienne qui sert à calculer le retard/palier.
+function facturesImpayees(client: LetterClient) {
+  return client.factures
+    .filter((f) => f.statut === 'impayee')
+    .slice()
+    .sort((a, b) => new Date(a.dateEcheance).getTime() - new Date(b.dateEcheance).getTime());
+}
+
+function numerosImpayes(factures: { numero?: string }[]): string[] {
+  return factures.map((f) => f.numero).filter((n): n is string => Boolean(n));
+}
+
+// Phrase naturelle listant la ou les factures concernées — évite d'attribuer
+// à tort le montant total (somme de plusieurs factures) à une seule facture
+// citée nommément dans le courrier. `prep` gère la contraction de l'article
+// avec la préposition qui précède ("de les" → "des", "à les" → "aux") ;
+// "bare" pour un usage sans préposition contractable (ex : après "sur").
+function factureLabel(numeros: string[], prep: 'de' | 'a' | 'bare' = 'bare'): string {
+  if (numeros.length === 0) {
+    if (prep === 'de') return 'de votre facture';
+    if (prep === 'a') return 'à votre facture';
+    return 'votre facture';
+  }
+  if (numeros.length === 1) {
+    const base = `la facture ${numeros[0]}`;
+    if (prep === 'de') return `de ${base}`;
+    if (prep === 'a') return `à ${base}`;
+    return base;
+  }
+  const liste = `${numeros.slice(0, -1).join(', ')} et ${numeros[numeros.length - 1]}`;
+  if (prep === 'de') return `des factures ${liste}`;
+  if (prep === 'a') return `aux factures ${liste}`;
+  return `les factures ${liste}`;
+}
+
 function lastActionDate(client: LetterClient, palier: number): string | null {
   const matches = (client.actions ?? [])
     .filter((a) => a.palier === palier)
@@ -120,12 +157,21 @@ export function generateLetter(client: LetterClient, palierId: number): string {
   const f = clientOldestEcheance(client);
   const numFacture = f?.numero ?? '';
   const dateEch = f ? fmtDate(f.dateEcheance) : '';
+  const impayees = facturesImpayees(client);
+  const numeros = numerosImpayes(impayees);
+  const label = factureLabel(numeros);
+  const labelDe = factureLabel(numeros, 'de');
+  const labelA = factureLabel(numeros, 'a');
+  const plusieurs = numeros.length > 1;
   let body = '';
 
   if (palierId <= 3) {
+    const echeanceNote = plusieurs
+      ? `dont la plus ancienne (${numFacture}) est échue depuis le ${dateEch} (${jours} jours de retard)`
+      : `échue depuis le ${dateEch} (${jours} jours de retard)`;
     body =
-      `Objet : Rappel de règlement — Facture ${numFacture}\n\n` +
-      `Je me permets de revenir vers vous au sujet de la facture ${numFacture}, d'un montant de ${encours}, échue depuis le ${dateEch} (${jours} jours). Sauf erreur de notre part, elle reste à ce jour impayée.\n\n` +
+      `Objet : Rappel de règlement — ${numeros.join(', ') || numFacture}\n\n` +
+      `Je me permets de revenir vers vous au sujet ${labelDe}, pour un montant total impayé de ${encours}, ${echeanceNote}. Sauf erreur de notre part, ce montant reste dû à ce jour.\n\n` +
       `N'hésitez pas à me recontacter si un point particulier justifie ce retard — sinon, je vous serais reconnaissant de bien vouloir procéder au règlement dans les meilleurs délais.`;
   } else if (palierId === 4) {
     const serviceLabel =
@@ -136,18 +182,20 @@ export function generateLetter(client: LetterClient, palierId: number): string {
           : 'les livraisons de consommables (toners) et interventions techniques';
     body =
       `Objet : Avis de suspension de service\n\n` +
-      `Malgré mes relances précédentes, votre compte présente encore un encours impayé de ${encours}, la facture la plus ancienne (${numFacture}) étant échue depuis ${jours} jours.\n\n` +
+      `Malgré mes relances précédentes, votre compte présente encore un encours impayé de ${encours} sur ${label}, la plus ancienne (${numFacture}) étant échue depuis ${jours} jours.\n\n` +
       `Je suis désolé d'en arriver là, mais sans régularisation de votre situation sous 8 jours à compter de ce message, nous serons contraints de suspendre ${serviceLabel} prévu(e)s à votre contrat, jusqu'à l'apurement du solde.\n\n` +
       `Si votre situation le justifie, je reste ouvert à discuter d'un échéancier — n'hésitez pas à me contacter directement.`;
   } else if (palierId === 5) {
+    const detailRetard = plusieurs ? ` (la plus ancienne, ${numFacture}, en retard de ${jours} jours)` : ` (retard de ${jours} jours)`;
     body =
       `Objet : Application des pénalités de retard contractuelles\n\n` +
-      `Votre compte reste impayé à hauteur de ${encours} (retard de ${jours} jours sur la facture ${numFacture}). Je me vois donc contraint de vous informer que les pénalités de retard prévues à l'article [Article X] de votre contrat s'appliquent à compter de ce jour et viendront s'ajouter au montant dû.\n\n` +
+      `Votre compte reste impayé à hauteur de ${encours} sur ${label}${detailRetard}. Je me vois donc contraint de vous informer que les pénalités de retard prévues à l'article [Article X] de votre contrat s'appliquent à compter de ce jour et viendront s'ajouter au montant dû.\n\n` +
       `Je vous invite à régulariser votre situation dès que possible afin d'éviter toute majoration supplémentaire.`;
   } else if (palierId === 6) {
+    const echeanceNote = plusieurs ? `, dont la plus ancienne (${numFacture}) est échue depuis le ${dateEch}` : ` échue depuis le ${dateEch}`;
     body =
       `Objet : MISE EN DEMEURE de payer\n\n` +
-      `Par la présente, nous vous mettons en demeure de régler, sous quinzaine à compter de la réception de ce courrier (envoyé en lettre recommandée avec accusé de réception), la somme de ${encours} correspondant à la facture ${numFacture} échue depuis le ${dateEch}, majorée des pénalités contractuelles applicables.\n\n` +
+      `Par la présente, nous vous mettons en demeure de régler, sous quinzaine à compter de la réception de ce courrier (envoyé en lettre recommandée avec accusé de réception), la somme de ${encours} correspondant ${labelA}${echeanceNote}, majorée des pénalités contractuelles applicables.\n\n` +
       `À défaut de règlement dans ce délai, nous nous verrons contraints d'engager toute voie de droit utile au recouvrement de notre créance, sans autre préavis, y compris par voie d'huissier.`;
   } else {
     const miseEnDemeureDate = lastActionDate(client, 6);
@@ -156,7 +204,7 @@ export function generateLetter(client: LetterClient, palierId: number): string {
       : `La mise en demeure envoyée précédemment étant restée sans effet, ce dossier`;
     body =
       `Objet : Note interne — Transmission au contentieux\n\n` +
-      `Dossier : ${client.nom} (${client.entite})\nEncours : ${encours}\nFacture de référence : ${numFacture}, échue depuis ${jours} jours\n\n` +
+      `Dossier : ${client.nom} (${client.entite})\nEncours : ${encours}\nFactures concernées : ${numeros.join(', ') || numFacture}\nFacture la plus ancienne : ${numFacture}, échue depuis ${jours} jours\n\n` +
       `${miseEnDemeurePhrase} est transmis à l'étude d'huissier pour engagement d'une procédure de recouvrement contentieux.`;
   }
   if (palierId <= 6) body += paiementSection(client.entite);
