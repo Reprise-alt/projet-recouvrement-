@@ -65,21 +65,6 @@ export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
           <div className="kpi-label">Courriers formels à traiter</div>
           <div className="kpi-value amber">{kpis.data?.lettresAEnvoyer ?? '—'}</div>
         </div>
-        <div className="kpi">
-          <div className="kpi-label">Dans les clous (paliers 0-3)</div>
-          <div className="kpi-value success">{rep ? `${pct(rep.dansLesClous)} %` : '—'}</div>
-          {rep && <div className="kpi-sub">{rep.dansLesClous} client(s)</div>}
-        </div>
-        <div className="kpi">
-          <div className="kpi-label">Arrêt de service</div>
-          <div className="kpi-value amber">{rep ? `${pct(rep.arretService)} %` : '—'}</div>
-          {rep && <div className="kpi-sub">{rep.arretService} client(s)</div>}
-        </div>
-        <div className="kpi">
-          <div className="kpi-label">En litige (pénalités → huissier)</div>
-          <div className="kpi-value danger">{rep ? `${pct(rep.litige)} %` : '—'}</div>
-          {rep && <div className="kpi-sub">{rep.litige} client(s)</div>}
-        </div>
       </div>
 
       {rep && rep.total > 0 && (
