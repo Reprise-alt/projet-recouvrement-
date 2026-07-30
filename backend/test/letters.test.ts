@@ -49,6 +49,35 @@ describe('generateLetter', () => {
     expect(text).toContain('Cordialement');
     expect(text).toContain('Service Facturation et Recouvrement');
   });
+
+  it('includes the right bank details and mobile money numbers per entité, for paliers 0-6', () => {
+    const iris = generateLetter({ ...baseClient, entite: 'IRIS' as const }, 2);
+    expect(iris).toContain('Moyens de paiement');
+    expect(iris).toContain('IRIS AFRIQUE SARL');
+    expect(iris).toContain('SN08 SN011 01005 006101184816 87');
+    expect(iris).toContain('Wave : +221 78 300 29 01');
+    expect(iris).toContain('Orange Money : +221 77 107 78 47');
+
+    const sis = generateLetter({ ...baseClient, entite: 'SIS' as const }, 4);
+    expect(sis).toContain('99SORAM IMPRESSION ET SERVICES');
+    expect(sis).toContain('SUNU Bank');
+    expect(sis).not.toContain('Wave :');
+
+    const soram = generateLetter(baseClient, 6);
+    expect(soram).toContain('SORAM OUEST AFRICA');
+    expect(soram).toContain('Wave : +221 76 637 35 06');
+  });
+
+  it('does not include payment info on the internal huissier note (palier 7)', () => {
+    const text = generateLetter(baseClient, 7);
+    expect(text).not.toContain('Moyens de paiement');
+  });
+
+  it('includes both SORAM and IRIS payment details for a shared (COMMUN) client', () => {
+    const text = generateLetter({ ...baseClient, entite: 'COMMUN' as const }, 2);
+    expect(text).toContain('SORAM OUEST AFRICA');
+    expect(text).toContain('IRIS AFRIQUE SARL');
+  });
 });
 
 describe('generateContractDoc', () => {

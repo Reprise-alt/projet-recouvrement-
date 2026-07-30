@@ -54,6 +54,63 @@ function letterFooter(entite: Entite): string {
   return `\n\nNous restons à votre disposition pour toute question relative à ce dossier.\n\nCordialement,\n\n${entiteSignoff(entite)}`;
 }
 
+interface PaiementInfo {
+  titulaire: string;
+  banque: string;
+  iban: string;
+  bic: string;
+  wave?: string;
+  orangeMoney?: string;
+}
+
+// Coordonnées bancaires par entité juridique (comptes distincts, même pour
+// SORAM et SIS qui partagent une marque commune) — communiquées pour
+// permettre un règlement immédiat depuis le mail de relance.
+const PAIEMENT_INFO: Record<'SORAM' | 'SIS' | 'IRIS', PaiementInfo> = {
+  IRIS: {
+    titulaire: 'IRIS AFRIQUE SARL',
+    banque: 'Société Générale Sénégal',
+    iban: 'SN08 SN011 01005 006101184816 87',
+    bic: 'SGSNSNDA',
+    wave: '+221 78 300 29 01',
+    orangeMoney: '+221 77 107 78 47',
+  },
+  SORAM: {
+    titulaire: 'SORAM OUEST AFRICA',
+    banque: 'Société Générale Sénégal',
+    iban: 'SN08 SN011 01005 006100448816 76',
+    bic: 'SGSNSNDAXXX',
+    wave: '+221 76 637 35 06',
+  },
+  SIS: {
+    titulaire: '99SORAM IMPRESSION ET SERVICES',
+    banque: 'SUNU Bank',
+    iban: 'SN08 SN01 0015 2801 1472 6000 0922',
+    bic: 'BICISNDXXXX',
+  },
+};
+
+function formatPaiementInfo(info: PaiementInfo): string {
+  let bloc = `Virement bancaire (${info.titulaire})\n${info.banque}\nIBAN : ${info.iban}\nBIC : ${info.bic}`;
+  if (info.wave) bloc += `\nWave : ${info.wave}`;
+  if (info.orangeMoney) bloc += `\nOrange Money : ${info.orangeMoney}`;
+  return bloc;
+}
+
+// N'apparaît que sur les courriers adressés au client lui-même (paliers 0-6) —
+// pas sur la note interne de transmission au contentieux (palier 7), qui n'est
+// pas envoyée au débiteur.
+function paiementSection(entite: Entite): string {
+  if (entite === 'COMMUN') {
+    return (
+      `\n\nMoyens de paiement\n\n` +
+      `${entiteNom('SORAM')}\n${formatPaiementInfo(PAIEMENT_INFO.SORAM)}\n\n` +
+      `${entiteNom('IRIS')}\n${formatPaiementInfo(PAIEMENT_INFO.IRIS)}`
+    );
+  }
+  return `\n\nMoyens de paiement\n\n${formatPaiementInfo(PAIEMENT_INFO[entite])}`;
+}
+
 // Génère le texte du courrier de recouvrement correspondant au palier atteint.
 // La mise en demeure (palier 6) reste un document juridique — ne pas modifier
 // son contenu sans validation métier.
@@ -102,6 +159,7 @@ export function generateLetter(client: LetterClient, palierId: number): string {
       `Dossier : ${client.nom} (${client.entite})\nEncours : ${encours}\nFacture de référence : ${numFacture}, échue depuis ${jours} jours\n\n` +
       `${miseEnDemeurePhrase} est transmis à l'étude d'huissier pour engagement d'une procédure de recouvrement contentieux.`;
   }
+  if (palierId <= 6) body += paiementSection(client.entite);
   return letterHeader(client) + body + letterFooter(client.entite);
 }
 
