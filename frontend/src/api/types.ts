@@ -228,6 +228,7 @@ export interface ContractDoc {
 }
 
 export interface GmailStatus {
+  entite: string;
   connected: boolean;
   compteEmail: string | null;
   derniereSync: string | null;

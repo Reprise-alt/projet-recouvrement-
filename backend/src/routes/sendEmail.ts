@@ -66,26 +66,34 @@ sendEmailRouter.post('/', uploadAttachments, async (req, res, next) => {
       content: f.buffer,
     }));
 
+    let entiteEnvoi: string;
     if (context.type === 'client_letter') {
       const client = await prisma.client.findUnique({ where: { id: context.clientId } });
       if (!client) return res.status(404).json({ error: 'Client introuvable' });
       if (!assertEntiteInScope(req, res, client.entite as Entite)) return;
       if (!PALIERS[context.palier]) return res.status(400).json({ error: 'Palier invalide' });
+      entiteEnvoi = client.entite;
     } else if (context.type === 'contract_doc') {
       const contrat = await prisma.contrat.findUnique({ where: { id: context.contratId }, include: { client: true } });
       if (!contrat) return res.status(404).json({ error: 'Contrat introuvable' });
       if (!assertEntiteInScope(req, res, contrat.client.entite as Entite)) return;
+      entiteEnvoi = contrat.client.entite;
     } else {
       return res.status(400).json({ error: 'context.type invalide' });
     }
 
-    const credential = await getGmailCredential();
+    // Chaque entité envoie depuis son propre compte Gmail connecté — pas de
+    // repli sur un compte partagé, pour ne jamais expédier un mail SIS ou
+    // IRIS depuis le compte connecté par erreur à SORAM (ou inversement).
+    const credential = await getGmailCredential(entiteEnvoi);
     if (!credential?.refreshToken || credential.statut !== 'actif') {
-      return res.status(409).json({ error: "Gmail n'est pas connecté — un admin doit le connecter depuis Utilisateurs/Intégrations." });
+      return res
+        .status(409)
+        .json({ error: `Gmail n'est pas connecté pour ${entiteEnvoi} — un admin doit le connecter depuis Utilisateurs/Intégrations.` });
     }
 
     await sendViaGmail(credential.refreshToken, to, subject, body, attachments);
-    await touchGmailCredential();
+    await touchGmailCredential(entiteEnvoi);
 
     const attachmentsNote = attachments.length ? ` (pièces jointes : ${attachments.map((a) => a.filename).join(', ')})` : '';
 
