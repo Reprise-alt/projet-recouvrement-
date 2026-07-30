@@ -43,6 +43,8 @@ export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
   }
 
   const ladder = kpis.data?.ladder ?? {};
+  const rep = kpis.data?.repartition;
+  const pct = (n: number) => (rep && rep.total > 0 ? Math.round((n / rep.total) * 100) : 0);
 
   return (
     <div>
@@ -63,7 +65,47 @@ export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
           <div className="kpi-label">Courriers formels à traiter</div>
           <div className="kpi-value amber">{kpis.data?.lettresAEnvoyer ?? '—'}</div>
         </div>
+        <div className="kpi">
+          <div className="kpi-label">Dans les clous (paliers 0-3)</div>
+          <div className="kpi-value success">{rep ? `${pct(rep.dansLesClous)} %` : '—'}</div>
+          {rep && <div className="kpi-sub">{rep.dansLesClous} client(s)</div>}
+        </div>
+        <div className="kpi">
+          <div className="kpi-label">Arrêt de service</div>
+          <div className="kpi-value amber">{rep ? `${pct(rep.arretService)} %` : '—'}</div>
+          {rep && <div className="kpi-sub">{rep.arretService} client(s)</div>}
+        </div>
+        <div className="kpi">
+          <div className="kpi-label">En litige (pénalités → huissier)</div>
+          <div className="kpi-value danger">{rep ? `${pct(rep.litige)} %` : '—'}</div>
+          {rep && <div className="kpi-sub">{rep.litige} client(s)</div>}
+        </div>
       </div>
+
+      {rep && rep.total > 0 && (
+        <div className="repartition-card">
+          <div className="repartition-title">Répartition des clients actifs ({rep.total})</div>
+          <div className="repartition-track">
+            <div className="repartition-seg" style={{ width: `${pct(rep.dansLesClous)}%`, background: 'var(--success)' }} />
+            <div className="repartition-seg" style={{ width: `${pct(rep.arretService)}%`, background: 'var(--amber)' }} />
+            <div className="repartition-seg" style={{ width: `${pct(rep.litige)}%`, background: 'var(--danger)' }} />
+          </div>
+          <div className="repartition-legend">
+            <span>
+              <span className="dot" style={{ background: 'var(--success)' }} />
+              Dans les clous — {pct(rep.dansLesClous)} % ({rep.dansLesClous})
+            </span>
+            <span>
+              <span className="dot" style={{ background: 'var(--amber)' }} />
+              Arrêt de service — {pct(rep.arretService)} % ({rep.arretService})
+            </span>
+            <span>
+              <span className="dot" style={{ background: 'var(--danger)' }} />
+              En litige — {pct(rep.litige)} % ({rep.litige})
+            </span>
+          </div>
+        </div>
+      )}
 
       <div className="ladder-card">
         <div className="ladder-title">Échelle de recouvrement</div>

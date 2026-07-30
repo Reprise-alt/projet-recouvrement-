@@ -27,11 +27,23 @@ clientsRouter.get('/kpis', async (req, res, next) => {
 
     const ladder: Record<number, number> = {};
     PALIERS.forEach((p) => (ladder[p.id] = 0));
+    let dansLesClous = 0;
+    let arretService = 0;
+    let litige = 0;
+    let totalActifs = 0;
     clients.forEach((c) => {
-      if (clientEncours(c) > 0) ladder[clientPalier(c, config)]++;
+      if (clientEncours(c) > 0) {
+        totalActifs++;
+        const p = clientPalier(c, config);
+        ladder[p]++;
+        if (p <= 3) dansLesClous++;
+        else if (p === 4) arretService++;
+        else litige++;
+      }
     });
+    const repartition = { total: totalActifs, dansLesClous, arretService, litige };
 
-    res.json({ totalEncours, enRetard, contentieux, lettresAEnvoyer, ladder, config });
+    res.json({ totalEncours, enRetard, contentieux, lettresAEnvoyer, ladder, repartition, config });
   } catch (err) {
     next(err);
   }

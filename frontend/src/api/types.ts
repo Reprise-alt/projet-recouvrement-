@@ -114,12 +114,20 @@ export interface ClientDetail {
   palier: number;
 }
 
+export interface Repartition {
+  total: number;
+  dansLesClous: number;
+  arretService: number;
+  litige: number;
+}
+
 export interface RecouvrementKpis {
   totalEncours: number;
   enRetard: number;
   contentieux: number;
   lettresAEnvoyer: number;
   ladder: Record<number, number>;
+  repartition: Repartition;
   config: PalierConfig;
 }
 
