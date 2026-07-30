@@ -100,6 +100,25 @@ export interface ActionRecouvrement {
   note: string | null;
 }
 
+export interface TranchePaiement {
+  id: string;
+  echeancierId: string;
+  ordre: number;
+  dateEcheance: string;
+  montant: number;
+  statut: 'impayee' | 'payee';
+  datePaiement: string | null;
+}
+
+export interface EcheancierPaiement {
+  id: string;
+  clientId: string;
+  montantTotal: number;
+  motif: string | null;
+  createdAt: string;
+  tranches: TranchePaiement[];
+}
+
 export interface ClientDetail {
   id: string;
   nom: string;
@@ -114,6 +133,7 @@ export interface ClientDetail {
   contrats: Contrat[];
   actions: ActionRecouvrement[];
   contacts: Contact[];
+  echeanciers: EcheancierPaiement[];
   encours: number;
   joursRetard: number;
   palier: number;

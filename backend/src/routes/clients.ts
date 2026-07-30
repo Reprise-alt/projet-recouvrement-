@@ -5,6 +5,7 @@ import { clientEncours, clientJoursRetard, clientOldestEcheance, clientPalier, P
 import { generateLetter } from '../lib/letters';
 import { Entite, resolveEntiteScope } from '../lib/entites';
 import { assertEntiteInScope, requireAuth, requireRole } from '../middleware/auth';
+import { fmtDate, fmtFCFA } from '../lib/dates';
 
 export const clientsRouter = Router();
 clientsRouter.use(requireAuth);
@@ -122,6 +123,7 @@ clientsRouter.get('/:id', async (req, res, next) => {
         contrats: { include: { envois: { orderBy: { date: 'desc' } } } },
         actions: { orderBy: { date: 'desc' } },
         contacts: { orderBy: { createdAt: 'asc' } },
+        echeanciers: { orderBy: { createdAt: 'desc' }, include: { tranches: { orderBy: { ordre: 'asc' } } } },
       },
     });
     if (!client) return res.status(404).json({ error: 'Client introuvable' });
@@ -358,6 +360,124 @@ clientsRouter.get('/:id/letters/:palierId', requireRole('admin', 'manager_entite
       palierId,
     );
     res.json({ text });
+  } catch (err) {
+    next(err);
+  }
+});
+
+interface TrancheInput {
+  dateEcheance?: unknown;
+  montant?: unknown;
+}
+
+// Négocié avec un client en difficulté (souvent au palier 4-6) : un accord de
+// règlement en plusieurs tranches, suivi indépendamment des factures qui
+// restent, elles, à leur propre statut jusqu'au règlement effectif.
+clientsRouter.post('/:id/echeanciers', requireRole('admin', 'manager_entite'), async (req, res, next) => {
+  try {
+    const existing = await prisma.client.findUnique({ where: { id: req.params.id } });
+    if (!existing) return res.status(404).json({ error: 'Client introuvable' });
+    if (!assertEntiteInScope(req, res, existing.entite as Entite)) return;
+
+    const { motif, tranches } = (req.body ?? {}) as { motif?: unknown; tranches?: TrancheInput[] };
+    if (!Array.isArray(tranches) || tranches.length === 0) {
+      return res.status(400).json({ error: 'Au moins une tranche est requise' });
+    }
+    const parsedTranches = tranches.map((t) => ({
+      dateEcheance: new Date(String(t.dateEcheance)),
+      montant: Number(t.montant),
+    }));
+    if (parsedTranches.some((t) => Number.isNaN(t.dateEcheance.getTime()) || !Number.isFinite(t.montant) || t.montant <= 0)) {
+      return res.status(400).json({ error: 'Chaque tranche doit avoir une date valide et un montant positif' });
+    }
+    const montantTotal = parsedTranches.reduce((s, t) => s + t.montant, 0);
+
+    const echeancier = await prisma.echeancierPaiement.create({
+      data: {
+        clientId: req.params.id,
+        montantTotal,
+        motif: typeof motif === 'string' && motif.trim() ? motif.trim() : undefined,
+        tranches: {
+          create: parsedTranches.map((t, i) => ({ ordre: i + 1, dateEcheance: t.dateEcheance, montant: t.montant })),
+        },
+      },
+      include: { tranches: { orderBy: { ordre: 'asc' } } },
+    });
+
+    await prisma.actionRecouvrement.create({
+      data: {
+        clientId: req.params.id,
+        palier: 0,
+        label: 'Échéancier de paiement créé',
+        note: `${fmtFCFA(montantTotal)} en ${parsedTranches.length} tranche(s) (par ${req.user!.nom})`,
+      },
+    });
+
+    res.status(201).json(echeancier);
+  } catch (err) {
+    next(err);
+  }
+});
+
+clientsRouter.patch(
+  '/:id/echeanciers/:echeancierId/tranches/:trancheId/toggle-paid',
+  requireRole('admin', 'manager_entite', 'comptable'),
+  async (req, res, next) => {
+    try {
+      const existing = await prisma.client.findUnique({ where: { id: req.params.id } });
+      if (!existing) return res.status(404).json({ error: 'Client introuvable' });
+      if (!assertEntiteInScope(req, res, existing.entite as Entite)) return;
+
+      const tranche = await prisma.tranchePaiement.findUnique({ where: { id: req.params.trancheId } });
+      if (!tranche || tranche.echeancierId !== req.params.echeancierId) {
+        return res.status(404).json({ error: 'Tranche introuvable' });
+      }
+      const echeancier = await prisma.echeancierPaiement.findUnique({ where: { id: req.params.echeancierId } });
+      if (!echeancier || echeancier.clientId !== req.params.id) return res.status(404).json({ error: 'Échéancier introuvable' });
+
+      const wasUnpaid = tranche.statut === 'impayee';
+      const updated = await prisma.tranchePaiement.update({
+        where: { id: tranche.id },
+        data: { statut: wasUnpaid ? 'payee' : 'impayee', datePaiement: wasUnpaid ? new Date() : null },
+      });
+
+      if (wasUnpaid) {
+        await prisma.actionRecouvrement.create({
+          data: {
+            clientId: req.params.id,
+            palier: 0,
+            label: 'Tranche réglée',
+            note: `${fmtFCFA(tranche.montant)} — échéance du ${fmtDate(tranche.dateEcheance)}`,
+          },
+        });
+      }
+
+      res.json(updated);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+clientsRouter.delete('/:id/echeanciers/:echeancierId', requireRole('admin', 'manager_entite'), async (req, res, next) => {
+  try {
+    const existing = await prisma.client.findUnique({ where: { id: req.params.id } });
+    if (!existing) return res.status(404).json({ error: 'Client introuvable' });
+    if (!assertEntiteInScope(req, res, existing.entite as Entite)) return;
+
+    const echeancier = await prisma.echeancierPaiement.findUnique({ where: { id: req.params.echeancierId } });
+    if (!echeancier || echeancier.clientId !== req.params.id) return res.status(404).json({ error: 'Échéancier introuvable' });
+
+    await prisma.echeancierPaiement.delete({ where: { id: echeancier.id } });
+    await prisma.actionRecouvrement.create({
+      data: {
+        clientId: req.params.id,
+        palier: 0,
+        label: 'Échéancier de paiement supprimé',
+        note: `${fmtFCFA(echeancier.montantTotal)} (par ${req.user!.nom})`,
+      },
+    });
+    res.status(204).end();
   } catch (err) {
     next(err);
   }

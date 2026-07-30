@@ -1,6 +1,6 @@
 import { FormEvent, useState } from 'react';
 import { api, ApiError } from '../api/client';
-import { ClientDetail, Contact, RoleUtilisateur } from '../api/types';
+import { ClientDetail, Contact, EcheancierPaiement, RoleUtilisateur } from '../api/types';
 import { useResource } from '../hooks/useResource';
 import { useToast } from '../hooks/useToast';
 import { fmtDate, fmtFCFA, PALIERS } from '../lib/constants';
@@ -22,6 +22,8 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
   const [addingContact, setAddingContact] = useState(false);
   const [addingFacture, setAddingFacture] = useState(false);
   const [editingFactureId, setEditingFactureId] = useState<string | null>(null);
+  const [addingEcheancier, setAddingEcheancier] = useState(false);
+  const [newTranches, setNewTranches] = useState<{ dateEcheance: string; montant: string }[]>([{ dateEcheance: '', montant: '' }]);
   const [actionNote, setActionNote] = useState('');
   const [letterText, setLetterText] = useState<string | null>(null);
   const [sendTo, setSendTo] = useState('');
@@ -37,6 +39,8 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
   const canRecordAction = role === 'admin' || role === 'manager_entite' || role === 'comptable';
   const canGenerateLetter = role === 'admin' || role === 'manager_entite';
   const canTogglePaid = role === 'admin' || role === 'manager_entite' || role === 'comptable';
+  const canManageEcheancier = role === 'admin' || role === 'manager_entite';
+  const canToggleTranche = role === 'admin' || role === 'manager_entite' || role === 'comptable';
 
   function afterMutation() {
     refetch();
@@ -217,6 +221,58 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
     try {
       await api.delete(`/api/factures/${factureId}`);
       showToast('Facture supprimée');
+      afterMutation();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function updateNewTranche(index: number, field: 'dateEcheance' | 'montant', value: string) {
+    setNewTranches((rows) => rows.map((r, i) => (i === index ? { ...r, [field]: value } : r)));
+  }
+
+  async function handleCreateEcheancier(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const motif = new FormData(e.currentTarget).get('motif');
+    setBusy(true);
+    try {
+      await api.post(`/api/clients/${clientId}/echeanciers`, {
+        motif,
+        tranches: newTranches
+          .filter((t) => t.dateEcheance && t.montant)
+          .map((t) => ({ dateEcheance: t.dateEcheance, montant: Number(t.montant) })),
+      });
+      showToast('Échéancier créé');
+      setAddingEcheancier(false);
+      setNewTranches([{ dateEcheance: '', montant: '' }]);
+      afterMutation();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggleTranchePaid(echeancierId: string, trancheId: string) {
+    setBusy(true);
+    try {
+      await api.patch(`/api/clients/${clientId}/echeanciers/${echeancierId}/tranches/${trancheId}/toggle-paid`);
+      afterMutation();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDeleteEcheancier(echeancier: EcheancierPaiement) {
+    if (!confirm(`Supprimer cet échéancier (${fmtFCFA(echeancier.montantTotal)}) ?`)) return;
+    setBusy(true);
+    try {
+      await api.delete(`/api/clients/${clientId}/echeanciers/${echeancier.id}`);
+      showToast('Échéancier supprimé');
       afterMutation();
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Erreur');
@@ -607,6 +663,109 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
                   </div>
                 </div>
               ),
+            )}
+
+            <div className="section-title">
+              <span>Échéancier de paiement</span>
+              {canManageEcheancier && !addingEcheancier && <button onClick={() => setAddingEcheancier(true)}>+ Créer</button>}
+            </div>
+            {addingEcheancier && (
+              <form onSubmit={handleCreateEcheancier} className="card-mini" style={{ borderColor: 'var(--accent)' }}>
+                <div style={{ marginBottom: 8 }}>
+                  <label>Motif (optionnel)</label>
+                  <input type="text" name="motif" placeholder="Ex : accord amiable suite à difficulté de trésorerie" />
+                </div>
+                {newTranches.map((t, i) => (
+                  <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                    <div>
+                      <label>Date tranche {i + 1}</label>
+                      <input
+                        type="date"
+                        value={t.dateEcheance}
+                        onChange={(e) => updateNewTranche(i, 'dateEcheance', e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label>Montant (FCFA)</label>
+                      <input
+                        type="number"
+                        value={t.montant}
+                        onChange={(e) => updateNewTranche(i, 'montant', e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+                ))}
+                <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                  <button type="button" onClick={() => setNewTranches((rows) => [...rows, { dateEcheance: '', montant: '' }])}>
+                    + Ajouter une tranche
+                  </button>
+                  {newTranches.length > 1 && (
+                    <button type="button" onClick={() => setNewTranches((rows) => rows.slice(0, -1))}>
+                      Retirer la dernière
+                    </button>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="primary" type="submit" disabled={busy}>
+                    Enregistrer
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAddingEcheancier(false);
+                      setNewTranches([{ dateEcheance: '', montant: '' }]);
+                    }}
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </form>
+            )}
+            {client.echeanciers.length === 0 && !addingEcheancier ? (
+              <div style={{ color: 'var(--ink-soft)', fontSize: 12.5 }}>Aucun échéancier en cours.</div>
+            ) : (
+              client.echeanciers.map((ech) => {
+                const paye = ech.tranches.filter((t) => t.statut === 'payee').reduce((s, t) => s + t.montant, 0);
+                const restant = ech.montantTotal - paye;
+                return (
+                  <div className="card-mini" key={ech.id}>
+                    <div className="row">
+                      <strong>{fmtFCFA(ech.montantTotal)}</strong>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 12, color: restant > 0 ? 'var(--amber)' : 'var(--success)' }}>
+                          {restant > 0 ? `Reste ${fmtFCFA(restant)}` : 'Soldé'}
+                        </span>
+                        {canManageEcheancier && (
+                          <button className="danger-btn" style={{ padding: '3px 9px', fontSize: 11 }} disabled={busy} onClick={() => handleDeleteEcheancier(ech)}>
+                            Supprimer
+                          </button>
+                        )}
+                      </span>
+                    </div>
+                    {ech.motif && <div style={{ color: 'var(--ink-soft)', fontSize: 12, marginBottom: 6 }}>{ech.motif}</div>}
+                    {ech.tranches.map((t) => (
+                      <div key={t.id} className="row" style={{ fontSize: 12.5, padding: '4px 0' }}>
+                        <span>
+                          Tranche {t.ordre} — {fmtDate(t.dateEcheance)}
+                        </span>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span className="mono">{fmtFCFA(t.montant)}</span>
+                          <span style={{ color: t.statut === 'impayee' ? 'var(--danger)' : 'var(--success)', fontWeight: 600 }}>
+                            {t.statut === 'impayee' ? 'Impayée' : 'Payée'}
+                          </span>
+                          {canToggleTranche && (
+                            <button style={{ padding: '2px 8px', fontSize: 11 }} disabled={busy} onClick={() => toggleTranchePaid(ech.id, t.id)}>
+                              {t.statut === 'impayee' ? 'Marquer payée' : 'Annuler'}
+                            </button>
+                          )}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })
             )}
 
             <div className="section-title">Historique des actions</div>

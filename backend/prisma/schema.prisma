@@ -71,10 +71,37 @@ model Client {
   contrats Contrat[]
   actions  ActionRecouvrement[]
   contacts Contact[]
+  echeanciers EcheancierPaiement[]
 
   // Clé de rapprochement à l'import (Excel manuel aujourd'hui, sync ARTIS/MAPON demain) :
   // un même client ne doit jamais être dupliqué d'un import à l'autre.
   @@unique([nom, entite])
+}
+
+// Accord de règlement échelonné négocié avec un client en difficulté —
+// distinct des factures elles-mêmes (une tranche ne correspond pas
+// forcément à une facture précise) pour pouvoir suivre le respect de
+// l'accord indépendamment du détail de facturation.
+model EcheancierPaiement {
+  id           String   @id @default(cuid())
+  client       Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId     String
+  montantTotal Float
+  motif        String?
+  createdAt    DateTime @default(now())
+
+  tranches TranchePaiement[]
+}
+
+model TranchePaiement {
+  id           String        @id @default(cuid())
+  echeancier   EcheancierPaiement @relation(fields: [echeancierId], references: [id], onDelete: Cascade)
+  echeancierId String
+  ordre        Int
+  dateEcheance DateTime
+  montant      Float
+  statut       StatutFacture @default(impayee)
+  datePaiement DateTime?
 }
 
 // Contacts supplémentaires d'un client (au-delà du contact principal
