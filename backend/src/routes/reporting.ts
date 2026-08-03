@@ -6,6 +6,7 @@ import { requireAuth } from '../middleware/auth';
 import { Entite, resolveEntiteScope } from '../lib/entites';
 import { fmtDate, fmtFCFA } from '../lib/dates';
 import { buildReportingSummary, lastNMonthKeys } from '../lib/reporting';
+import { PALIERS } from '../lib/paliers';
 
 const EVOLUTION_MONTHS = 6;
 
@@ -82,6 +83,41 @@ reportingRouter.get('/summary', async (req, res, next) => {
     const data = await fetchReportingData(req);
     if (!data) return res.status(400).json({ error: 'Période invalide — from et to sont requis (format AAAA-MM-JJ)' });
     res.json(data.summary);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Détail des relances d'un palier donné sur la période — permet de cliquer
+// sur un compteur du tableau "Relances effectuées" pour voir concrètement
+// qui a été relancé, quand, et avec quel commentaire éventuel.
+reportingRouter.get('/relances', async (req, res, next) => {
+  try {
+    const period = parsePeriod(req.query);
+    if (!period) return res.status(400).json({ error: 'Période invalide — from et to sont requis (format AAAA-MM-JJ)' });
+    const palier = parseInt(req.query.palier as string, 10);
+    if (Number.isNaN(palier) || !PALIERS[palier] || palier < 1) {
+      return res.status(400).json({ error: 'Palier invalide' });
+    }
+    const entiteFilter = resolveEntiteScope(req.user!, req.query.entite);
+    const where = entiteWhere(entiteFilter);
+
+    const actions = await prisma.actionRecouvrement.findMany({
+      where: { palier, date: { gte: period.from, lte: period.to }, client: where },
+      include: { client: true },
+      orderBy: { date: 'desc' },
+    });
+
+    res.json(
+      actions.map((a) => ({
+        id: a.id,
+        date: a.date,
+        note: a.note,
+        clientId: a.clientId,
+        clientNom: a.client.nom,
+        entite: a.client.entite,
+      })),
+    );
   } catch (err) {
     next(err);
   }

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { api, ApiError, buildQuery, downloadFile } from '../api/client';
 import { useResource } from '../hooks/useResource';
-import { Entite, ReportingSummary } from '../api/types';
+import { Entite, RelanceDetail, ReportingSummary } from '../api/types';
 import { fmtDate, fmtFCFA, PALIERS } from '../lib/constants';
 
 interface Props {
@@ -22,10 +22,14 @@ export function ReportingView({ entityFilter }: Props) {
   const [to, setTo] = useState(today());
   const [busy, setBusy] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [selectedPalier, setSelectedPalier] = useState<number | null>(null);
 
   const query = { from, to, entite: entityFilter };
   const summaryPath = `/api/reporting/summary${buildQuery(query)}`;
   const { data: summary, loading, error } = useResource<ReportingSummary>(from && to ? summaryPath : null);
+
+  const relancesPath = selectedPalier !== null ? `/api/reporting/relances${buildQuery({ ...query, palier: selectedPalier })}` : null;
+  const { data: relanceDetails, loading: loadingRelances } = useResource<RelanceDetail[]>(relancesPath);
 
   async function handleExport(kind: 'xlsx' | 'pdf') {
     setBusy(true);
@@ -174,7 +178,7 @@ export function ReportingView({ entityFilter }: Props) {
                 {summary.relances.map((r) => {
                   const pal = PALIERS[r.palier];
                   return (
-                    <tr key={r.palier}>
+                    <tr key={r.palier} className={r.nombre > 0 ? 'row-hover' : ''} onClick={() => r.nombre > 0 && setSelectedPalier(r.palier)}>
                       <td>
                         <span className="badge" data-tone={pal?.tone ?? 'success'}>
                           {r.label}
@@ -188,6 +192,39 @@ export function ReportingView({ entityFilter }: Props) {
             </table>
           </div>
         </>
+      )}
+
+      {selectedPalier !== null && (
+        <div className="modal-overlay open" onClick={(e) => e.target === e.currentTarget && setSelectedPalier(null)}>
+          <div className="modal" style={{ width: 'min(560px, 92%)' }}>
+            <h2 style={{ marginBottom: 4 }}>
+              {PALIERS[selectedPalier]?.label} — {fmtDate(from)} au {fmtDate(to)}
+            </h2>
+            <div style={{ color: 'var(--ink-soft)', fontSize: 12.5, marginBottom: 16 }}>Relances enregistrées sur la période.</div>
+
+            {loadingRelances || !relanceDetails ? (
+              <div>Chargement…</div>
+            ) : relanceDetails.length === 0 ? (
+              <div style={{ color: 'var(--ink-soft)', fontSize: 13 }}>Aucune relance enregistrée sur cette période.</div>
+            ) : (
+              <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+                {relanceDetails.map((r) => (
+                  <div className="card-mini" key={r.id}>
+                    <div className="row">
+                      <strong>{r.clientNom}</strong>
+                      <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}>{fmtDate(r.date)}</span>
+                    </div>
+                    {r.note && <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginTop: 4 }}>{r.note}</div>}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
+              <button onClick={() => setSelectedPalier(null)}>Fermer</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -176,6 +176,15 @@ export interface EvolutionMoisEntry {
   nombre: number;
 }
 
+export interface RelanceDetail {
+  id: string;
+  date: string;
+  note: string | null;
+  clientId: string;
+  clientNom: string;
+  entite: string;
+}
+
 export interface ReportingSummary {
   from: string;
   to: string;
