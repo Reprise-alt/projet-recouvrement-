@@ -26,6 +26,14 @@ export interface DerniereAction {
   palier: number;
 }
 
+export interface ContactSummary {
+  id: string;
+  nom: string;
+  fonction: string | null;
+  email: string | null;
+  tel: string | null;
+}
+
 export interface ClientListItem {
   id: string;
   nom: string;
@@ -36,6 +44,7 @@ export interface ClientListItem {
   note: string | null;
   prochaineRelance: string | null;
   frequenceFacturation: FrequenceFacturation;
+  contacts: ContactSummary[];
   encours: number;
   joursRetard: number;
   palier: number;

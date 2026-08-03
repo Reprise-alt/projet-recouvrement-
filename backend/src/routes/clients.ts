@@ -60,7 +60,7 @@ clientsRouter.get('/', async (req, res, next) => {
     const config = await getConfig();
     const clients = await prisma.client.findMany({
       where: entiteWhere(entiteFilter),
-      include: { factures: true, actions: { orderBy: { date: 'desc' }, take: 1 } },
+      include: { factures: true, actions: { orderBy: { date: 'desc' }, take: 1 }, contacts: { orderBy: { createdAt: 'asc' } } },
     });
 
     let list = clients.map((c) => {
@@ -79,6 +79,7 @@ clientsRouter.get('/', async (req, res, next) => {
         note: c.note,
         prochaineRelance: c.prochaineRelance,
         frequenceFacturation: c.frequenceFacturation,
+        contacts: c.contacts.map((ct) => ({ id: ct.id, nom: ct.nom, fonction: ct.fonction, email: ct.email, tel: ct.tel })),
         encours,
         joursRetard,
         palier,
