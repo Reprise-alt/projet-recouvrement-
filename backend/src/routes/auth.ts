@@ -7,9 +7,17 @@ export const authRouter = Router();
 
 // Renvoie l'identité applicative résolue par requireAuth (rôle, entité) —
 // utilisé par le frontend juste après la connexion pour savoir quelles vues
-// et actions afficher, le JWT lui-même ne portant que l'email.
-authRouter.get('/me', requireAuth, (req, res) => {
-  res.json(req.user);
+// et actions afficher, le JWT lui-même ne portant que l'email. Comme cet
+// appel n'est fait qu'une fois par ouverture/rechargement de l'app (jamais en
+// polling), c'est l'endroit naturel pour horodater la dernière connexion —
+// pas besoin d'écrire en base à chaque requête protégée.
+authRouter.get('/me', requireAuth, async (req, res, next) => {
+  try {
+    await prisma.utilisateur.update({ where: { id: req.user!.id }, data: { derniereConnexion: new Date() } });
+    res.json(req.user);
+  } catch (err) {
+    next(err);
+  }
 });
 
 // Outil de développement UNIQUEMENT : mint un JWT au format Supabase (même

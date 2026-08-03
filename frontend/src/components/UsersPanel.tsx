@@ -82,6 +82,12 @@ export function UsersPanel({ onClose }: { onClose: () => void }) {
                   </button>
                 </div>
               </div>
+              <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 6 }}>
+                Dernière connexion :{' '}
+                {u.derniereConnexion
+                  ? new Date(u.derniereConnexion).toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' })
+                  : 'jamais'}
+              </div>
             </div>
           ))
         )}

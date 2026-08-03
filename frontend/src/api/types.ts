@@ -18,6 +18,7 @@ export interface CurrentUser {
   email: string;
   role: RoleUtilisateur;
   entite: Entite | null;
+  derniereConnexion?: string | null;
 }
 
 export interface DerniereAction {

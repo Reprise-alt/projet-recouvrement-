@@ -193,6 +193,10 @@ model Utilisateur {
   email  String          @unique
   role   RoleUtilisateur
   entite String?
+  // Mise à jour à chaque appel à /api/auth/me, qui n'est fait qu'une fois par
+  // ouverture/rechargement de l'app — reflète donc "la dernière fois que
+  // l'app a été ouverte", pas une présence en temps réel.
+  derniereConnexion DateTime?
 }
 
 // Seuils de paliers de recouvrement (jours de retard), config unique du groupe.
