@@ -106,18 +106,63 @@ button.danger-btn:hover:not(:disabled){border-color:var(--danger);color:var(--da
 .ladder-card{background:#fff;border:1px solid var(--line);border-radius:var(--radius-lg);padding:24px 26px 20px;margin-bottom:28px;box-shadow:var(--shadow-sm);}
 .ladder-title{font-size:15.5px;font-weight:600;margin-bottom:3px;}
 .ladder-sub{font-size:12px;color:var(--ink-soft);margin-bottom:20px;}
-.ladder-rail{display:flex;align-items:stretch;gap:0;overflow-x:auto;position:relative;}
-.ladder-rail::before{content:'';position:absolute;top:15px;left:15px;right:15px;height:1px;background:var(--line);z-index:0;}
-.rung{flex:1;min-width:112px;position:relative;padding:0 10px 0 0;cursor:pointer;border:none;background:transparent;text-align:left;font-family:var(--font-body);z-index:1;}
-.rung-num{font-family:var(--font-mono);font-size:11px;color:var(--ink-soft);}
-.rung-dot{width:30px;height:30px;border-radius:50%;background:var(--paper-2);border:1.5px solid var(--line);display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-weight:600;font-size:13px;margin:6px 0 8px;transition:transform .18s var(--ease),box-shadow .18s var(--ease);}
-.rung:hover .rung-dot{transform:scale(1.08);}
-.rung.sel .rung-dot{outline:2px solid var(--ink);outline-offset:2px;box-shadow:var(--shadow-sm);}
-.rung-label{font-size:11.5px;font-weight:500;line-height:1.3;color:var(--ink);}
-.rung-days{font-family:var(--font-mono);font-size:10.5px;color:var(--ink-soft);margin-top:3px;}
-.rung[data-tone="success"] .rung-dot{background:var(--success-soft);color:var(--success);border-color:var(--success);}
-.rung[data-tone="amber"] .rung-dot{background:var(--amber-soft);color:var(--amber);border-color:var(--amber);}
-.rung[data-tone="danger"] .rung-dot{background:var(--danger-soft);color:var(--danger);border-color:var(--danger);}
+
+/* Bandes de fond reprenant le regroupement business déjà utilisé par le KPI
+   "Répartition des clients actifs" (paliers 0-3 / 4 / 5-7) — pour que les deux
+   blocs du dashboard se lisent comme un seul système plutôt que deux logiques
+   de couleur différentes. */
+.ladder-zones{position:relative;height:118px;overflow-x:auto;}
+.ladder-zoneband{position:absolute;top:38px;bottom:20px;border-radius:10px;opacity:.55;}
+.ladder-zonelabel{position:absolute;top:0;font-family:var(--font-mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;}
+.ladder-gradient-rail{position:absolute;left:0;right:0;top:53px;height:3px;border-radius:3px;
+  background:linear-gradient(90deg,var(--success) 0%,var(--success) 12%,var(--amber) 46%,var(--amber) 60%,var(--danger) 85%,var(--danger) 100%);
+  opacity:.55;
+}
+.ladder-row{position:relative;display:flex;align-items:flex-end;z-index:1;height:100%;min-width:640px;}
+
+.rung{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;position:relative;
+  padding:0;cursor:pointer;border:none;background:transparent;font-family:var(--font-body);
+  animation:rung-in .5s var(--ease) both;
+}
+.rung:nth-child(1){animation-delay:.02s}.rung:nth-child(2){animation-delay:.08s}
+.rung:nth-child(3){animation-delay:.14s}.rung:nth-child(4){animation-delay:.2s}
+.rung:nth-child(5){animation-delay:.26s}.rung:nth-child(6){animation-delay:.32s}
+.rung:nth-child(7){animation-delay:.38s}.rung:nth-child(8){animation-delay:.44s}
+@keyframes rung-in{from{opacity:0;transform:translateY(6px) scale(.85);}to{opacity:1;transform:none;}}
+
+.rung-circle{border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-weight:700;position:relative;
+  transition:transform .18s var(--ease),box-shadow .18s var(--ease);
+}
+.rung:hover .rung-circle{transform:scale(1.1);}
+.rung.sel .rung-circle{box-shadow:0 0 0 3px #fff,0 0 0 5px var(--ink);}
+.rung[data-tone="success"] .rung-circle{background:var(--success-soft);color:var(--success);border:1.5px solid var(--success);}
+.rung[data-tone="amber"] .rung-circle{background:var(--amber-soft);color:var(--amber);border:1.5px solid var(--amber);}
+.rung[data-tone="danger"] .rung-circle{background:var(--danger-soft);color:var(--danger);border:1.5px solid var(--danger);}
+.rung.ghost .rung-circle{background:transparent;border:1.5px dashed var(--line);color:var(--ink-soft);}
+
+.rung-meta{margin-top:9px;text-align:center;}
+.rung-label{font-size:11px;font-weight:600;line-height:1.25;color:var(--ink);}
+.rung-days{font-family:var(--font-mono);font-size:10px;color:var(--ink-soft);margin-top:2px;}
+
+.rung-tip{position:absolute;bottom:calc(100% + 10px);left:50%;transform:translateX(-50%) translateY(4px);background:var(--ink);color:#fff;
+  font-size:11px;padding:7px 10px;border-radius:7px;white-space:normal;text-align:center;max-width:200px;opacity:0;pointer-events:none;
+  transition:opacity .15s var(--ease),transform .15s var(--ease);z-index:5;box-shadow:var(--shadow-md);
+}
+.rung-tip::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:var(--ink);}
+.rung:hover .rung-tip{opacity:1;transform:translateX(-50%) translateY(0);}
+.rung:first-child .rung-tip{left:0;transform:translateY(4px);}
+.rung:first-child:hover .rung-tip{transform:translateY(0);}
+.rung:first-child .rung-tip::after{left:20px;transform:translateX(-50%);}
+.rung:last-child .rung-tip{left:auto;right:0;transform:translateY(4px);}
+.rung:last-child:hover .rung-tip{transform:translateY(0);}
+.rung:last-child .rung-tip::after{left:auto;right:20px;transform:translateX(50%);}
+
+.ladder-legend{display:flex;gap:20px;flex-wrap:wrap;font-size:11.5px;color:var(--ink-soft);margin-top:20px;padding-top:16px;border-top:1px solid var(--line-soft);}
+.ladder-legend .dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px;}
+
+@media (prefers-reduced-motion: reduce){
+  .rung{animation:none !important;}
+}
 
 .table-card{background:#fff;border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;margin-bottom:26px;box-shadow:var(--shadow-sm);}
 .table-head{display:flex;justify-content:space-between;align-items:center;padding:18px 22px;border-bottom:1px solid var(--line);}

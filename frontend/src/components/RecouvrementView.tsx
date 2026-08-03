@@ -120,22 +120,76 @@ export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
 
       <div className="ladder-card">
         <div className="ladder-title">Échelle de recouvrement</div>
-        <div className="ladder-sub">Chaque client est positionné automatiquement selon ses jours de retard. Cliquer un palier pour filtrer.</div>
-        <div className="ladder-rail">
-          {PALIERS.map((p) => (
-            <button
-              key={p.id}
-              className={`rung${palierFilter === p.id ? ' sel' : ''}`}
-              data-tone={p.tone}
-              title={p.desc || ''}
-              onClick={() => setPalierFilter((cur) => (cur === p.id ? null : p.id))}
-            >
-              <div className="rung-num">0{p.id}</div>
-              <div className="rung-dot">{ladder[p.id] ?? 0}</div>
-              <div className="rung-label">{p.label}</div>
-              <div className="rung-days">{p.key && kpis.data ? `J+${kpis.data.config[p.key]}` : '—'}</div>
-            </button>
-          ))}
+        <div className="ladder-sub">
+          Chaque client est positionné automatiquement selon ses jours de retard. La taille de chaque palier suit son nombre de
+          clients — cliquer pour filtrer.
+        </div>
+        {(() => {
+          const counts = PALIERS.map((p) => ladder[p.id] ?? 0);
+          const maxCount = Math.max(1, ...counts);
+          const MIN_SIZE = 22;
+          const MAX_SIZE = 54;
+          const colWidth = 100 / PALIERS.length;
+          // Même regroupement business que le KPI "Répartition des clients actifs" :
+          // paliers 0-3 dans les clous, 4 arrêt de service, 5-7 en litige.
+          const zones = [
+            { label: 'Dans les clous', color: 'var(--success)', bg: 'var(--success-soft)', from: 0, count: 4 },
+            { label: 'Arrêt de service', color: 'var(--amber)', bg: 'var(--amber-soft)', from: 4, count: 1 },
+            { label: 'En litige', color: 'var(--danger)', bg: 'var(--danger-soft)', from: 5, count: 3 },
+          ];
+          return (
+            <div className="ladder-zones">
+              {zones.map((z) => (
+                <div key={z.label}>
+                  <div
+                    className="ladder-zoneband"
+                    style={{ left: `${z.from * colWidth}%`, width: `${z.count * colWidth - 1.5}%`, background: z.bg }}
+                  />
+                  <div className="ladder-zonelabel" style={{ left: `${z.from * colWidth}%`, color: z.color }}>
+                    {z.label}
+                  </div>
+                </div>
+              ))}
+              <div className="ladder-gradient-rail" />
+              <div className="ladder-row">
+                {PALIERS.map((p) => {
+                  const count = ladder[p.id] ?? 0;
+                  const size = count === 0 ? MIN_SIZE : MIN_SIZE + (count / maxCount) * (MAX_SIZE - MIN_SIZE);
+                  return (
+                    <button
+                      key={p.id}
+                      className={`rung${palierFilter === p.id ? ' sel' : ''}${count === 0 ? ' ghost' : ''}`}
+                      data-tone={p.tone}
+                      onClick={() => setPalierFilter((cur) => (cur === p.id ? null : p.id))}
+                    >
+                      <div className="rung-circle" style={{ width: size, height: size, fontSize: size > 34 ? 15 : 12 }}>
+                        {count}
+                        {p.desc && <div className="rung-tip">{p.desc}</div>}
+                      </div>
+                      <div className="rung-meta">
+                        <div className="rung-label">{p.label}</div>
+                        <div className="rung-days">{p.key && kpis.data ? `J+${kpis.data.config[p.key]}` : '—'}</div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
+        <div className="ladder-legend">
+          <span>
+            <span className="dot" style={{ background: 'var(--success)' }} />
+            Dans les clous (paliers 0-3)
+          </span>
+          <span>
+            <span className="dot" style={{ background: 'var(--amber)' }} />
+            Arrêt de service (palier 4)
+          </span>
+          <span>
+            <span className="dot" style={{ background: 'var(--danger)' }} />
+            En litige (paliers 5-7)
+          </span>
         </div>
       </div>
 
