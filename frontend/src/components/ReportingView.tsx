@@ -250,7 +250,8 @@ export function ReportingView({ entityFilter, role }: Props) {
                     Performance par agent — {fmtDate(from)} au {fmtDate(to)}
                   </div>
                   <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 3 }}>
-                    Relances effectuées uniquement (paiements, corrections et suppressions de facture exclus).
+                    Relances effectuées uniquement (paiements, corrections et suppressions de facture exclus) — seuls les
+                    comptes marqués « Agent de recouvrement » apparaissent ici (voir Utilisateurs).
                   </div>
                 </div>
               </div>
@@ -270,6 +271,9 @@ export function ReportingView({ entityFilter, role }: Props) {
                       <th title="Jours entre une relance de l'agent et le paiement suivant du client — une corrélation, pas une preuve de cause.">
                         Délai moyen après intervention
                       </th>
+                      <th title="Montant des factures payées sur la période, créditées à l'agent du dernier contact avant le paiement — une convention d'attribution, pas une preuve de cause.">
+                        Montant recouvré
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -282,6 +286,16 @@ export function ReportingView({ entityFilter, role }: Props) {
                             <>
                               {a.delaiMoyenApresIntervention} j{' '}
                               <span style={{ color: 'var(--ink-soft)', fontSize: 11 }}>(sur {a.nombreDelaisMesures})</span>
+                            </>
+                          ) : (
+                            <span style={{ color: 'var(--ink-soft)' }}>—</span>
+                          )}
+                        </td>
+                        <td className="mono">
+                          {a.montantRecouvre > 0 ? (
+                            <>
+                              {fmtFCFA(a.montantRecouvre)}{' '}
+                              <span style={{ color: 'var(--ink-soft)', fontSize: 11 }}>({a.nombreFactures} facture{a.nombreFactures > 1 ? 's' : ''})</span>
                             </>
                           ) : (
                             <span style={{ color: 'var(--ink-soft)' }}>—</span>

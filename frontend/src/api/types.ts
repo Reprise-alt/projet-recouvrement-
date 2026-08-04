@@ -18,6 +18,7 @@ export interface CurrentUser {
   email: string;
   role: RoleUtilisateur;
   entite: Entite | null;
+  estAgentRecouvrement: boolean;
   derniereConnexion?: string | null;
 }
 
@@ -205,6 +206,8 @@ export interface AgentStat {
   actions: number;
   delaiMoyenApresIntervention: number | null;
   nombreDelaisMesures: number;
+  montantRecouvre: number;
+  nombreFactures: number;
 }
 
 export interface ReportingSummary {

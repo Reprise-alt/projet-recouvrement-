@@ -28,9 +28,22 @@ export function UsersPanel({ onClose }: { onClose: () => void }) {
         email: form.get('email'),
         role,
         entite: entite || undefined,
+        estAgentRecouvrement: form.get('estAgentRecouvrement') === 'on',
       });
       showToast('Utilisateur créé');
       (e.target as HTMLFormElement).reset();
+      refetch();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggleAgent(u: CurrentUser) {
+    setBusy(true);
+    try {
+      await api.patch(`/api/users/${u.id}`, { estAgentRecouvrement: !u.estAgentRecouvrement });
       refetch();
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Erreur');
@@ -58,7 +71,9 @@ export function UsersPanel({ onClose }: { onClose: () => void }) {
       <div className="modal" style={{ width: 'min(560px, 92%)' }}>
         <h2 style={{ marginBottom: 4 }}>Utilisateurs</h2>
         <div style={{ color: 'var(--ink-soft)', fontSize: 12.5, marginBottom: 16 }}>
-          L'authentification vient de Supabase ; le rôle et l'entité de rattachement sont gérés ici.
+          L'authentification vient de Supabase ; le rôle et l'entité de rattachement sont gérés ici. Le drapeau « Agent de
+          recouvrement » détermine qui apparaît dans le reporting Performance par agent — un admin qui consulte la
+          plateforme sans faire de relance n'a pas à y figurer.
         </div>
 
         <div className="section-title">Comptes</div>
@@ -82,11 +97,17 @@ export function UsersPanel({ onClose }: { onClose: () => void }) {
                   </button>
                 </div>
               </div>
-              <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 6 }}>
-                Dernière connexion :{' '}
-                {u.derniereConnexion
-                  ? new Date(u.derniereConnexion).toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' })
-                  : 'jamais'}
+              <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>
+                  Dernière connexion :{' '}
+                  {u.derniereConnexion
+                    ? new Date(u.derniereConnexion).toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' })
+                    : 'jamais'}
+                </span>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 5, textTransform: 'none', fontFamily: 'var(--font-body)', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={u.estAgentRecouvrement} disabled={busy} onChange={() => toggleAgent(u)} style={{ width: 'auto' }} />
+                  Agent de recouvrement
+                </label>
               </div>
             </div>
           ))
@@ -123,6 +144,10 @@ export function UsersPanel({ onClose }: { onClose: () => void }) {
                 ))}
             </select>
           </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, textTransform: 'none', fontFamily: 'var(--font-body)', fontSize: 13, cursor: 'pointer' }}>
+            <input type="checkbox" name="estAgentRecouvrement" defaultChecked style={{ width: 'auto' }} />
+            Agent de recouvrement — apparaît dans le reporting de performance
+          </label>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
             <button type="button" onClick={onClose}>
               Fermer

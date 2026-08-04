@@ -204,3 +204,51 @@ export function buildAgentStats(actions: AgentActionEntry[]): AgentStat[] {
     }))
     .sort((a, b) => b.actions - a.actions);
 }
+
+export interface PaymentAttributionEntry {
+  montant: number;
+  datePaiement: Date | string;
+  // Toutes les actions de relance (palier > 0, agent connu) déjà faites sur
+  // le client de cette facture -- pas seulement celles de la période
+  // affichée, car l'action qui a mené à ce paiement peut être antérieure à
+  // la période demandée (relancé en juin, payé en août).
+  actionsClient: { utilisateurId: string; utilisateurNom: string; date: Date | string }[];
+}
+
+export interface AgentMontantStat {
+  utilisateurId: string;
+  nom: string;
+  montantRecouvre: number;
+  nombreFactures: number;
+}
+
+// Attribution "dernier contact" : chaque facture payée est créditée à
+// l'agent dont l'action de relance est la plus proche (et antérieure ou
+// égale) de la date de paiement -- la convention standard pour ce type de
+// mesure, mais qui reste une corrélation, pas une preuve. Une facture sans
+// aucune action de relance avant son paiement (réglée spontanément, ou par
+// une action antérieure à l'ajout de ce suivi) n'est créditée à personne,
+// plutôt que d'être arbitrairement attribuée.
+export function buildAgentMontantRecouvre(payments: PaymentAttributionEntry[]): AgentMontantStat[] {
+  const parAgent = new Map<string, { nom: string; montant: number; nombre: number }>();
+
+  for (const p of payments) {
+    const paiementTime = new Date(p.datePaiement).getTime();
+    const dernierContact = p.actionsClient
+      .filter((a) => new Date(a.date).getTime() <= paiementTime)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+    if (!dernierContact) continue;
+
+    let stat = parAgent.get(dernierContact.utilisateurId);
+    if (!stat) {
+      stat = { nom: dernierContact.utilisateurNom, montant: 0, nombre: 0 };
+      parAgent.set(dernierContact.utilisateurId, stat);
+    }
+    stat.montant += p.montant;
+    stat.nombre += 1;
+  }
+
+  return [...parAgent.entries()]
+    .map(([utilisateurId, s]) => ({ utilisateurId, nom: s.nom, montantRecouvre: s.montant, nombreFactures: s.nombre }))
+    .sort((a, b) => b.montantRecouvre - a.montantRecouvre);
+}

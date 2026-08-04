@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildAgentMontantRecouvre,
   buildAgentStats,
   buildDelaiParEntite,
   buildEvolutionMensuelle,
@@ -153,5 +154,49 @@ describe('buildAgentStats', () => {
 
   it('returns an empty list for no actions', () => {
     expect(buildAgentStats([])).toEqual([]);
+  });
+});
+
+describe('buildAgentMontantRecouvre', () => {
+  it('credits a paid invoice to the agent of the closest preceding action', () => {
+    const payments = [
+      {
+        montant: 500000,
+        datePaiement: '2026-07-15',
+        actionsClient: [
+          { utilisateurId: 'u1', utilisateurNom: 'Awa', date: '2026-07-01' },
+          { utilisateurId: 'u2', utilisateurNom: 'Moussa', date: '2026-07-10' }, // le plus proche du paiement
+        ],
+      },
+    ];
+    const stats = buildAgentMontantRecouvre(payments);
+    expect(stats).toEqual([{ utilisateurId: 'u2', nom: 'Moussa', montantRecouvre: 500000, nombreFactures: 1 }]);
+  });
+
+  it('never credits an action that happened after the payment', () => {
+    const payments = [
+      {
+        montant: 500000,
+        datePaiement: '2026-07-01',
+        actionsClient: [{ utilisateurId: 'u1', utilisateurNom: 'Awa', date: '2026-07-05' }], // après le paiement
+      },
+    ];
+    expect(buildAgentMontantRecouvre(payments)).toEqual([]);
+  });
+
+  it('leaves a payment uncredited when the client has no prior relance', () => {
+    const payments = [{ montant: 500000, datePaiement: '2026-07-01', actionsClient: [] }];
+    expect(buildAgentMontantRecouvre(payments)).toEqual([]);
+  });
+
+  it('sums several credited invoices for the same agent and sorts by amount', () => {
+    const payments = [
+      { montant: 300000, datePaiement: '2026-07-01', actionsClient: [{ utilisateurId: 'u1', utilisateurNom: 'Awa', date: '2026-06-20' }] },
+      { montant: 200000, datePaiement: '2026-07-05', actionsClient: [{ utilisateurId: 'u1', utilisateurNom: 'Awa', date: '2026-07-01' }] },
+      { montant: 900000, datePaiement: '2026-07-10', actionsClient: [{ utilisateurId: 'u2', utilisateurNom: 'Moussa', date: '2026-07-08' }] },
+    ];
+    const stats = buildAgentMontantRecouvre(payments);
+    expect(stats[0]).toMatchObject({ nom: 'Moussa', montantRecouvre: 900000, nombreFactures: 1 });
+    expect(stats[1]).toMatchObject({ nom: 'Awa', montantRecouvre: 500000, nombreFactures: 2 });
   });
 });

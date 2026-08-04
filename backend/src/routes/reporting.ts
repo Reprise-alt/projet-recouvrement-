@@ -5,7 +5,14 @@ import { prisma } from '../db';
 import { requireAuth, requireRole } from '../middleware/auth';
 import { Entite, resolveEntiteScope } from '../lib/entites';
 import { fmtDate, fmtFCFA } from '../lib/dates';
-import { AgentActionEntry, buildAgentStats, buildReportingSummary, lastNMonthKeys } from '../lib/reporting';
+import {
+  AgentActionEntry,
+  buildAgentMontantRecouvre,
+  buildAgentStats,
+  buildReportingSummary,
+  lastNMonthKeys,
+  PaymentAttributionEntry,
+} from '../lib/reporting';
 import { PALIERS } from '../lib/paliers';
 
 const EVOLUTION_MONTHS = 6;
@@ -124,25 +131,31 @@ reportingRouter.get('/relances', async (req, res, next) => {
 });
 
 // Performance par agent sur la période -- réservé à admin/manager_entite,
-// jamais un comptable (cf. §visibilité). Deux mesures volontairement
+// jamais un comptable (cf. §visibilité). Trois mesures volontairement
 // distinctes :
 //  - "actions" = charge de travail, un compte brut, sans ambiguïté.
 //  - "delaiMoyenApresIntervention" = jours entre une relance (palier > 0)
-//    de l'agent et le paiement suivant enregistré pour ce client. C'est une
-//    corrélation, pas une preuve que l'agent est la cause du paiement — le
-//    nom du champ et le libellé côté UI doivent rester honnêtes là-dessus.
-// Seules les actions palier > 0 comptent : les actions palier 0 (facture
-// corrigée/supprimée, tranche réglée...) sont de la tenue de dossier, pas de
-// la relance, et les mélanger fausserait les deux métriques.
+//    de l'agent et le paiement suivant enregistré pour ce client.
+//  - "montantRecouvre" = montant des factures payées sur la période,
+//    créditées à l'agent du dernier contact avant le paiement.
+// Les deux dernières sont des corrélations, jamais une preuve que l'agent
+// est la cause du paiement — les noms de champs et les libellés côté UI
+// doivent rester honnêtes là-dessus.
+// Seules les actions palier > 0 comptent (la tenue de dossier -- facture
+// corrigée/supprimée, tranche réglée -- fausserait les trois métriques), et
+// seuls les utilisateurs marqués agent de recouvrement apparaissent : un
+// admin qui consulte la plateforme sans faire de relance n'a pas à
+// apparaître dans ce tableau (cf. Utilisateur.estAgentRecouvrement).
 reportingRouter.get('/agents', requireRole('admin', 'manager_entite'), async (req, res, next) => {
   try {
     const period = parsePeriod(req.query);
     if (!period) return res.status(400).json({ error: 'Période invalide — from et to sont requis (format AAAA-MM-JJ)' });
     const entiteFilter = resolveEntiteScope(req.user!, req.query.entite);
     const where = entiteWhere(entiteFilter);
+    const agentActionWhere = { palier: { gt: 0 }, utilisateurId: { not: null }, utilisateur: { estAgentRecouvrement: true } } as const;
 
     const actions = await prisma.actionRecouvrement.findMany({
-      where: { palier: { gt: 0 }, utilisateurId: { not: null }, date: { gte: period.from, lte: period.to }, client: where },
+      where: { ...agentActionWhere, date: { gte: period.from, lte: period.to }, client: where },
       include: {
         utilisateur: true,
         client: { include: { factures: { where: { statut: 'payee' }, select: { datePaiement: true } } } },
@@ -150,7 +163,7 @@ reportingRouter.get('/agents', requireRole('admin', 'manager_entite'), async (re
       orderBy: { date: 'asc' },
     });
 
-    const entries: AgentActionEntry[] = actions
+    const actionEntries: AgentActionEntry[] = actions
       .filter((a): a is typeof a & { utilisateurId: string; utilisateur: NonNullable<typeof a.utilisateur> } => a.utilisateur !== null)
       .map((a) => ({
         utilisateurId: a.utilisateurId,
@@ -159,7 +172,58 @@ reportingRouter.get('/agents', requireRole('admin', 'manager_entite'), async (re
         datesPaiementClient: a.client.factures.map((f) => f.datePaiement),
       }));
 
-    res.json(buildAgentStats(entries));
+    // Factures payées sur la période, avec tout l'historique de relance du
+    // client (pas limité à la période -- voir le commentaire sur
+    // PaymentAttributionEntry) pour l'attribution "dernier contact".
+    const payeesPeriode = await prisma.facture.findMany({
+      where: { statut: 'payee', datePaiement: { gte: period.from, lte: period.to }, client: where },
+      include: { client: { include: { actions: { where: agentActionWhere, include: { utilisateur: true } } } } },
+    });
+
+    const paymentEntries: PaymentAttributionEntry[] = payeesPeriode.map((f) => ({
+      montant: f.montant,
+      datePaiement: f.datePaiement!,
+      actionsClient: f.client.actions
+        .filter((a): a is typeof a & { utilisateurId: string; utilisateur: NonNullable<typeof a.utilisateur> } => a.utilisateur !== null)
+        .map((a) => ({ utilisateurId: a.utilisateurId, utilisateurNom: a.utilisateur.nom, date: a.date })),
+    }));
+
+    const actionStats = buildAgentStats(actionEntries);
+    const montantStats = buildAgentMontantRecouvre(paymentEntries);
+
+    const parAgent = new Map<string, { nom: string; actions: number; delaiMoyenApresIntervention: number | null; nombreDelaisMesures: number; montantRecouvre: number; nombreFactures: number }>();
+    for (const s of actionStats) {
+      parAgent.set(s.utilisateurId, {
+        nom: s.nom,
+        actions: s.actions,
+        delaiMoyenApresIntervention: s.delaiMoyenApresIntervention,
+        nombreDelaisMesures: s.nombreDelaisMesures,
+        montantRecouvre: 0,
+        nombreFactures: 0,
+      });
+    }
+    for (const s of montantStats) {
+      const existing = parAgent.get(s.utilisateurId);
+      if (existing) {
+        existing.montantRecouvre = s.montantRecouvre;
+        existing.nombreFactures = s.nombreFactures;
+      } else {
+        parAgent.set(s.utilisateurId, {
+          nom: s.nom,
+          actions: 0,
+          delaiMoyenApresIntervention: null,
+          nombreDelaisMesures: 0,
+          montantRecouvre: s.montantRecouvre,
+          nombreFactures: s.nombreFactures,
+        });
+      }
+    }
+
+    const result = [...parAgent.entries()]
+      .map(([utilisateurId, s]) => ({ utilisateurId, ...s }))
+      .sort((a, b) => b.montantRecouvre - a.montantRecouvre || b.actions - a.actions);
+
+    res.json(result);
   } catch (err) {
     next(err);
   }

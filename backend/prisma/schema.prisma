@@ -204,6 +204,13 @@ model Utilisateur {
   // l'app a été ouverte", pas une présence en temps réel.
   derniereConnexion DateTime?
 
+  // Distinct du rôle : un admin peut ne jamais faire de relance (supervision,
+  // configuration), et à l'inverse pourrait en faire ponctuellement. Détermine
+  // qui apparaît dans le reporting "Performance par agent" — jamais déduit du
+  // seul rôle à l'usage, seulement à la création/migration (voir la migration
+  // pour le choix par défaut : true sauf pour les admins existants).
+  estAgentRecouvrement Boolean @default(true)
+
   actions ActionRecouvrement[]
 }
 

@@ -23,7 +23,7 @@ usersRouter.get('/', async (_req, res, next) => {
 
 usersRouter.post('/', async (req, res, next) => {
   try {
-    const { nom, email, role, entite } = req.body ?? {};
+    const { nom, email, role, entite, estAgentRecouvrement } = req.body ?? {};
     if (!nom || !email || !VALID_ROLES.includes(role)) {
       return res.status(400).json({ error: 'nom, email et role (admin|manager_entite|comptable) sont requis' });
     }
@@ -34,7 +34,16 @@ usersRouter.post('/', async (req, res, next) => {
       return res.status(400).json({ error: 'Un manager doit être rattaché à une entité' });
     }
     const created = await prisma.utilisateur.create({
-      data: { nom, email, role, entite: entite || null },
+      data: {
+        nom,
+        email,
+        role,
+        entite: entite || null,
+        // Par défaut un admin n'est pas un agent de terrain (cohérent avec
+        // les comptes existants migrés) ; les autres rôles le sont, sauf
+        // décision explicite au moment de la création.
+        estAgentRecouvrement: typeof estAgentRecouvrement === 'boolean' ? estAgentRecouvrement : role !== 'admin',
+      },
     });
     res.status(201).json(created);
   } catch (err) {
@@ -44,7 +53,7 @@ usersRouter.post('/', async (req, res, next) => {
 
 usersRouter.patch('/:id', async (req, res, next) => {
   try {
-    const { nom, role, entite } = req.body ?? {};
+    const { nom, role, entite, estAgentRecouvrement } = req.body ?? {};
     if (role && !VALID_ROLES.includes(role)) {
       return res.status(400).json({ error: 'role invalide' });
     }
@@ -57,6 +66,7 @@ usersRouter.patch('/:id', async (req, res, next) => {
         nom: typeof nom === 'string' ? nom : undefined,
         role: role || undefined,
         entite: entite === null ? null : entite || undefined,
+        estAgentRecouvrement: typeof estAgentRecouvrement === 'boolean' ? estAgentRecouvrement : undefined,
       },
     });
     res.json(updated);
