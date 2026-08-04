@@ -17,6 +17,16 @@ function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+function moisCourt(key: string): string {
+  const [y, m] = key.split('-').map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString('fr-FR', { month: 'short' }).replace('.', '');
+}
+
+function fmtDelta(delta: number): string {
+  if (delta === 0) return '±0 j';
+  return `${delta > 0 ? '+' : '−'}${Math.abs(delta)} j`;
+}
+
 export function ReportingView({ entityFilter }: Props) {
   const [from, setFrom] = useState(firstDayOfMonth());
   const [to, setTo] = useState(today());
@@ -76,22 +86,57 @@ export function ReportingView({ entityFilter }: Props) {
         </div>
       ) : !summary ? null : (
         <>
-          <div className="kpis" style={{ marginBottom: 24 }}>
-            <div className="kpi">
-              <div className="kpi-label">Factures payées</div>
-              <div className="kpi-value success">{summary.facturesPayees.nombre}</div>
-            </div>
-            <div className="kpi">
-              <div className="kpi-label">Montant encaissé</div>
-              <div className="kpi-value">{fmtFCFA(summary.facturesPayees.montantTotal)}</div>
-            </div>
-            <div className="kpi">
-              <div className="kpi-label">Délai moyen d'encaissement (pondéré)</div>
-              <div className="kpi-value">
-                {summary.delaiEncaissement.global !== null ? `${Math.round(summary.delaiEncaissement.global)} j` : '—'}
+          {(() => {
+            // Écarts mois civil / mois civil précédent (indépendants de la période
+            // Du/Au choisie ci-dessus) — pour voir si le délai s'améliore ou se
+            // dégrade, plutôt qu'une simple valeur brute.
+            const evo = summary.evolutionMensuelle;
+            const pairs = evo.slice(1).map((cur, i) => {
+              const prev = evo[i];
+              const delta = cur.delaiJours !== null && prev.delaiJours !== null ? Math.round(cur.delaiJours - prev.delaiJours) : null;
+              return { from: prev.mois, to: cur.mois, delta };
+            });
+            const lastPair = pairs.length ? pairs[pairs.length - 1] : null;
+            const history = pairs.slice(0, -1);
+
+            return (
+              <div className="kpis" style={{ marginBottom: 24 }}>
+                <div className="kpi">
+                  <div className="kpi-label">Factures payées</div>
+                  <div className="kpi-value success">{summary.facturesPayees.nombre}</div>
+                </div>
+                <div className="kpi">
+                  <div className="kpi-label">Montant encaissé</div>
+                  <div className="kpi-value">{fmtFCFA(summary.facturesPayees.montantTotal)}</div>
+                </div>
+                <div className="kpi">
+                  <div className="kpi-label">Délai moyen d'encaissement (pondéré)</div>
+                  <div className="kpi-value">
+                    {summary.delaiEncaissement.global !== null ? `${Math.round(summary.delaiEncaissement.global)} j` : '—'}
+                  </div>
+                </div>
+                <div className="kpi">
+                  <div className="kpi-label">Tendance du délai (mois civil)</div>
+                  <div
+                    className="kpi-value"
+                    style={lastPair?.delta ? { color: lastPair.delta < 0 ? 'var(--success)' : 'var(--danger)' } : undefined}
+                  >
+                    {lastPair?.delta === null || lastPair === null ? '—' : fmtDelta(lastPair.delta)}
+                  </div>
+                  <div className="kpi-sub">{lastPair ? `${moisCourt(lastPair.from)} → ${moisCourt(lastPair.to)}` : 'Pas assez de données'}</div>
+                  {history.length > 0 && (
+                    <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap', marginTop: 9 }}>
+                      {history.map((p) => (
+                        <span key={p.to} className="mono" style={{ fontSize: 10.5, color: 'var(--ink-soft)' }}>
+                          {moisCourt(p.from)}→{moisCourt(p.to)} {p.delta === null ? '—' : fmtDelta(p.delta)}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          </div>
+            );
+          })()}
 
           {summary.delaiEncaissement.parEntite.length > 1 && (
             <div className="table-card" style={{ marginBottom: 24 }}>
