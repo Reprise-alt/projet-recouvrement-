@@ -25,6 +25,7 @@ const PRODUCT_TABS = [
     points: [
       <><strong>Encours, retards, contentieux</strong> — les chiffres qui comptent, en un coup d’œil.</>,
       <><strong>Échelle de recouvrement</strong> — chaque client positionné automatiquement selon ses jours de retard.</>,
+      <><strong>Signal de retard inhabituel</strong> — un client dont le retard dépasse nettement son propre historique de paiement est repéré avant même d’atteindre le palier suivant.</>,
       <><strong>Multi-société</strong> — vue consolidée ou filtrée par entité, en un clic.</>,
     ],
   },
@@ -65,11 +66,11 @@ const PRODUCT_TABS = [
     key: 'reporting',
     label: 'Reporting',
     img: '/landing/reporting.jpg',
-    title: 'Piloter le délai d’encaissement comme un vrai KPI financier',
+    title: 'Des comptes rendus qui se lisent comme un mémo, pas comme un export',
     points: [
-      <><strong>Moyenne pondérée par le montant</strong> — pas une simple moyenne.</>,
-      <><strong>Tendance mois par mois</strong> — en un coup d’œil, sans tableau à la main.</>,
-      <><strong>Export Excel / PDF</strong> — prêt pour le comité de direction.</>,
+      <><strong>Analyse rédigée automatiquement</strong> — points forts, actions positives, points de vigilance et recommandations générés à partir des vrais chiffres de la période, puis librement corrigés avant envoi.</>,
+      <><strong>Comparaison de deux périodes</strong> — montant encaissé, délai, volume de relances, avec l’écart déjà calculé — de quoi trancher si l’usage de la plateforme fait une vraie différence.</>,
+      <><strong>Export PDF / Excel aux couleurs de chaque entité</strong> — logo, mise en forme pro, performance par agent incluse — prêt pour le comité de direction.</>,
     ],
   },
 ];
