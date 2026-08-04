@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { buildDelaiParEntite, buildEvolutionMensuelle, buildReportingSummary, computeDelaiPondere, lastNMonthKeys } from '../src/lib/reporting';
+import {
+  buildAgentStats,
+  buildDelaiParEntite,
+  buildEvolutionMensuelle,
+  buildReportingSummary,
+  computeDelaiPondere,
+  lastNMonthKeys,
+} from '../src/lib/reporting';
 
 describe('buildReportingSummary', () => {
   it('sums paid invoices and counts actions per palier over the period', () => {
@@ -86,5 +93,65 @@ describe('buildEvolutionMensuelle', () => {
     expect(evolution[0]).toMatchObject({ mois: '2026-06', nombre: 1, montantTotal: 100000 });
     expect(evolution[1]).toMatchObject({ mois: '2026-07', nombre: 1, montantTotal: 200000 });
     expect(evolution[2]).toMatchObject({ mois: '2026-08', nombre: 0, montantTotal: 0, delaiJours: null });
+  });
+});
+
+describe('buildAgentStats', () => {
+  it('counts one action per entry, grouped by agent', () => {
+    const actions = [
+      { utilisateurId: 'u1', utilisateurNom: 'Awa', date: '2026-07-01', datesPaiementClient: [] },
+      { utilisateurId: 'u1', utilisateurNom: 'Awa', date: '2026-07-05', datesPaiementClient: [] },
+      { utilisateurId: 'u2', utilisateurNom: 'Moussa', date: '2026-07-02', datesPaiementClient: [] },
+    ];
+    const stats = buildAgentStats(actions);
+    expect(stats).toHaveLength(2);
+    expect(stats[0]).toMatchObject({ nom: 'Awa', actions: 2 });
+    expect(stats[1]).toMatchObject({ nom: 'Moussa', actions: 1 });
+  });
+
+  it('sorts agents by workload, busiest first', () => {
+    const actions = [
+      { utilisateurId: 'u1', utilisateurNom: 'Awa', date: '2026-07-01', datesPaiementClient: [] },
+      { utilisateurId: 'u2', utilisateurNom: 'Moussa', date: '2026-07-01', datesPaiementClient: [] },
+      { utilisateurId: 'u2', utilisateurNom: 'Moussa', date: '2026-07-02', datesPaiementClient: [] },
+      { utilisateurId: 'u2', utilisateurNom: 'Moussa', date: '2026-07-03', datesPaiementClient: [] },
+    ];
+    const stats = buildAgentStats(actions);
+    expect(stats.map((s) => s.nom)).toEqual(['Moussa', 'Awa']);
+  });
+
+  it('measures the delay to the first payment on or after the action date', () => {
+    const actions = [
+      {
+        utilisateurId: 'u1',
+        utilisateurNom: 'Awa',
+        date: '2026-07-01',
+        datesPaiementClient: ['2026-06-20', '2026-07-04', '2026-07-10'], // avant l'action, +3j, +9j
+      },
+    ];
+    const stats = buildAgentStats(actions);
+    expect(stats[0].delaiMoyenApresIntervention).toBe(3); // le paiement du 06-20 est avant l'action, ignoré
+    expect(stats[0].nombreDelaisMesures).toBe(1);
+  });
+
+  it('averages delays across several actions from the same agent', () => {
+    const actions = [
+      { utilisateurId: 'u1', utilisateurNom: 'Awa', date: '2026-07-01', datesPaiementClient: ['2026-07-05'] }, // +4
+      { utilisateurId: 'u1', utilisateurNom: 'Awa', date: '2026-07-10', datesPaiementClient: ['2026-07-12'] }, // +2
+    ];
+    const stats = buildAgentStats(actions);
+    expect(stats[0].delaiMoyenApresIntervention).toBe(3);
+    expect(stats[0].nombreDelaisMesures).toBe(2);
+  });
+
+  it('leaves delaiMoyenApresIntervention null (not 0) when no payment ever followed', () => {
+    const actions = [{ utilisateurId: 'u1', utilisateurNom: 'Awa', date: '2026-07-01', datesPaiementClient: [null, '2026-06-01'] }];
+    const stats = buildAgentStats(actions);
+    expect(stats[0].delaiMoyenApresIntervention).toBeNull();
+    expect(stats[0].nombreDelaisMesures).toBe(0);
+  });
+
+  it('returns an empty list for no actions', () => {
+    expect(buildAgentStats([])).toEqual([]);
   });
 });

@@ -199,6 +199,14 @@ export interface RelanceDetail {
   entite: string;
 }
 
+export interface AgentStat {
+  utilisateurId: string;
+  nom: string;
+  actions: number;
+  delaiMoyenApresIntervention: number | null;
+  nombreDelaisMesures: number;
+}
+
 export interface ReportingSummary {
   from: string;
   to: string;

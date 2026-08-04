@@ -104,6 +104,7 @@ sendEmailRouter.post('/', uploadAttachments, async (req, res, next) => {
           palier: context.palier,
           label: PALIERS[context.palier].label,
           note: `Envoyé par email à ${to}${attachmentsNote}`,
+          utilisateurId: req.user!.id,
         },
       });
     } else {

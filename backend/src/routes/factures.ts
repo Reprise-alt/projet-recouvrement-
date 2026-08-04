@@ -32,6 +32,7 @@ facturesRouter.patch(
             palier: 0,
             label: 'Facture réglée',
             note: `${facture.numero} — ${facture.montant.toLocaleString('fr-FR')} FCFA`,
+            utilisateurId: req.user!.id,
           },
         });
       }
@@ -89,6 +90,7 @@ facturesRouter.patch('/:factureId', requireRole('admin', 'manager_entite'), asyn
           palier: 0,
           label: 'Facture corrigée',
           note: `${facture.numero} — ${changements.join(', ')} (par ${req.user!.nom})`,
+          utilisateurId: req.user!.id,
         },
       });
     }
@@ -112,6 +114,7 @@ facturesRouter.delete('/:factureId', requireRole('admin'), async (req, res, next
         palier: 0,
         label: 'Facture supprimée',
         note: `${facture.numero} — ${fmtFCFA(facture.montant)} (par ${req.user!.nom})`,
+        utilisateurId: req.user!.id,
       },
     });
     res.status(204).end();

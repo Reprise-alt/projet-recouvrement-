@@ -342,7 +342,7 @@ clientsRouter.post('/:id/actions', requireRole('admin', 'manager_entite', 'compt
     if (!pal) return res.status(400).json({ error: 'Palier invalide' });
 
     const action = await prisma.actionRecouvrement.create({
-      data: { clientId: req.params.id, palier, label: pal.label, note: note || undefined },
+      data: { clientId: req.params.id, palier, label: pal.label, note: note || undefined, utilisateurId: req.user!.id },
     });
     res.status(201).json(action);
   } catch (err) {
@@ -423,6 +423,7 @@ clientsRouter.post('/:id/echeanciers', requireRole('admin', 'manager_entite'), a
         palier: 0,
         label: 'Échéancier de paiement créé',
         note: `${fmtFCFA(montantTotal)} en ${parsedTranches.length} tranche(s) (par ${req.user!.nom})`,
+        utilisateurId: req.user!.id,
       },
     });
 
@@ -461,6 +462,7 @@ clientsRouter.patch(
             palier: 0,
             label: 'Tranche réglée',
             note: `${fmtFCFA(tranche.montant)} — échéance du ${fmtDate(tranche.dateEcheance)}`,
+            utilisateurId: req.user!.id,
           },
         });
       }
@@ -488,6 +490,7 @@ clientsRouter.delete('/:id/echeanciers/:echeancierId', requireRole('admin', 'man
         palier: 0,
         label: 'Échéancier de paiement supprimé',
         note: `${fmtFCFA(echeancier.montantTotal)} (par ${req.user!.nom})`,
+        utilisateurId: req.user!.id,
       },
     });
     res.status(204).end();

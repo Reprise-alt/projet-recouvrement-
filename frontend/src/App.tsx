@@ -209,7 +209,7 @@ export function App() {
       ) : view === 'contrats' ? (
         <ContractsView entityFilter={effectiveEntity} role={user.role} reloadKey={dataVersion} />
       ) : (
-        <ReportingView entityFilter={effectiveEntity} />
+        <ReportingView entityFilter={effectiveEntity} role={user.role} />
       )}
 
       {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} onSaved={bumpDataVersion} />}

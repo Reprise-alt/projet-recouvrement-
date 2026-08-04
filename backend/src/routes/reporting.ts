@@ -2,10 +2,10 @@ import { Request, Router } from 'express';
 import PDFDocument from 'pdfkit';
 import * as XLSX from 'xlsx';
 import { prisma } from '../db';
-import { requireAuth } from '../middleware/auth';
+import { requireAuth, requireRole } from '../middleware/auth';
 import { Entite, resolveEntiteScope } from '../lib/entites';
 import { fmtDate, fmtFCFA } from '../lib/dates';
-import { buildReportingSummary, lastNMonthKeys } from '../lib/reporting';
+import { AgentActionEntry, buildAgentStats, buildReportingSummary, lastNMonthKeys } from '../lib/reporting';
 import { PALIERS } from '../lib/paliers';
 
 const EVOLUTION_MONTHS = 6;
@@ -118,6 +118,48 @@ reportingRouter.get('/relances', async (req, res, next) => {
         entite: a.client.entite,
       })),
     );
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Performance par agent sur la période -- réservé à admin/manager_entite,
+// jamais un comptable (cf. §visibilité). Deux mesures volontairement
+// distinctes :
+//  - "actions" = charge de travail, un compte brut, sans ambiguïté.
+//  - "delaiMoyenApresIntervention" = jours entre une relance (palier > 0)
+//    de l'agent et le paiement suivant enregistré pour ce client. C'est une
+//    corrélation, pas une preuve que l'agent est la cause du paiement — le
+//    nom du champ et le libellé côté UI doivent rester honnêtes là-dessus.
+// Seules les actions palier > 0 comptent : les actions palier 0 (facture
+// corrigée/supprimée, tranche réglée...) sont de la tenue de dossier, pas de
+// la relance, et les mélanger fausserait les deux métriques.
+reportingRouter.get('/agents', requireRole('admin', 'manager_entite'), async (req, res, next) => {
+  try {
+    const period = parsePeriod(req.query);
+    if (!period) return res.status(400).json({ error: 'Période invalide — from et to sont requis (format AAAA-MM-JJ)' });
+    const entiteFilter = resolveEntiteScope(req.user!, req.query.entite);
+    const where = entiteWhere(entiteFilter);
+
+    const actions = await prisma.actionRecouvrement.findMany({
+      where: { palier: { gt: 0 }, utilisateurId: { not: null }, date: { gte: period.from, lte: period.to }, client: where },
+      include: {
+        utilisateur: true,
+        client: { include: { factures: { where: { statut: 'payee' }, select: { datePaiement: true } } } },
+      },
+      orderBy: { date: 'asc' },
+    });
+
+    const entries: AgentActionEntry[] = actions
+      .filter((a): a is typeof a & { utilisateurId: string; utilisateur: NonNullable<typeof a.utilisateur> } => a.utilisateur !== null)
+      .map((a) => ({
+        utilisateurId: a.utilisateurId,
+        utilisateurNom: a.utilisateur.nom,
+        date: a.date,
+        datesPaiementClient: a.client.factures.map((f) => f.datePaiement),
+      }));
+
+    res.json(buildAgentStats(entries));
   } catch (err) {
     next(err);
   }

@@ -173,6 +173,12 @@ model ActionRecouvrement {
   palier   Int
   label    String
   note     String?
+
+  // Qui a effectué l'action -- absent (nullable) sur toutes les actions
+  // créées avant l'ajout de ce champ, et laissé tel quel : on n'attribue
+  // jamais une action à un agent par supposition rétroactive.
+  utilisateur   Utilisateur? @relation(fields: [utilisateurId], references: [id], onDelete: SetNull)
+  utilisateurId String?
 }
 
 model EnvoiContrat {
@@ -197,6 +203,8 @@ model Utilisateur {
   // ouverture/rechargement de l'app — reflète donc "la dernière fois que
   // l'app a été ouverte", pas une présence en temps réel.
   derniereConnexion DateTime?
+
+  actions ActionRecouvrement[]
 }
 
 // Seuils de paliers de recouvrement (jours de retard), config unique du groupe.

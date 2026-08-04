@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { api, ApiError, buildQuery, downloadFile } from '../api/client';
 import { useResource } from '../hooks/useResource';
-import { Entite, RelanceDetail, ReportingSummary } from '../api/types';
+import { AgentStat, Entite, RelanceDetail, ReportingSummary, RoleUtilisateur } from '../api/types';
 import { fmtDate, fmtFCFA, PALIERS } from '../lib/constants';
 
 interface Props {
   entityFilter: Entite | 'ALL';
+  role: RoleUtilisateur;
 }
 
 function firstDayOfMonth(): string {
@@ -27,7 +28,7 @@ function fmtDelta(delta: number): string {
   return `${delta > 0 ? '+' : '−'}${Math.abs(delta)} j`;
 }
 
-export function ReportingView({ entityFilter }: Props) {
+export function ReportingView({ entityFilter, role }: Props) {
   const [from, setFrom] = useState(firstDayOfMonth());
   const [to, setTo] = useState(today());
   const [busy, setBusy] = useState(false);
@@ -40,6 +41,10 @@ export function ReportingView({ entityFilter }: Props) {
 
   const relancesPath = selectedPalier !== null ? `/api/reporting/relances${buildQuery({ ...query, palier: selectedPalier })}` : null;
   const { data: relanceDetails, loading: loadingRelances } = useResource<RelanceDetail[]>(relancesPath);
+
+  const canSeeAgents = role === 'admin' || role === 'manager_entite';
+  const agentsPath = canSeeAgents && from && to ? `/api/reporting/agents${buildQuery(query)}` : null;
+  const { data: agentStats, loading: loadingAgents } = useResource<AgentStat[]>(agentsPath);
 
   async function handleExport(kind: 'xlsx' | 'pdf') {
     setBusy(true);
@@ -236,6 +241,59 @@ export function ReportingView({ entityFilter }: Props) {
               </tbody>
             </table>
           </div>
+
+          {canSeeAgents && (
+            <div className="table-card" style={{ marginTop: 24 }}>
+              <div className="table-head">
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>
+                    Performance par agent — {fmtDate(from)} au {fmtDate(to)}
+                  </div>
+                  <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 3 }}>
+                    Relances effectuées uniquement (paiements, corrections et suppressions de facture exclus).
+                  </div>
+                </div>
+              </div>
+              {loadingAgents ? (
+                <div className="empty-state">Chargement…</div>
+              ) : !agentStats || agentStats.length === 0 ? (
+                <div className="empty-state">
+                  <h3>Aucune relance attribuée sur cette période</h3>
+                  <p>Les relances envoyées avant l'ajout de ce suivi n'ont pas d'agent enregistré.</p>
+                </div>
+              ) : (
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Agent</th>
+                      <th>Relances effectuées</th>
+                      <th title="Jours entre une relance de l'agent et le paiement suivant du client — une corrélation, pas une preuve de cause.">
+                        Délai moyen après intervention
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {agentStats.map((a) => (
+                      <tr key={a.utilisateurId}>
+                        <td>{a.nom}</td>
+                        <td className="mono">{a.actions}</td>
+                        <td className="mono">
+                          {a.delaiMoyenApresIntervention !== null ? (
+                            <>
+                              {a.delaiMoyenApresIntervention} j{' '}
+                              <span style={{ color: 'var(--ink-soft)', fontSize: 11 }}>(sur {a.nombreDelaisMesures})</span>
+                            </>
+                          ) : (
+                            <span style={{ color: 'var(--ink-soft)' }}>—</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
         </>
       )}
 

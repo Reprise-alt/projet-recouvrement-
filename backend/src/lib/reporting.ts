@@ -1,4 +1,5 @@
 import { PALIERS } from './paliers';
+import { daysDiff } from './dates';
 
 export interface ReportingFacture {
   numero: string;
@@ -148,4 +149,58 @@ export function buildReportingSummary(
     },
     evolutionMensuelle: buildEvolutionMensuelle(evolutionFactures, evolutionMonths),
   };
+}
+
+export interface AgentActionEntry {
+  utilisateurId: string;
+  utilisateurNom: string;
+  date: Date | string;
+  // Dates de paiement des factures (payées) du client concerné par cette
+  // action -- pour trouver le premier paiement survenu après l'action.
+  datesPaiementClient: (Date | string | null)[];
+}
+
+export interface AgentStat {
+  utilisateurId: string;
+  nom: string;
+  actions: number;
+  // null s'il n'y a jamais eu de paiement observé après une action de cet
+  // agent sur la période -- distinct de 0 (qui voudrait dire "immédiat").
+  delaiMoyenApresIntervention: number | null;
+  nombreDelaisMesures: number;
+}
+
+// Construit la performance par agent à partir d'actions de relance déjà
+// filtrées à palier > 0 (appelant responsable d'exclure la tenue de dossier
+// -- factures corrigées/supprimées, tranches réglées -- qui n'est pas de la
+// relance). Le délai est une corrélation ("premier paiement après cette
+// action"), jamais un lien de causalité prouvé -- voir le commentaire dans
+// routes/reporting.ts.
+export function buildAgentStats(actions: AgentActionEntry[]): AgentStat[] {
+  const parAgent = new Map<string, { nom: string; actions: number; delais: number[] }>();
+
+  for (const action of actions) {
+    let stat = parAgent.get(action.utilisateurId);
+    if (!stat) {
+      stat = { nom: action.utilisateurNom, actions: 0, delais: [] };
+      parAgent.set(action.utilisateurId, stat);
+    }
+    stat.actions++;
+
+    const actionDate = new Date(action.date).getTime();
+    const prochainPaiement = action.datesPaiementClient
+      .filter((d): d is Date | string => d !== null && new Date(d).getTime() >= actionDate)
+      .sort((a, b) => new Date(a).getTime() - new Date(b).getTime())[0];
+    if (prochainPaiement) stat.delais.push(daysDiff(action.date, prochainPaiement));
+  }
+
+  return [...parAgent.entries()]
+    .map(([utilisateurId, s]) => ({
+      utilisateurId,
+      nom: s.nom,
+      actions: s.actions,
+      delaiMoyenApresIntervention: s.delais.length ? Math.round(s.delais.reduce((a, b) => a + b, 0) / s.delais.length) : null,
+      nombreDelaisMesures: s.delais.length,
+    }))
+    .sort((a, b) => b.actions - a.actions);
 }
