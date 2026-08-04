@@ -1,8 +1,110 @@
-import { useState } from 'react';
-import { api, ApiError, buildQuery, downloadFile } from '../api/client';
+import { useEffect, useState } from 'react';
+import { ApiError, buildQuery, downloadFilePost } from '../api/client';
 import { useResource } from '../hooks/useResource';
-import { AgentStat, Entite, RelanceDetail, ReportingSummary, RoleUtilisateur } from '../api/types';
+import { AgentStat, AnalyseResult, ComparaisonResult, Entite, RelanceDetail, ReportingSummary, RoleUtilisateur } from '../api/types';
 import { fmtDate, fmtFCFA, PALIERS } from '../lib/constants';
+
+type CategorieAnalyse = 'pointsForts' | 'actionsPositives' | 'pointsVigilance' | 'axesAmelioration' | 'recommandations';
+
+const ANALYSE_SECTIONS: { key: CategorieAnalyse; titre: string; tone: 'success' | 'amber' | 'neutre' }[] = [
+  { key: 'pointsForts', titre: 'Points forts', tone: 'success' },
+  { key: 'actionsPositives', titre: 'Actions positives', tone: 'success' },
+  { key: 'pointsVigilance', titre: 'Points de vigilance', tone: 'amber' },
+  { key: 'axesAmelioration', titre: "Axes d'amélioration", tone: 'neutre' },
+  { key: 'recommandations', titre: 'Recommandation', tone: 'neutre' },
+];
+
+const TONE_STYLE: Record<'success' | 'amber' | 'neutre', { bg: string; fg: string }> = {
+  success: { bg: 'var(--success-soft)', fg: 'var(--success)' },
+  amber: { bg: 'var(--amber-soft)', fg: 'var(--amber)' },
+  neutre: { bg: 'var(--paper-2)', fg: 'var(--ink-soft)' },
+};
+
+function AnalyseSection({
+  titre,
+  tone,
+  items,
+  onChange,
+}: {
+  titre: string;
+  tone: 'success' | 'amber' | 'neutre';
+  items: string[];
+  onChange: (items: string[]) => void;
+}) {
+  const style = TONE_STYLE[tone];
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div
+        style={{
+          display: 'inline-block',
+          background: style.bg,
+          color: style.fg,
+          fontWeight: 600,
+          fontSize: 12.5,
+          padding: '4px 12px',
+          borderRadius: 6,
+          marginBottom: 8,
+        }}
+      >
+        {titre}
+      </div>
+      {items.length === 0 && <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginBottom: 6 }}>Aucun point — ajoutez-en un si besoin.</div>}
+      {items.map((item, i) => (
+        <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 6 }}>
+          <textarea
+            value={item}
+            rows={2}
+            style={{ flex: 1, fontSize: 12.5, resize: 'vertical' }}
+            onChange={(e) => {
+              const next = [...items];
+              next[i] = e.target.value;
+              onChange(next);
+            }}
+          />
+          <button
+            type="button"
+            className="danger-btn"
+            style={{ padding: '3px 9px', fontSize: 11 }}
+            onClick={() => onChange(items.filter((_, j) => j !== i))}
+          >
+            Retirer
+          </button>
+        </div>
+      ))}
+      <button type="button" style={{ padding: '3px 10px', fontSize: 11.5 }} onClick={() => onChange([...items, ''])}>
+        + Ajouter un point
+      </button>
+    </div>
+  );
+}
+
+function firstDayOfPrevMonth(): string {
+  const d = new Date();
+  d.setDate(1);
+  d.setMonth(d.getMonth() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+function lastDayOfPrevMonth(): string {
+  const d = new Date();
+  d.setDate(0);
+  return d.toISOString().slice(0, 10);
+}
+
+function fmtDeltaMontant(delta: number): string {
+  if (delta === 0) return '±0 FCFA';
+  return `${delta > 0 ? '+' : '−'}${fmtFCFA(Math.abs(delta))}`;
+}
+
+function fmtDeltaNombre(delta: number): string {
+  if (delta === 0) return '±0';
+  return `${delta > 0 ? '+' : '−'}${Math.abs(delta)}`;
+}
+
+function fmtDeltaPourcent(pourcent: number | null): string {
+  if (pourcent === null) return '';
+  return ` (${pourcent > 0 ? '+' : ''}${pourcent} %)`;
+}
 
 interface Props {
   entityFilter: Entite | 'ALL';
@@ -46,11 +148,38 @@ export function ReportingView({ entityFilter, role }: Props) {
   const agentsPath = canSeeAgents && from && to ? `/api/reporting/agents${buildQuery(query)}` : null;
   const { data: agentStats, loading: loadingAgents } = useResource<AgentStat[]>(agentsPath);
 
+  // Suggestions générées par des règles côté serveur (cf. lib/analyse.ts),
+  // rechargées à chaque changement de période/entité puis laissées éditables
+  // en local — l'utilisateur peut corriger ou compléter avant export, jamais
+  // contraint au texte auto-généré.
+  const analysePath = canSeeAgents && from && to ? `/api/reporting/analyse${buildQuery(query)}` : null;
+  const { data: analyseData, loading: loadingAnalyse } = useResource<AnalyseResult>(analysePath);
+  const [analyseEdit, setAnalyseEdit] = useState<AnalyseResult | null>(null);
+  useEffect(() => {
+    setAnalyseEdit(analyseData);
+  }, [analyseData]);
+
+  const [showComparaison, setShowComparaison] = useState(false);
+  const [fromA, setFromA] = useState(firstDayOfPrevMonth());
+  const [toA, setToA] = useState(lastDayOfPrevMonth());
+  const [fromB, setFromB] = useState(firstDayOfMonth());
+  const [toB, setToB] = useState(today());
+  const comparaisonPath =
+    showComparaison && canSeeAgents && fromA && toA && fromB && toB
+      ? `/api/reporting/comparaison${buildQuery({ fromA, toA, fromB, toB, entite: entityFilter })}`
+      : null;
+  const { data: comparaison, loading: loadingComparaison, error: comparaisonError } = useResource<ComparaisonResult>(comparaisonPath);
+
   async function handleExport(kind: 'xlsx' | 'pdf') {
     setBusy(true);
     setExportError(null);
     try {
-      await downloadFile(`/api/reporting/export.${kind}${buildQuery(query)}`, `reporting_${from}_${to}.${kind}`);
+      await downloadFilePost(`/api/reporting/export.${kind}`, `reporting_${from}_${to}.${kind}`, {
+        from,
+        to,
+        entite: entityFilter,
+        analyse: analyseEdit ?? undefined,
+      });
     } catch (err) {
       setExportError(err instanceof ApiError ? err.message : "Échec de l'export");
     } finally {
@@ -142,6 +271,156 @@ export function ReportingView({ entityFilter, role }: Props) {
               </div>
             );
           })()}
+
+          {canSeeAgents && (
+            <div className="table-card" style={{ marginBottom: 24, padding: '18px 22px' }}>
+              <div style={{ marginBottom: 4 }}>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>
+                  Analyse du mois — {fmtDate(from)} au {fmtDate(to)}
+                </div>
+                <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 3, marginBottom: 14 }}>
+                  Suggestions générées automatiquement à partir des chiffres de la période — corrigez ou complétez librement,
+                  le texte ci-dessous sera repris tel quel dans les exports PDF et Excel.
+                </div>
+              </div>
+              {loadingAnalyse ? (
+                <div className="empty-state">Chargement…</div>
+              ) : !analyseEdit ? null : (
+                <div>
+                  {ANALYSE_SECTIONS.map((s) => (
+                    <AnalyseSection
+                      key={s.key}
+                      titre={s.titre}
+                      tone={s.tone}
+                      items={analyseEdit[s.key]}
+                      onChange={(items) => setAnalyseEdit({ ...analyseEdit, [s.key]: items })}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {canSeeAgents && (
+            <div className="table-card" style={{ marginBottom: 24, padding: '18px 22px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>Comparaison de périodes</div>
+                <button type="button" style={{ padding: '4px 12px', fontSize: 12 }} onClick={() => setShowComparaison((v) => !v)}>
+                  {showComparaison ? 'Masquer' : 'Comparer deux périodes'}
+                </button>
+              </div>
+              {showComparaison && (
+                <div style={{ marginTop: 16 }}>
+                  <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', marginBottom: 16 }}>
+                    <div>
+                      <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--ink-soft)', marginBottom: 6 }}>Période A</div>
+                      <div style={{ display: 'flex', gap: 10 }}>
+                        <div>
+                          <label>Du</label>
+                          <input type="date" value={fromA} onChange={(e) => setFromA(e.target.value)} />
+                        </div>
+                        <div>
+                          <label>Au</label>
+                          <input type="date" value={toA} onChange={(e) => setToA(e.target.value)} />
+                        </div>
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--ink-soft)', marginBottom: 6 }}>Période B</div>
+                      <div style={{ display: 'flex', gap: 10 }}>
+                        <div>
+                          <label>Du</label>
+                          <input type="date" value={fromB} onChange={(e) => setFromB(e.target.value)} />
+                        </div>
+                        <div>
+                          <label>Au</label>
+                          <input type="date" value={toB} onChange={(e) => setToB(e.target.value)} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {loadingComparaison ? (
+                    <div className="empty-state">Chargement…</div>
+                  ) : comparaisonError ? (
+                    <div className="login-error">{comparaisonError}</div>
+                  ) : comparaison ? (
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Indicateur</th>
+                          <th>{comparaison.periodeA.label}</th>
+                          <th>{comparaison.periodeB.label}</th>
+                          <th>Écart</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td>Montant encaissé</td>
+                          <td className="mono">{fmtFCFA(comparaison.periodeA.summary.facturesPayees.montantTotal)}</td>
+                          <td className="mono">{fmtFCFA(comparaison.periodeB.summary.facturesPayees.montantTotal)}</td>
+                          <td
+                            className="mono"
+                            style={{ color: comparaison.deltas.montantEncaisse.absolu >= 0 ? 'var(--success)' : 'var(--danger)' }}
+                          >
+                            {fmtDeltaMontant(comparaison.deltas.montantEncaisse.absolu)}
+                            {fmtDeltaPourcent(comparaison.deltas.montantEncaisse.pourcent)}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td>Factures payées</td>
+                          <td className="mono">{comparaison.periodeA.summary.facturesPayees.nombre}</td>
+                          <td className="mono">{comparaison.periodeB.summary.facturesPayees.nombre}</td>
+                          <td
+                            className="mono"
+                            style={{ color: comparaison.deltas.facturesPayees.absolu >= 0 ? 'var(--success)' : 'var(--danger)' }}
+                          >
+                            {fmtDeltaNombre(comparaison.deltas.facturesPayees.absolu)}
+                            {fmtDeltaPourcent(comparaison.deltas.facturesPayees.pourcent)}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td>Délai moyen d'encaissement</td>
+                          <td className="mono">
+                            {comparaison.periodeA.summary.delaiEncaissement.global !== null
+                              ? `${Math.round(comparaison.periodeA.summary.delaiEncaissement.global)} j`
+                              : '—'}
+                          </td>
+                          <td className="mono">
+                            {comparaison.periodeB.summary.delaiEncaissement.global !== null
+                              ? `${Math.round(comparaison.periodeB.summary.delaiEncaissement.global)} j`
+                              : '—'}
+                          </td>
+                          <td
+                            className="mono"
+                            style={
+                              comparaison.deltas.delaiMoyen
+                                ? { color: comparaison.deltas.delaiMoyen.absolu <= 0 ? 'var(--success)' : 'var(--danger)' }
+                                : undefined
+                            }
+                          >
+                            {comparaison.deltas.delaiMoyen ? fmtDelta(Math.round(comparaison.deltas.delaiMoyen.absolu)) : '—'}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td>Relances effectuées</td>
+                          <td className="mono">{comparaison.periodeA.relancesTotal}</td>
+                          <td className="mono">{comparaison.periodeB.relancesTotal}</td>
+                          <td
+                            className="mono"
+                            style={{ color: comparaison.deltas.relancesTotal.absolu >= 0 ? 'var(--success)' : 'var(--danger)' }}
+                          >
+                            {fmtDeltaNombre(comparaison.deltas.relancesTotal.absolu)}
+                            {fmtDeltaPourcent(comparaison.deltas.relancesTotal.pourcent)}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  ) : null}
+                </div>
+              )}
+            </div>
+          )}
 
           {summary.delaiEncaissement.parEntite.length > 1 && (
             <div className="table-card" style={{ marginBottom: 24 }}>

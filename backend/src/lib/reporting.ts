@@ -168,6 +168,11 @@ export interface AgentStat {
   // agent sur la période -- distinct de 0 (qui voudrait dire "immédiat").
   delaiMoyenApresIntervention: number | null;
   nombreDelaisMesures: number;
+  // Renseignés séparément par routes/reporting.ts en fusionnant avec
+  // buildAgentMontantRecouvre (attribution "dernier contact") -- absents de
+  // ce que buildAgentStats calcule seul, donc à 0 par défaut ici.
+  montantRecouvre: number;
+  nombreFactures: number;
 }
 
 // Construit la performance par agent à partir d'actions de relance déjà
@@ -201,6 +206,8 @@ export function buildAgentStats(actions: AgentActionEntry[]): AgentStat[] {
       actions: s.actions,
       delaiMoyenApresIntervention: s.delais.length ? Math.round(s.delais.reduce((a, b) => a + b, 0) / s.delais.length) : null,
       nombreDelaisMesures: s.delais.length,
+      montantRecouvre: 0,
+      nombreFactures: 0,
     }))
     .sort((a, b) => b.actions - a.actions);
 }

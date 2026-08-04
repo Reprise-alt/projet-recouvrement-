@@ -219,6 +219,36 @@ export interface ReportingSummary {
   evolutionMensuelle: EvolutionMoisEntry[];
 }
 
+export interface AnalyseResult {
+  pointsForts: string[];
+  actionsPositives: string[];
+  pointsVigilance: string[];
+  axesAmelioration: string[];
+  recommandations: string[];
+}
+
+export interface Delta {
+  absolu: number;
+  pourcent: number | null;
+}
+
+export interface ComparaisonPeriode {
+  label: string;
+  summary: ReportingSummary;
+  relancesTotal: number;
+}
+
+export interface ComparaisonResult {
+  periodeA: ComparaisonPeriode;
+  periodeB: ComparaisonPeriode;
+  deltas: {
+    montantEncaisse: Delta;
+    facturesPayees: Delta;
+    delaiMoyen: Delta | null;
+    relancesTotal: Delta;
+  };
+}
+
 export interface PalierConfig {
   j1: number;
   j2: number;
