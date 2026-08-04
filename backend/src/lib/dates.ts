@@ -8,6 +8,15 @@ export function daysUntil(date: Date | string): number {
   return -daysBetween(date);
 }
 
+// Nombre de jours entre deux dates arbitraires (contrairement à daysBetween,
+// qui compare toujours à aujourd'hui) — utilisé pour mesurer un délai de
+// paiement passé (dateEcheance -> datePaiement), pas un retard courant.
+export function daysDiff(from: Date | string, to: Date | string): number {
+  const a = typeof from === 'string' ? new Date(from) : from;
+  const b = typeof to === 'string' ? new Date(to) : to;
+  return Math.floor((b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24));
+}
+
 export function fmtFCFA(n: number): string {
   return n.toLocaleString('fr-FR') + ' FCFA';
 }

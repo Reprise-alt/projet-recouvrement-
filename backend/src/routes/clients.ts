@@ -1,7 +1,15 @@
 import { Router } from 'express';
 import { prisma } from '../db';
 import { getConfig } from '../services/configService';
-import { clientEncours, clientJoursRetard, clientOldestEcheance, clientPalier, PALIERS } from '../lib/paliers';
+import {
+  clientDelaiMoyenHistorique,
+  clientEncours,
+  clientJoursRetard,
+  clientOldestEcheance,
+  clientPalier,
+  clientRetardInhabituel,
+  PALIERS,
+} from '../lib/paliers';
 import { generateLetter } from '../lib/letters';
 import { Entite, resolveEntiteScope } from '../lib/entites';
 import { assertEntiteInScope, requireAuth, requireRole } from '../middleware/auth';
@@ -25,6 +33,7 @@ clientsRouter.get('/kpis', async (req, res, next) => {
     const enRetard = clients.filter((c) => clientPalier(c, config) >= 1).length;
     const contentieux = clients.filter((c) => clientPalier(c, config) >= 6).reduce((s, c) => s + clientEncours(c), 0);
     const lettresAEnvoyer = clients.filter((c) => clientPalier(c, config) >= 4).length;
+    const retardsInhabituels = clients.filter((c) => clientRetardInhabituel(c)).length;
 
     const ladder: Record<number, number> = {};
     PALIERS.forEach((p) => (ladder[p.id] = 0));
@@ -44,7 +53,7 @@ clientsRouter.get('/kpis', async (req, res, next) => {
     });
     const repartition = { total: totalActifs, dansLesClous, arretService, litige };
 
-    res.json({ totalEncours, enRetard, contentieux, lettresAEnvoyer, ladder, repartition, config });
+    res.json({ totalEncours, enRetard, contentieux, lettresAEnvoyer, retardsInhabituels, ladder, repartition, config });
   } catch (err) {
     next(err);
   }
@@ -83,6 +92,7 @@ clientsRouter.get('/', async (req, res, next) => {
         encours,
         joursRetard,
         palier,
+        retardInhabituel: clientRetardInhabituel(c),
         echeanceLaPlusAncienne: oldest?.dateEcheance ?? null,
         derniereAction: derniere ? { label: derniere.label, date: derniere.date, palier: derniere.palier } : null,
       };
@@ -136,6 +146,8 @@ clientsRouter.get('/:id', async (req, res, next) => {
       encours: clientEncours(client),
       joursRetard: clientJoursRetard(client),
       palier: clientPalier(client, config),
+      retardInhabituel: clientRetardInhabituel(client),
+      delaiMoyenHistorique: clientDelaiMoyenHistorique(client),
     });
   } catch (err) {
     next(err);

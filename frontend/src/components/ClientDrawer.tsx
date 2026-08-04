@@ -404,7 +404,27 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
                 </div>
               </div>
             )}
-            <div style={{ fontSize: 12, color: 'var(--ink-soft)', margin: '4px 0 0' }}>Jours de retard : {client.joursRetard} j</div>
+            <div style={{ fontSize: 12, color: 'var(--ink-soft)', margin: '4px 0 0', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span>
+                Jours de retard : {client.joursRetard} j
+                {client.delaiMoyenHistorique !== null && (
+                  <>
+                    {' '}
+                    · Habituellement :{' '}
+                    {client.delaiMoyenHistorique > 0
+                      ? `${Math.round(client.delaiMoyenHistorique)} j de retard en moyenne`
+                      : client.delaiMoyenHistorique < 0
+                        ? `${Math.round(-client.delaiMoyenHistorique)} j d'avance en moyenne`
+                        : 'paie à l’échéance'}
+                  </>
+                )}
+              </span>
+              {client.retardInhabituel && (
+                <span className="badge" data-tone="amber" title="Nettement au-dessus du délai de paiement habituel de ce client">
+                  ▲ Retard inhabituel
+                </span>
+              )}
+            </div>
 
             <div className="section-title">
               <span>Note</span>

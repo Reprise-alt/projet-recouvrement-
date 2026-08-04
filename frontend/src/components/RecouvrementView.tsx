@@ -26,6 +26,7 @@ export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [onlyATraiter, setOnlyATraiter] = useState(false);
+  const [onlyRetardInhabituel, setOnlyRetardInhabituel] = useState(false);
   const [bulkRelance, setBulkRelance] = useState(false);
 
   const kpisPath = `/api/clients/kpis${buildQuery({ entite: entityFilter })}`;
@@ -56,7 +57,14 @@ export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
   const rep = kpis.data?.repartition;
   const pct = (n: number) => (rep && rep.total > 0 ? Math.round((n / rep.total) * 100) : 0);
   const aTraiter = list.data?.filter(needsAction) ?? [];
-  const filtered = list.data?.filter((c) => c.nom.toLowerCase().includes(search.trim().toLowerCase()) && (!onlyATraiter || needsAction(c))) ?? [];
+  const retardsInhabituels = list.data?.filter((c) => c.retardInhabituel) ?? [];
+  const filtered =
+    list.data?.filter(
+      (c) =>
+        c.nom.toLowerCase().includes(search.trim().toLowerCase()) &&
+        (!onlyATraiter || needsAction(c)) &&
+        (!onlyRetardInhabituel || c.retardInhabituel),
+    ) ?? [];
   const canBulkRelance = role === 'admin' || role === 'manager_entite';
 
   return (
@@ -71,6 +79,20 @@ export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
         >
           ⚠ {aTraiter.length} client{aTraiter.length > 1 ? 's' : ''} à traiter aujourd'hui — palier atteint sans action correspondante, ou promesse de paiement dépassée.
           {onlyATraiter && <strong> Filtre actif — cliquer pour tout réafficher.</strong>}
+        </div>
+      )}
+
+      {retardsInhabituels.length > 0 && (
+        <div
+          className="signal-banner"
+          onClick={() => {
+            setOnlyRetardInhabituel((v) => !v);
+            setPalierFilter(null);
+          }}
+        >
+          ▲ {retardsInhabituels.length} client{retardsInhabituels.length > 1 ? 's' : ''} avec un retard inhabituel — nettement au-dessus de leur propre
+          délai de paiement habituel, avant même d'atteindre leur prochain palier.
+          {onlyRetardInhabituel && <strong> Filtre actif — cliquer pour tout réafficher.</strong>}
         </div>
       )}
 
@@ -196,7 +218,13 @@ export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
       <div className="table-card">
         <div className="table-head">
           <div style={{ fontWeight: 600, fontSize: 14 }}>
-            {onlyATraiter ? 'À traiter aujourd\'hui' : palierFilter !== null ? `Palier — ${PALIERS[palierFilter].label}` : 'Tous les clients'}
+            {onlyATraiter
+              ? 'À traiter aujourd\'hui'
+              : onlyRetardInhabituel
+                ? 'Retards inhabituels'
+                : palierFilter !== null
+                  ? `Palier — ${PALIERS[palierFilter].label}`
+                  : 'Tous les clients'}
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <input
@@ -207,6 +235,7 @@ export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
               style={{ width: 220 }}
             />
             {onlyATraiter && <button onClick={() => setOnlyATraiter(false)}>Afficher tous les clients</button>}
+            {onlyRetardInhabituel && <button onClick={() => setOnlyRetardInhabituel(false)}>Afficher tous les clients</button>}
             {palierFilter !== null && <button onClick={() => setPalierFilter(null)}>Effacer le filtre</button>}
             {palierFilter !== null && palierFilter > 0 && canBulkRelance && filtered.length > 0 && (
               <button onClick={() => setBulkRelance(true)}>Relance groupée</button>
@@ -255,6 +284,16 @@ export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
                     <tr key={c.id} className="row-hover" onClick={() => setSelectedClientId(c.id)}>
                       <td>
                         {c.nom}
+                        {c.retardInhabituel && (
+                          <span
+                            className="badge"
+                            data-tone="amber"
+                            style={{ marginLeft: 8 }}
+                            title="Ce client dépasse nettement son propre délai de paiement habituel, avant même son prochain palier."
+                          >
+                            ▲ Retard inhabituel
+                          </span>
+                        )}
                         {c.frequenceFacturation !== 'mensuelle' && (
                           <span className="entity-tag" style={{ marginLeft: 8, fontSize: 10 }} title="L'échelle de paliers est adaptée à ce rythme de facturation">
                             {c.frequenceFacturation === 'trimestrielle' ? 'Trimestriel' : 'Annuel'}

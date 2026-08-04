@@ -1,4 +1,4 @@
-import { daysBetween } from './dates';
+import { daysBetween, daysDiff } from './dates';
 
 export interface PalierConfig {
   j1: number;
@@ -65,6 +65,7 @@ export function computePalier(joursRetard: number, config: PalierConfig = DEFAUL
 export interface FactureLike {
   montant: number;
   dateEcheance: Date | string;
+  datePaiement?: Date | string | null;
   statut: 'impayee' | 'payee';
   numero?: string;
 }
@@ -93,4 +94,32 @@ export function clientJoursRetard(client: ClientWithFactures): number {
 export function clientPalier(client: ClientWithFactures, config: PalierConfig = DEFAULT_CONFIG): number {
   const multiplier = FREQUENCE_MULTIPLIER[client.frequenceFacturation ?? 'mensuelle'];
   return computePalier(clientJoursRetard(client), config, multiplier);
+}
+
+// Nombre minimal de factures payées nécessaires pour qu'une moyenne de délai
+// de paiement veuille dire quelque chose — en dessous, on ne peut pas dire
+// si un client est "habituellement" ponctuel ou pas.
+const HISTORIQUE_MIN_FACTURES = 2;
+
+// Délai de paiement moyen historique d'un client (dateEcheance -> datePaiement,
+// sur ses factures déjà payées) -- null si l'historique est insuffisant pour
+// que la moyenne signifie quelque chose.
+export function clientDelaiMoyenHistorique(client: ClientWithFactures): number | null {
+  const payees = client.factures.filter((f) => f.statut === 'payee' && f.datePaiement);
+  if (payees.length < HISTORIQUE_MIN_FACTURES) return null;
+  const delais = payees.map((f) => daysDiff(f.dateEcheance, f.datePaiement!));
+  return delais.reduce((a, b) => a + b, 0) / delais.length;
+}
+
+// Signal précoce, indépendant de l'échelle de paliers : un client dont le
+// retard courant dépasse nettement (>2x) son propre délai de paiement
+// habituel, même s'il n'a pas encore atteint un palier avancé. Silencieux
+// (false) faute d'historique suffisant -- jamais de faux signal sur un
+// client tout juste importé.
+export function clientRetardInhabituel(client: ClientWithFactures): boolean {
+  const joursRetard = clientJoursRetard(client);
+  if (joursRetard <= 0) return false;
+  const moyenne = clientDelaiMoyenHistorique(client);
+  if (moyenne === null) return false;
+  return joursRetard > Math.max(moyenne, 0) * 2;
 }

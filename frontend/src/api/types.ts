@@ -49,6 +49,7 @@ export interface ClientListItem {
   encours: number;
   joursRetard: number;
   palier: number;
+  retardInhabituel: boolean;
   echeanceLaPlusAncienne: string | null;
   derniereAction: DerniereAction | null;
 }
@@ -147,6 +148,8 @@ export interface ClientDetail {
   encours: number;
   joursRetard: number;
   palier: number;
+  retardInhabituel: boolean;
+  delaiMoyenHistorique: number | null;
 }
 
 export interface Repartition {
@@ -161,6 +164,7 @@ export interface RecouvrementKpis {
   enRetard: number;
   contentieux: number;
   lettresAEnvoyer: number;
+  retardsInhabituels: number;
   ladder: Record<number, number>;
   repartition: Repartition;
   config: PalierConfig;

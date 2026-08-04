@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  clientDelaiMoyenHistorique,
   clientEncours,
   clientJoursRetard,
   clientOldestEcheance,
   clientPalier,
+  clientRetardInhabituel,
   computePalier,
   DEFAULT_CONFIG,
 } from '../src/lib/paliers';
@@ -107,5 +109,91 @@ describe('client-level helpers', () => {
       frequenceFacturation: 'trimestrielle' as const,
     };
     expect(clientPalier(client)).toBe(2);
+  });
+});
+
+describe('clientDelaiMoyenHistorique', () => {
+  it('returns null with fewer than 2 paid invoices', () => {
+    expect(clientDelaiMoyenHistorique({ factures: [] })).toBeNull();
+    const oneInvoice = {
+      factures: [{ montant: 1000, dateEcheance: '2026-01-01', datePaiement: '2026-01-05', statut: 'payee' as const }],
+    };
+    expect(clientDelaiMoyenHistorique(oneInvoice)).toBeNull();
+  });
+
+  it('ignores unpaid invoices when averaging', () => {
+    const client = {
+      factures: [
+        { montant: 1000, dateEcheance: '2026-01-01', datePaiement: '2026-01-05', statut: 'payee' as const }, // +4
+        { montant: 1000, dateEcheance: '2026-02-01', datePaiement: '2026-02-03', statut: 'payee' as const }, // +2
+        { montant: 5000, dateEcheance: '2026-03-01', statut: 'impayee' as const },
+      ],
+    };
+    expect(clientDelaiMoyenHistorique(client)).toBe(3);
+  });
+
+  it('can be negative for a client who habitually pays early', () => {
+    const client = {
+      factures: [
+        { montant: 1000, dateEcheance: '2026-01-10', datePaiement: '2026-01-05', statut: 'payee' as const }, // -5
+        { montant: 1000, dateEcheance: '2026-02-10', datePaiement: '2026-02-07', statut: 'payee' as const }, // -3
+      ],
+    };
+    expect(clientDelaiMoyenHistorique(client)).toBe(-4);
+  });
+});
+
+describe('clientRetardInhabituel', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-28T12:00:00Z'));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('is false without an unpaid invoice', () => {
+    const client = { factures: [{ montant: 1000, dateEcheance: '2026-01-01', datePaiement: '2026-01-04', statut: 'payee' as const }] };
+    expect(clientRetardInhabituel(client)).toBe(false);
+  });
+
+  it('is false without enough payment history, even with a big current delay', () => {
+    const client = { factures: [{ montant: 1000, dateEcheance: '2026-05-01', statut: 'impayee' as const }] };
+    expect(clientRetardInhabituel(client)).toBe(false);
+  });
+
+  it('is false when the current delay stays within ~2x the habitual delay', () => {
+    const client = {
+      factures: [
+        { montant: 1000, dateEcheance: '2026-01-01', datePaiement: '2026-01-06', statut: 'payee' as const }, // +5
+        { montant: 1000, dateEcheance: '2026-02-01', datePaiement: '2026-02-08', statut: 'payee' as const }, // +7
+        // moyenne = 6j ; retard courant (2026-06-28 -> 2026-07-28 = 30j... trop) -> on garde un cas sous le seuil
+        { montant: 5000, dateEcheance: '2026-07-20', statut: 'impayee' as const }, // 8 jours de retard, seuil = 12
+      ],
+    };
+    expect(clientRetardInhabituel(client)).toBe(false);
+  });
+
+  it('is true when the current delay clears 2x the habitual delay', () => {
+    const client = {
+      factures: [
+        { montant: 1000, dateEcheance: '2026-01-01', datePaiement: '2026-01-04', statut: 'payee' as const }, // +3
+        { montant: 1000, dateEcheance: '2026-02-01', datePaiement: '2026-02-04', statut: 'payee' as const }, // +3
+        // moyenne = 3j, seuil = 6j ; retard courant = 30j (2026-06-28 -> 2026-07-28)
+        { montant: 5000, dateEcheance: '2026-06-28', statut: 'impayee' as const },
+      ],
+    };
+    expect(clientRetardInhabituel(client)).toBe(true);
+  });
+
+  it('flags any current delay for a client who normally pays early', () => {
+    const client = {
+      factures: [
+        { montant: 1000, dateEcheance: '2026-01-10', datePaiement: '2026-01-05', statut: 'payee' as const }, // -5
+        { montant: 1000, dateEcheance: '2026-02-10', datePaiement: '2026-02-06', statut: 'payee' as const }, // -4
+        { montant: 5000, dateEcheance: '2026-07-27', statut: 'impayee' as const }, // 1 jour de retard seulement
+      ],
+    };
+    expect(clientRetardInhabituel(client)).toBe(true);
   });
 });
