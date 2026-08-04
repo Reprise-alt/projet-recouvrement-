@@ -93,6 +93,11 @@ export function LoginPage() {
 
         {error && <div className="login-error">{error}</div>}
       </div>
+      <div style={{ marginTop: 20, fontSize: 12.5 }}>
+        <a href="/presentation" style={{ color: 'var(--ink-soft)' }}>
+          Découvrir la plateforme →
+        </a>
+      </div>
     </div>
   );
 }

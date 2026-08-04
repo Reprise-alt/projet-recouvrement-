@@ -211,6 +211,26 @@ model Config {
   j7 Int @default(90)
 }
 
+// Soumission du formulaire de contact de la page vitrine publique (non
+// authentifiée) — "investir" ou "devenir client pilote". Toujours persistée
+// même si la notification par email échoue, pour ne jamais perdre un
+// message faute de compte Gmail connecté.
+enum TypeDemandeContact {
+  investir
+  poc
+  autre
+}
+
+model DemandeContact {
+  id        String             @id @default(cuid())
+  type      TypeDemandeContact
+  nom       String
+  email     String
+  societe   String?
+  message   String
+  createdAt DateTime           @default(now())
+}
+
 // Statut des connecteurs API externes. Les clés statiques (ARTIS, MAPON à
 // venir) vivent en variables d'environnement / secret manager, jamais ici.
 // Le refresh token OAuth2 de Gmail est une exception : il est généré

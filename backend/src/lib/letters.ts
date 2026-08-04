@@ -145,7 +145,12 @@ function paiementSection(entite: Entite): string {
       `${entiteNom('IRIS')}\n${formatPaiementInfo(PAIEMENT_INFO.IRIS)}`
     );
   }
-  return `\n\nMoyens de paiement\n\n${formatPaiementInfo(PAIEMENT_INFO[entite])}`;
+  // Les entités créées dynamiquement depuis le panneau Entreprises n'ont pas
+  // forcément de coordonnées bancaires saisies ici — on omet le bloc plutôt
+  // que de faire échouer toute la génération du courrier.
+  const info = PAIEMENT_INFO[entite as 'SORAM' | 'SIS' | 'IRIS'];
+  if (!info) return '';
+  return `\n\nMoyens de paiement\n\n${formatPaiementInfo(info)}`;
 }
 
 // Génère le texte du courrier de recouvrement correspondant au palier atteint.

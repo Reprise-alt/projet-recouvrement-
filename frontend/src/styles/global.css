@@ -228,3 +228,105 @@ label{font-family:var(--font-mono);font-size:10.5px;text-transform:uppercase;let
 .login-divider::before,.login-divider::after{content:'';flex:1;height:1px;background:var(--line);}
 
 .role-badge{font-family:var(--font-mono);font-size:10.5px;text-transform:uppercase;color:var(--ink-soft);}
+
+/* ===================================================================
+   Page vitrine publique (landing) — tokens et classes additifs uniquement.
+   Rien ci-dessus n'est modifié : la page vitrine emprunte la palette et les
+   polices existantes, et n'ajoute que les 2 tons sombres qui n'avaient
+   jamais été nécessaires avant une page "pitch" tournée vers l'extérieur.
+   =================================================================== */
+:root{
+  --dark:#0E2A22;
+  --dark-2:#123023;
+  --cream-text:#D8E8E0;
+}
+
+.landing{background:var(--paper);color:var(--ink);}
+
+.landing-nav{position:sticky;top:0;z-index:30;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:16px 32px;background:rgba(246,245,241,.92);backdrop-filter:blur(6px);border-bottom:1px solid var(--line-soft);}
+.landing-nav-links{display:flex;align-items:center;gap:26px;}
+.landing-nav-links a{font-size:13.5px;font-weight:500;color:var(--ink-soft);text-decoration:none;}
+.landing-nav-links a:hover{color:var(--ink);}
+.landing-nav-cta{display:flex;align-items:center;gap:10px;}
+.landing-nav-cta a{color:var(--ink-soft);font-size:13.5px;font-weight:500;text-decoration:none;}
+.landing-nav-cta a:hover{color:var(--ink);}
+.landing-footer a{text-decoration:none;font-weight:500;}
+.landing-footer a:hover{color:var(--ink);}
+@media (max-width:760px){.landing-nav-links{display:none;}}
+
+.landing-hero{background:var(--dark);color:#fff;padding:72px 32px 88px;}
+.landing-hero-inner{max-width:1220px;margin:0 auto;display:grid;grid-template-columns:1.05fr 1fr;gap:56px;align-items:center;}
+.landing-hero-kicker{font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:#6FCBA6;margin-bottom:18px;}
+.landing-hero h1{font-size:44px;line-height:1.12;letter-spacing:-.01em;margin-bottom:20px;}
+.landing-hero h1 .accent{color:var(--accent);}
+.landing-hero-tag{font-size:16px;line-height:1.55;color:var(--cream-text);max-width:46ch;margin-bottom:30px;}
+.landing-hero-actions{display:flex;gap:12px;flex-wrap:wrap;}
+.landing-hero-actions a.primary{background:var(--accent);color:#0E2A22;font-weight:700;border-color:var(--accent);}
+.landing-hero-actions a.primary:hover{background:#3ED999;}
+.landing-hero-actions a{display:inline-flex;align-items:center;padding:11px 20px;border-radius:var(--radius-sm);border:1px solid #234A3B;color:#fff;text-decoration:none;font-size:13.5px;font-weight:600;transition:border-color .15s var(--ease),background .15s var(--ease);}
+.landing-hero-actions a:not(.primary):hover{border-color:var(--accent);color:var(--accent);}
+.landing-shot{background:#fff;border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);overflow:hidden;}
+.landing-shot img{display:block;width:100%;height:auto;}
+@media (max-width:900px){.landing-hero-inner{grid-template-columns:1fr;}.landing-hero h1{font-size:34px;}}
+
+.landing-section{max-width:1220px;margin:0 auto;padding:84px 32px;}
+.landing-section-tight{padding-top:0;}
+.landing-eyebrow{font-family:var(--font-mono);font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.1em;color:var(--accent-dark);margin-bottom:14px;}
+.landing-h2{font-family:var(--font-display);font-weight:700;font-size:30px;letter-spacing:-.01em;margin-bottom:14px;max-width:20ch;}
+.landing-lede{font-size:15.5px;color:var(--ink-soft);max-width:66ch;margin-bottom:44px;line-height:1.6;}
+
+.landing-icon-grid{display:grid;grid-template-columns:1fr 1fr;gap:36px 48px;}
+@media (max-width:760px){.landing-icon-grid{grid-template-columns:1fr;}}
+.landing-icon-row{display:flex;gap:16px;align-items:flex-start;}
+.landing-icon-circle{width:42px;height:42px;border-radius:50%;background:var(--accent-soft);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--accent-dark);}
+.landing-icon-row h3{font-family:var(--font-display);font-size:15.5px;font-weight:600;margin-bottom:6px;}
+.landing-icon-row p{font-size:13.5px;color:var(--ink-soft);line-height:1.55;margin:0;}
+
+.landing-tabs{display:flex;gap:4px;margin-bottom:32px;border-bottom:1px solid var(--line);flex-wrap:wrap;}
+.landing-tabs button{border:none;background:transparent;border-radius:0;padding:10px 4px;margin-right:26px;font-size:14px;font-weight:600;color:var(--ink-soft);border-bottom:2px solid transparent;box-shadow:none;}
+.landing-tabs button:hover:not(:disabled){color:var(--accent-dark);border-color:transparent;box-shadow:none;}
+.landing-tabs button.active{color:var(--ink);border-bottom-color:var(--accent);}
+.landing-tab-panel{display:grid;grid-template-columns:1fr 1.3fr;gap:48px;align-items:center;}
+.landing-tab-panel ul{margin:0;padding-left:18px;font-size:14px;color:var(--ink-soft);line-height:1.7;}
+.landing-tab-panel li strong{color:var(--ink);}
+@media (max-width:900px){.landing-tab-panel{grid-template-columns:1fr;}}
+
+.landing-section-dark{background:var(--dark);color:#fff;padding:84px 32px;}
+.landing-section-dark .landing-eyebrow{color:#6FCBA6;}
+.landing-section-dark .landing-lede{color:var(--cream-text);}
+.landing-section-dark-inner{max-width:1220px;margin:0 auto;}
+
+.landing-stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-bottom:36px;}
+@media (max-width:760px){.landing-stat-grid{grid-template-columns:1fr;}}
+.landing-stat{background:var(--dark-2);border:1px solid #234A3B;border-radius:var(--radius-lg);padding:26px 24px;}
+.landing-stat-value{font-family:var(--font-mono);font-weight:600;font-size:34px;color:var(--accent);margin-bottom:8px;}
+.landing-stat-label{font-size:12.5px;color:var(--cream-text);line-height:1.5;}
+.landing-fact{background:var(--dark-2);border:1px solid #234A3B;border-radius:var(--radius-lg);padding:24px 26px;font-size:14px;line-height:1.6;color:var(--cream-text);}
+
+.landing-card-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;}
+@media (max-width:900px){.landing-card-grid{grid-template-columns:1fr;}}
+.landing-card{background:#fff;border:1px solid var(--line);border-radius:var(--radius-lg);padding:26px 24px;box-shadow:var(--shadow-sm);}
+.landing-card-icon{width:42px;height:42px;border-radius:50%;background:var(--accent-soft);color:var(--accent-dark);display:flex;align-items:center;justify-content:center;margin-bottom:16px;}
+.landing-card h3{font-family:var(--font-display);font-size:16px;margin-bottom:8px;}
+.landing-card p{font-size:13.5px;color:var(--ink-soft);line-height:1.55;margin:0;}
+
+.landing-vc-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+@media (max-width:760px){.landing-vc-grid{grid-template-columns:1fr;}}
+
+.landing-cta-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:40px;}
+@media (max-width:900px){.landing-cta-grid{grid-template-columns:1fr;}}
+.landing-cta-card{background:var(--dark-2);border:1px solid #234A3B;border-radius:var(--radius-lg);padding:28px 26px;}
+.landing-cta-card h3{font-family:var(--font-display);font-size:19px;margin:14px 0 10px;}
+.landing-cta-card p{font-size:13.5px;color:var(--cream-text);line-height:1.55;margin:0 0 18px;}
+.landing-cta-card button{width:100%;}
+
+.landing-form-card{background:#fff;border-radius:var(--radius-lg);padding:30px 32px;max-width:640px;margin:0 auto;box-shadow:var(--shadow-lg);}
+.landing-form-card .field{margin-bottom:14px;}
+.landing-form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+@media (max-width:600px){.landing-form-row{grid-template-columns:1fr;}}
+.landing-form-type{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;}
+.landing-form-type button{flex:1;min-width:160px;}
+.landing-form-type button.active{background:var(--ink);color:#fff;border-color:var(--ink);}
+
+.landing-footer{border-top:1px solid var(--line-soft);padding:28px 32px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;font-size:12px;color:var(--ink-soft);}
+.landing-footer a{color:var(--ink-soft);}

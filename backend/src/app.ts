@@ -11,6 +11,7 @@ import { integrationsRouter } from './routes/integrations';
 import { sendEmailRouter } from './routes/sendEmail';
 import { entreprisesRouter } from './routes/entreprises';
 import { reportingRouter } from './routes/reporting';
+import { contactRouter } from './routes/contact';
 import { errorHandler } from './middleware/errorHandler';
 
 export function createApp() {
@@ -34,6 +35,7 @@ export function createApp() {
   app.use('/api/send-email', sendEmailRouter);
   app.use('/api/entreprises', entreprisesRouter);
   app.use('/api/reporting', reportingRouter);
+  app.use('/api/contact', contactRouter);
 
   app.use(errorHandler);
   return app;

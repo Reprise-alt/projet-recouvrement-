@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from './auth/AuthContext';
 import { LoginPage } from './components/LoginPage';
+import { Landing } from './components/Landing';
 import { RecouvrementView } from './components/RecouvrementView';
 import { ContractsView } from './components/ContractsView';
 import { ReportingView } from './components/ReportingView';
@@ -24,6 +25,10 @@ const ROLE_LABELS: Record<string, string> = {
 
 export function App() {
   const { user, loading, logout } = useAuth();
+
+  // Page vitrine publique — pas d'authentification requise, ne dépend pas de
+  // l'état de connexion (contrairement au reste de l'app ci-dessous).
+  if (window.location.pathname === '/presentation') return <Landing />;
   const [view, setView] = useState<MainView>('recouvrement');
   const [entityFilter, setEntityFilter] = useState<EntityFilter>('ALL');
   const [settingsOpen, setSettingsOpen] = useState(false);
