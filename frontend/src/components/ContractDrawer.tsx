@@ -1,4 +1,5 @@
 import { FormEvent, useState } from 'react';
+import { X } from 'lucide-react';
 import { api, ApiError } from '../api/client';
 import { ContractDetail, ContractDoc, RoleUtilisateur } from '../api/types';
 import { useResource } from '../hooks/useResource';
@@ -76,7 +77,7 @@ export function ContractDrawer({ contratId, role, onClose, onChanged }: Props) {
     <div className="overlay open" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="drawer">
         <button className="drawer-close" onClick={onClose} aria-label="Fermer" title="Fermer">
-          ✕
+          <X size={16} />
         </button>
         {loading || !contrat ? (
           <div>{error || 'Chargement…'}</div>

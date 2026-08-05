@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { CheckCircle2 } from 'lucide-react';
 import { api, ApiError } from '../api/client';
 import { CoursierTachesPubliques, ModePaiementCollecte, TacheCoursierPublic } from '../api/types';
 import { MODE_PAIEMENT_LABELS, TACHE_TYPE_LABELS, tacheStatutAffiche } from '../lib/constants';
@@ -143,7 +144,7 @@ export function CoursierPublicView({ token }: { token: string }) {
 
                     {statut === 'faite' ? (
                       <div className="cm-done-badge">
-                        ✓ Faite
+                        <CheckCircle2 size={18} /> Faite
                         {t.dateExecution && <span className="cm-done-time">à {fmtHeure(t.dateExecution)}</span>}
                       </div>
                     ) : (
@@ -177,7 +178,7 @@ export function CoursierPublicView({ token }: { token: string }) {
                           </div>
                         )}
                         <button className="primary" type="button" disabled={busy} onClick={() => marquerFait(t)}>
-                          ✓ Marquer fait
+                          <CheckCircle2 size={18} /> Marquer fait
                         </button>
                         <div className="cm-row2">
                           <div className="cm-field" style={{ flex: 1 }}>

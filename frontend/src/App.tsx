@@ -16,6 +16,7 @@ import { EntityLogo, entityAccent } from './components/EntityLogo';
 import { Entite, Entreprise } from './api/types';
 import { useResource } from './hooks/useResource';
 import { useTheme } from './hooks/useTheme';
+import { ChevronDown, Moon, Sun } from 'lucide-react';
 
 type MainView = 'recouvrement' | 'contrats' | 'planning';
 type EntityFilter = Entite | 'ALL';
@@ -129,7 +130,7 @@ export function App() {
             title={theme === 'dark' ? 'Passer en mode jour' : 'Passer en mode nuit'}
             aria-label={theme === 'dark' ? 'Passer en mode jour' : 'Passer en mode nuit'}
           >
-            {theme === 'dark' ? '☀' : '☾'}
+            {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
           </button>
           <div className="entity-toggle">
             {availableEntities.map((k) => (
@@ -153,7 +154,7 @@ export function App() {
           {isAdmin && (
             <div className="admin-menu" ref={adminMenuRef}>
               <button className="admin-menu-trigger" onClick={() => setAdminMenuOpen((v) => !v)}>
-                Administration ▾
+                Administration <ChevronDown size={14} />
               </button>
               {adminMenuOpen && (
                 <div className="admin-menu-panel">

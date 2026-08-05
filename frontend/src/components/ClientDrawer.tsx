@@ -1,4 +1,5 @@
 import { FormEvent, useState } from 'react';
+import { AlertTriangle, CheckCircle2, TrendingUp, X } from 'lucide-react';
 import { api, ApiError } from '../api/client';
 import { ClientDetail, Contact, EcheancierPaiement, RoleUtilisateur } from '../api/types';
 import { useResource } from '../hooks/useResource';
@@ -346,7 +347,7 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
     <div className="overlay open" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="drawer">
         <button className="drawer-close" onClick={onClose} aria-label="Fermer" title="Fermer">
-          ✕
+          <X size={16} />
         </button>
         {loading || !client ? (
           <div>{error || 'Chargement…'}</div>
@@ -421,7 +422,7 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
               </span>
               {client.retardInhabituel && (
                 <span className="badge" data-tone="amber" title="Nettement au-dessus du délai de paiement habituel de ce client">
-                  ▲ Retard inhabituel
+                  <TrendingUp size={11} /> Retard inhabituel
                 </span>
               )}
             </div>
@@ -473,11 +474,14 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
                 <span
                   style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
                     color: new Date(client.prochaineRelance) < new Date() ? 'var(--danger)' : 'var(--ink-soft)',
                     fontWeight: new Date(client.prochaineRelance) < new Date() ? 600 : 400,
                   }}
                 >
-                  {new Date(client.prochaineRelance) < new Date() && '⚠ '}
+                  {new Date(client.prochaineRelance) < new Date() && <AlertTriangle size={12} />}
                   {fmtDate(client.prochaineRelance)}
                 </span>
                 {canEditNote && (
@@ -876,7 +880,9 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
                 )}
               </div>
             ) : (
-              <div style={{ color: 'var(--success)', fontSize: 13, marginTop: 14 }}>✓ Compte à jour, aucune action requise.</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--success)', fontSize: 13, marginTop: 14 }}>
+                <CheckCircle2 size={15} /> Compte à jour, aucune action requise.
+              </div>
             )}
           </>
         )}

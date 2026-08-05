@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { AlertTriangle, Gavel, Mail, TrendingUp, Users, Wallet } from 'lucide-react';
 import { buildQuery } from '../api/client';
 import { useResource } from '../hooks/useResource';
 import { ClientListItem, Entite, RecouvrementKpis, RoleUtilisateur } from '../api/types';
@@ -92,8 +93,11 @@ export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
             setPalierFilter(null);
           }}
         >
-          ⚠ {aTraiter.length} client{aTraiter.length > 1 ? 's' : ''} à traiter aujourd'hui — palier atteint sans action correspondante, ou promesse de paiement dépassée.
-          {onlyATraiter && <strong> Filtre actif — cliquer pour tout réafficher.</strong>}
+          <AlertTriangle size={17} />
+          <div>
+            {aTraiter.length} client{aTraiter.length > 1 ? 's' : ''} à traiter aujourd'hui — palier atteint sans action correspondante, ou promesse de paiement dépassée.
+            {onlyATraiter && <strong> Filtre actif — cliquer pour tout réafficher.</strong>}
+          </div>
         </div>
       )}
 
@@ -105,27 +109,30 @@ export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
             setPalierFilter(null);
           }}
         >
-          ▲ {retardsInhabituels.length} client{retardsInhabituels.length > 1 ? 's' : ''} avec un retard inhabituel — nettement au-dessus de leur propre
-          délai de paiement habituel, avant même d'atteindre leur prochain palier.
-          {onlyRetardInhabituel && <strong> Filtre actif — cliquer pour tout réafficher.</strong>}
+          <TrendingUp size={17} />
+          <div>
+            {retardsInhabituels.length} client{retardsInhabituels.length > 1 ? 's' : ''} avec un retard inhabituel — nettement au-dessus de leur propre
+            délai de paiement habituel, avant même d'atteindre leur prochain palier.
+            {onlyRetardInhabituel && <strong> Filtre actif — cliquer pour tout réafficher.</strong>}
+          </div>
         </div>
       )}
 
       <div className="kpis">
         <div className="kpi">
-          <div className="kpi-label">Encours total</div>
+          <div className="kpi-label"><Wallet size={13} /> Encours total</div>
           <div className="kpi-value">{kpis.data ? fmtFCFA(kpis.data.totalEncours) : '—'}</div>
         </div>
         <div className="kpi">
-          <div className="kpi-label">Clients en retard</div>
+          <div className="kpi-label"><Users size={13} /> Clients en retard</div>
           <div className="kpi-value amber">{kpis.data?.enRetard ?? '—'}</div>
         </div>
         <div className="kpi">
-          <div className="kpi-label">En contentieux (palier ≥ 6)</div>
+          <div className="kpi-label"><Gavel size={13} /> En contentieux (palier ≥ 6)</div>
           <div className="kpi-value danger">{kpis.data ? fmtFCFA(kpis.data.contentieux) : '—'}</div>
         </div>
         <div className="kpi">
-          <div className="kpi-label">Courriers formels à traiter</div>
+          <div className="kpi-label"><Mail size={13} /> Courriers formels à traiter</div>
           <div className="kpi-value amber">{kpis.data?.lettresAEnvoyer ?? '—'}</div>
         </div>
       </div>
@@ -306,7 +313,7 @@ export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
                             style={{ marginLeft: 8 }}
                             title="Ce client dépasse nettement son propre délai de paiement habituel, avant même son prochain palier."
                           >
-                            ▲ Retard inhabituel
+                            <TrendingUp size={11} /> Retard inhabituel
                           </span>
                         )}
                         {c.frequenceFacturation !== 'mensuelle' && (
@@ -336,8 +343,8 @@ export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
                       </td>
                       <td style={{ fontSize: 12 }}>
                         {c.derniereAction ? (
-                          <span style={{ color: c.derniereAction.palier < c.palier ? 'var(--amber)' : 'var(--ink-soft)' }}>
-                            {c.derniereAction.palier < c.palier && '⚠ '}
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: c.derniereAction.palier < c.palier ? 'var(--amber)' : 'var(--ink-soft)' }}>
+                            {c.derniereAction.palier < c.palier && <AlertTriangle size={11} />}
                             {c.derniereAction.label} · {fmtDate(c.derniereAction.date)}
                           </span>
                         ) : c.palier > 0 ? (
@@ -348,8 +355,8 @@ export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
                       </td>
                       <td style={{ fontSize: 12 }}>
                         {c.prochaineRelance ? (
-                          <span style={{ color: new Date(c.prochaineRelance) < new Date() ? 'var(--danger)' : 'var(--ink-soft)' }}>
-                            {new Date(c.prochaineRelance) < new Date() && '⚠ '}
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: new Date(c.prochaineRelance) < new Date() ? 'var(--danger)' : 'var(--ink-soft)' }}>
+                            {new Date(c.prochaineRelance) < new Date() && <AlertTriangle size={11} />}
                             {fmtDate(c.prochaineRelance)}
                           </span>
                         ) : (
