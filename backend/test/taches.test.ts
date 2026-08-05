@@ -2,12 +2,38 @@ import { describe, expect, it } from 'vitest';
 import { modeleDuLe, resumeJournee, statutAffiche } from '../src/lib/taches';
 
 describe('modeleDuLe', () => {
-  it('is due when the day of month matches', () => {
-    expect(modeleDuLe(5, new Date('2026-08-05T12:00:00Z'))).toBe(true);
+  it('is due when the day of month matches a weekday', () => {
+    expect(modeleDuLe(5, new Date('2026-08-05T12:00:00Z'))).toBe(true); // mercredi
   });
 
   it('is not due on any other day', () => {
     expect(modeleDuLe(5, new Date('2026-08-06T12:00:00Z'))).toBe(false);
+  });
+
+  // Août 2026 : le 1er tombe un samedi, le 2 un dimanche, le 3 un lundi.
+  it('never fires on the weekend day itself', () => {
+    expect(modeleDuLe(1, new Date('2026-08-01T12:00:00Z'))).toBe(false); // samedi
+    expect(modeleDuLe(2, new Date('2026-08-02T12:00:00Z'))).toBe(false); // dimanche
+  });
+
+  it('shifts a Saturday due-date to the following Monday', () => {
+    expect(modeleDuLe(1, new Date('2026-08-03T12:00:00Z'))).toBe(true);
+  });
+
+  it('shifts a Sunday due-date to the following Monday', () => {
+    expect(modeleDuLe(2, new Date('2026-08-03T12:00:00Z'))).toBe(true);
+  });
+
+  it('does not fire on a Monday for a day of month that was not a weekend', () => {
+    expect(modeleDuLe(10, new Date('2026-08-03T12:00:00Z'))).toBe(false);
+  });
+
+  it('does not shift onto a Tuesday even if the previous Sunday matched', () => {
+    expect(modeleDuLe(2, new Date('2026-08-04T12:00:00Z'))).toBe(false); // mardi
+  });
+
+  it('fires directly for a day of month that already falls on a Monday', () => {
+    expect(modeleDuLe(3, new Date('2026-08-03T12:00:00Z'))).toBe(true);
   });
 });
 

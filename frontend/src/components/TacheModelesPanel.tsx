@@ -53,7 +53,8 @@ export function TacheModelesPanel({ entityFilter, onClose }: { entityFilter: Ent
         <h2 style={{ marginBottom: 4 }}>Tâches récurrentes</h2>
         <div style={{ color: 'var(--ink-soft)', fontSize: 12.5, marginBottom: 16 }}>
           Une tâche qui revient chaque mois (ex : relevé compteur imprimante le 5 de chaque mois) — l'instance du jour
-          est générée automatiquement dans le planning, sans ressaisie.
+          est générée automatiquement dans le planning, sans ressaisie. Si le jour choisi tombe un samedi ou un
+          dimanche, la tâche est automatiquement reportée au lundi suivant.
         </div>
 
         <div className="section-title">Modèles</div>
