@@ -365,7 +365,7 @@ export interface TachesJourResponse {
 // Vue publique (lien personnel coursier, sans authentification) -- un
 // sous-ensemble volontairement réduit du client complet.
 export interface TacheCoursierPublic extends Omit<TacheCoursier, 'client' | 'coursier'> {
-  client: { id: string; nom: string; tel: string | null } | null;
+  client: { id: string; nom: string; tel: string | null; entite: Entite } | null;
 }
 
 export interface CoursierTachesPubliques {

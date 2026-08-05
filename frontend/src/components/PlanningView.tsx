@@ -5,6 +5,7 @@ import { ClientListItem, Coursier, Entite, RoleUtilisateur, TachesJourResponse, 
 import { MODE_PAIEMENT_LABELS, TACHE_TYPE_LABELS, tacheStatutAffiche } from '../lib/constants';
 import { CoursiersPanel } from './CoursiersPanel';
 import { TacheModelesPanel } from './TacheModelesPanel';
+import { EntityLogo } from './EntityLogo';
 
 interface Props {
   entityFilter: Entite | 'ALL';
@@ -192,7 +193,16 @@ export function PlanningView({ entityFilter, role }: Props) {
                     const statut = tacheStatutAffiche(t);
                     return (
                       <tr key={t.id}>
-                        <td>{t.client ? t.client.nom : <span style={{ color: 'var(--ink-soft)' }}>—</span>}</td>
+                        <td>
+                          {t.client ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <EntityLogo entite={t.client.entite} size={14} />
+                              {t.client.nom}
+                            </div>
+                          ) : (
+                            <span style={{ color: 'var(--ink-soft)' }}>—</span>
+                          )}
+                        </td>
                         <td>
                           {TACHE_TYPE_LABELS[t.type]}
                           {t.label && <div style={{ fontSize: 11.5, color: 'var(--ink-soft)' }}>{t.label}</div>}

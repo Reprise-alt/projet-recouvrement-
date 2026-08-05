@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { CoursierTachesPubliques, ModePaiementCollecte, TacheCoursierPublic } from '../api/types';
 import { MODE_PAIEMENT_LABELS, TACHE_TYPE_LABELS, tacheStatutAffiche } from '../lib/constants';
+import { EntityLogo, entityAccent } from './EntityLogo';
 
 function tomorrow(): string {
   const d = new Date();
@@ -101,7 +102,33 @@ export function CoursierPublicView({ token }: { token: string }) {
               const statut = tacheStatutAffiche(t);
               const busy = busyId === t.id;
               return (
-                <div className="card-mini" key={t.id} style={{ padding: 16, marginBottom: 12 }}>
+                <div
+                  className="card-mini"
+                  key={t.id}
+                  style={{
+                    padding: 16,
+                    marginBottom: 12,
+                    borderLeft: t.client ? `5px solid ${entityAccent(t.client.entite)}` : undefined,
+                  }}
+                >
+                  {t.client && (
+                    <div
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 5,
+                        background: 'var(--paper-2)',
+                        borderRadius: 20,
+                        padding: '3px 10px 3px 6px',
+                        marginBottom: 8,
+                      }}
+                    >
+                      <EntityLogo entite={t.client.entite} size={13} />
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color: entityAccent(t.client.entite) }}>
+                        {t.client.entite}
+                      </span>
+                    </div>
+                  )}
                   <div style={{ fontWeight: 600, fontSize: 15 }}>{TACHE_TYPE_LABELS[t.type]}</div>
                   {t.client && (
                     <div style={{ fontSize: 13.5, marginTop: 2 }}>

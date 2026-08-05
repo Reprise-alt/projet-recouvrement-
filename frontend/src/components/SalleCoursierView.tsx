@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { SalleTachesResponse } from '../api/types';
 import { TACHE_TYPE_LABELS, tacheStatutAffiche } from '../lib/constants';
+import { EntityLogo, entityAccent } from './EntityLogo';
 
 const REFRESH_MS = 30000;
 
@@ -95,8 +96,17 @@ export function SalleCoursierView({ token }: { token: string }) {
               <table style={{ fontSize: 15 }}>
                 <tbody>
                   {nonAssignees.map((t) => (
-                    <tr key={t.id}>
-                      <td style={{ width: '32%' }}>{t.client ? t.client.nom : <span style={{ color: 'var(--ink-soft)' }}>—</span>}</td>
+                    <tr key={t.id} style={t.client ? { boxShadow: `inset 4px 0 0 ${entityAccent(t.client.entite)}` } : undefined}>
+                      <td style={{ width: '32%' }}>
+                        {t.client ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <EntityLogo entite={t.client.entite} size={14} />
+                            {t.client.nom}
+                          </div>
+                        ) : (
+                          <span style={{ color: 'var(--ink-soft)' }}>—</span>
+                        )}
+                      </td>
                       <td>
                         {TACHE_TYPE_LABELS[t.type]}
                         {t.label && <div style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>{t.label}</div>}
@@ -139,9 +149,20 @@ export function SalleCoursierView({ token }: { token: string }) {
                     {taches.map((t) => {
                       const statut = tacheStatutAffiche(t);
                       return (
-                        <div key={t.id} style={{ padding: '8px 4px', borderBottom: '1px solid var(--line)', fontSize: 13.5 }}>
+                        <div
+                          key={t.id}
+                          style={{
+                            padding: '8px 4px 8px 10px',
+                            borderBottom: '1px solid var(--line)',
+                            fontSize: 13.5,
+                            boxShadow: t.client ? `inset 3px 0 0 ${entityAccent(t.client.entite)}` : undefined,
+                          }}
+                        >
                           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                            <strong>{t.client ? t.client.nom : '—'}</strong>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                              {t.client && <EntityLogo entite={t.client.entite} size={12} />}
+                              <strong>{t.client ? t.client.nom : '—'}</strong>
+                            </span>
                             {statut !== 'a_faire' && (
                               <span
                                 className="badge"

@@ -30,7 +30,7 @@ coursierPublicRouter.get('/:token/taches', async (req, res, next) => {
     const { date, nextDay } = todayRange();
     const taches = await prisma.tacheCoursier.findMany({
       where: { coursierId: coursier.id, date: { gte: date, lt: nextDay }, statut: { not: 'annulee' } },
-      include: { client: { select: { id: true, nom: true, tel: true } } },
+      include: { client: { select: { id: true, nom: true, tel: true, entite: true } } },
       orderBy: { createdAt: 'asc' },
     });
     res.json({ coursier: { nom: coursier.nom }, taches });
@@ -76,7 +76,7 @@ coursierPublicRouter.patch('/:token/taches/:id', async (req, res, next) => {
     const updated = await prisma.tacheCoursier.update({
       where: { id: tache.id },
       data,
-      include: { client: { select: { id: true, nom: true, tel: true } } },
+      include: { client: { select: { id: true, nom: true, tel: true, entite: true } } },
     });
     res.json(updated);
   } catch (err) {
