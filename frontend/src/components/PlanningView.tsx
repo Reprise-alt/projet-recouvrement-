@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError, buildQuery } from '../api/client';
 import { useResource } from '../hooks/useResource';
 import { ClientListItem, Coursier, Entite, Entreprise, RoleUtilisateur, TachesJourResponse, TypeTacheCoursier } from '../api/types';
-import { MODE_PAIEMENT_LABELS, TACHE_TYPE_LABELS, tacheStatutAffiche } from '../lib/constants';
+import { MODE_PAIEMENT_LABELS, MOTIF_REPORT_LABELS, TACHE_TYPE_LABELS, tacheStatutAffiche } from '../lib/constants';
 import { CoursiersPanel } from './CoursiersPanel';
 import { TacheModelesPanel } from './TacheModelesPanel';
 import { EntityLogo } from './EntityLogo';
@@ -263,6 +263,9 @@ export function PlanningView({ entityFilter, role }: Props) {
                             <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 3 }} className="mono">
                               à {fmtHeure(t.dateExecution)}
                             </div>
+                          )}
+                          {statut === 'reportee' && t.motifReport && (
+                            <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 3 }}>{MOTIF_REPORT_LABELS[t.motifReport]}</div>
                           )}
                         </td>
                         <td>

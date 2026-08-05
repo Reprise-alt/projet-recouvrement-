@@ -317,6 +317,7 @@ export type TypeTacheCoursier =
 
 export type StatutTacheCoursier = 'a_faire' | 'faite' | 'annulee';
 export type ModePaiementCollecte = 'cheque' | 'espece' | 'autre';
+export type MotifReport = 'client_absent' | 'adresse_introuvable' | 'document_non_pret' | 'trafic_panne' | 'bureau_ferme' | 'autre';
 
 export interface Coursier {
   id: string;
@@ -351,6 +352,7 @@ export interface TacheCoursier {
   modePaiement: ModePaiementCollecte | null;
   note: string | null;
   dateExecution: string | null;
+  motifReport: MotifReport | null;
   client: { id: string; nom: string; entite: Entite } | null;
   coursier: Coursier | null;
 }

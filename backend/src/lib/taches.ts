@@ -18,6 +18,15 @@ export const MODE_PAIEMENT_LABELS: Record<string, string> = {
   autre: 'Autre',
 };
 
+export const MOTIF_REPORT_LABELS: Record<string, string> = {
+  client_absent: 'Client absent',
+  adresse_introuvable: 'Adresse introuvable',
+  document_non_pret: 'Document/paiement non prêt',
+  trafic_panne: 'Trafic / panne scooter',
+  bureau_ferme: 'Bureau fermé',
+  autre: 'Autre',
+};
+
 const MS_PAR_JOUR = 24 * 60 * 60 * 1000;
 
 // Un modèle récurrent est dû un jour donné si son jour du mois configuré

@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { CheckCircle2 } from 'lucide-react';
 import { api, ApiError } from '../api/client';
-import { CoursierTachesPubliques, ModePaiementCollecte, TacheCoursierPublic } from '../api/types';
-import { MODE_PAIEMENT_LABELS, TACHE_TYPE_LABELS, tacheStatutAffiche } from '../lib/constants';
+import { CoursierTachesPubliques, ModePaiementCollecte, MotifReport, TacheCoursierPublic } from '../api/types';
+import { MODE_PAIEMENT_LABELS, MOTIF_REPORT_LABELS, TACHE_TYPE_LABELS, tacheStatutAffiche } from '../lib/constants';
 import { EntityLogo, entityAccent } from './EntityLogo';
 
 function tomorrow(): string {
@@ -27,6 +27,7 @@ export function CoursierPublicView({ token }: { token: string }) {
   const [montants, setMontants] = useState<Record<string, string>>({});
   const [modes, setModes] = useState<Record<string, ModePaiementCollecte>>({});
   const [reportDates, setReportDates] = useState<Record<string, string>>({});
+  const [motifs, setMotifs] = useState<Record<string, MotifReport | ''>>({});
 
   async function load() {
     setLoading(true);
@@ -63,9 +64,14 @@ export function CoursierPublicView({ token }: { token: string }) {
   }
 
   async function reporter(t: TacheCoursierPublic) {
+    const motifReport = motifs[t.id];
+    if (!motifReport) return;
     setBusyId(t.id);
     try {
-      await api.patch(`/api/coursier-public/${token}/taches/${t.id}`, { report: reportDates[t.id] ?? tomorrow() });
+      await api.patch(`/api/coursier-public/${token}/taches/${t.id}`, {
+        report: reportDates[t.id] ?? tomorrow(),
+        motifReport,
+      });
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Erreur');
@@ -180,6 +186,20 @@ export function CoursierPublicView({ token }: { token: string }) {
                         <button className="primary" type="button" disabled={busy} onClick={() => marquerFait(t)}>
                           <CheckCircle2 size={18} /> Marquer fait
                         </button>
+                        <div className="cm-field">
+                          <label>Motif du report</label>
+                          <select
+                            value={motifs[t.id] ?? ''}
+                            onChange={(e) => setMotifs((prev) => ({ ...prev, [t.id]: e.target.value as MotifReport }))}
+                          >
+                            <option value="">Choisir un motif…</option>
+                            {(Object.keys(MOTIF_REPORT_LABELS) as MotifReport[]).map((m) => (
+                              <option key={m} value={m}>
+                                {MOTIF_REPORT_LABELS[m]}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                         <div className="cm-row2">
                           <div className="cm-field" style={{ flex: 1 }}>
                             <label>Reporter au</label>
@@ -189,7 +209,12 @@ export function CoursierPublicView({ token }: { token: string }) {
                               onChange={(e) => setReportDates((prev) => ({ ...prev, [t.id]: e.target.value }))}
                             />
                           </div>
-                          <button className="cm-report-btn" type="button" disabled={busy} onClick={() => reporter(t)}>
+                          <button
+                            className="cm-report-btn"
+                            type="button"
+                            disabled={busy || !motifs[t.id]}
+                            onClick={() => reporter(t)}
+                          >
                             Reporter
                           </button>
                         </div>

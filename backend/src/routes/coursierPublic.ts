@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { prisma } from '../db';
+import { MOTIF_REPORT_LABELS } from '../lib/taches';
 
 export const coursierPublicRouter = Router();
 
@@ -51,7 +52,7 @@ coursierPublicRouter.patch('/:token/taches/:id', async (req, res, next) => {
       return res.status(404).json({ error: 'Tâche introuvable' });
     }
 
-    const { statut, montant, modePaiement, note, report } = req.body ?? {};
+    const { statut, montant, modePaiement, note, report, motifReport } = req.body ?? {};
     const data: Record<string, unknown> = {};
 
     if (report !== undefined) {
@@ -60,7 +61,13 @@ coursierPublicRouter.patch('/:token/taches/:id', async (req, res, next) => {
       }
       const nouvelleDate = new Date(`${report}T00:00:00.000Z`);
       if (Number.isNaN(nouvelleDate.getTime())) return res.status(400).json({ error: 'Date de report invalide' });
+      // Un report doit toujours être justifié -- pas de "report silencieux"
+      // que l'ADV découvrirait sans explication.
+      if (typeof motifReport !== 'string' || !(motifReport in MOTIF_REPORT_LABELS)) {
+        return res.status(400).json({ error: 'Motif de report requis' });
+      }
       data.date = nouvelleDate;
+      data.motifReport = motifReport;
     }
 
     if (statut !== undefined) {

@@ -306,6 +306,18 @@ enum ModePaiementCollecte {
   autre
 }
 
+// Motif de report d'une tâche -- saisi par le coursier lui-même au moment
+// du report (cf. routes/coursierPublic.ts), pour que l'ADV comprenne la
+// raison sans avoir à le rappeler.
+enum MotifReport {
+  client_absent
+  adresse_introuvable
+  document_non_pret
+  trafic_panne
+  bureau_ferme
+  autre
+}
+
 // Membre de l'équipe coursiers -- pas un Utilisateur de la plateforme (pas
 // de rôle, pas de mot de passe) : identifié uniquement par un lien
 // personnel (token) qu'il ouvre depuis son téléphone pour voir et cocher
@@ -375,6 +387,10 @@ model TacheCoursier {
 
   note          String?
   dateExecution DateTime?
+
+  // Renseigné par le coursier au moment du report -- absent tant que la
+  // tâche n'a jamais été reportée.
+  motifReport MotifReport?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

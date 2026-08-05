@@ -1,4 +1,4 @@
-import { ModePaiementCollecte, TypeTacheCoursier } from '../api/types';
+import { ModePaiementCollecte, MotifReport, TypeTacheCoursier } from '../api/types';
 
 // Métadonnées d'affichage des paliers/alertes — mirroir des constantes
 // backend (src/lib/paliers.ts, src/lib/contracts.ts), le serveur ne renvoyant
@@ -58,6 +58,15 @@ export const TACHE_TYPE_LABELS: Record<TypeTacheCoursier, string> = {
 export const MODE_PAIEMENT_LABELS: Record<ModePaiementCollecte, string> = {
   cheque: 'Chèque',
   espece: 'Espèces',
+  autre: 'Autre',
+};
+
+export const MOTIF_REPORT_LABELS: Record<MotifReport, string> = {
+  client_absent: 'Client absent',
+  adresse_introuvable: 'Adresse introuvable',
+  document_non_pret: 'Document/paiement non prêt',
+  trafic_panne: 'Trafic / panne scooter',
+  bureau_ferme: 'Bureau fermé',
   autre: 'Autre',
 };
 
