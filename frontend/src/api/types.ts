@@ -333,6 +333,7 @@ export interface TacheCoursierModele {
 
 export interface TacheCoursier {
   id: string;
+  entite: Entite;
   clientId: string | null;
   type: TypeTacheCoursier;
   label: string | null;

@@ -108,27 +108,23 @@ export function CoursierPublicView({ token }: { token: string }) {
                   style={{
                     padding: 16,
                     marginBottom: 12,
-                    borderLeft: t.client ? `5px solid ${entityAccent(t.client.entite)}` : undefined,
+                    borderLeft: `5px solid ${entityAccent(t.entite)}`,
                   }}
                 >
-                  {t.client && (
-                    <div
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 5,
-                        background: 'var(--paper-2)',
-                        borderRadius: 20,
-                        padding: '3px 10px 3px 6px',
-                        marginBottom: 8,
-                      }}
-                    >
-                      <EntityLogo entite={t.client.entite} size={13} />
-                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color: entityAccent(t.client.entite) }}>
-                        {t.client.entite}
-                      </span>
-                    </div>
-                  )}
+                  <div
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      background: 'var(--paper-2)',
+                      borderRadius: 20,
+                      padding: '3px 10px 3px 6px',
+                      marginBottom: 8,
+                    }}
+                  >
+                    <EntityLogo entite={t.entite} size={13} />
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color: entityAccent(t.entite) }}>{t.entite}</span>
+                  </div>
                   <div style={{ fontWeight: 600, fontSize: 15 }}>{TACHE_TYPE_LABELS[t.type]}</div>
                   {t.client && (
                     <div style={{ fontSize: 13.5, marginTop: 2 }}>

@@ -22,9 +22,17 @@ function entiteWhere(entiteFilter: Entite | 'ALL') {
 // optionnelle -- vérifié en pratique, ça exclut toutes les lignes plutôt
 // que de matcher tout le monde comme le ferait un `where: {}` de premier
 // niveau. On omet donc entièrement le filtre relationnel plutôt que de lui
-// passer un objet vide quand la portée est "ALL".
+// passer un objet vide quand la portée est "ALL". Utilisé uniquement pour
+// TacheCoursierModele, dont le client est obligatoire -- TacheCoursier a
+// son propre champ `entite` direct (cf. schema.prisma) et n'a pas besoin
+// de ce détour.
 function clientEntiteFilter(entiteFilter: Entite | 'ALL') {
   return entiteFilter === 'ALL' ? undefined : { client: entiteWhere(entiteFilter) };
+}
+
+function tacheEntiteFilter(entiteFilter: Entite | 'ALL') {
+  if (entiteFilter === 'ALL') return {};
+  return { entite: { in: [entiteFilter, 'COMMUN'] } };
 }
 
 function parseDateOnly(value: unknown): Date | null {
@@ -186,11 +194,15 @@ tachesRouter.patch('/modeles/:id', requireRole(...ADV_ROLES), async (req, res, n
 // contrainte unique [modeleId, dateInitiale] -- skipDuplicates couvre le
 // cas d'un double appel concurrent).
 async function genererTachesDues(date: Date) {
-  const modeles = await prisma.tacheCoursierModele.findMany({ where: { actif: true } });
+  const modeles = await prisma.tacheCoursierModele.findMany({
+    where: { actif: true },
+    include: { client: { select: { entite: true } } },
+  });
   const dus = modeles.filter((m) => modeleDuLe(m.jourDuMois, date));
   if (dus.length === 0) return;
   await prisma.tacheCoursier.createMany({
     data: dus.map((m) => ({
+      entite: m.client.entite,
       clientId: m.clientId,
       type: m.type,
       label: m.label,
@@ -209,9 +221,8 @@ tachesRouter.get('/', requireRole(...ADV_ROLES), async (req, res, next) => {
     await genererTachesDues(date);
 
     const entiteFilter = resolveEntiteScope(req.user!, req.query.entite);
-    const clientFilter = clientEntiteFilter(entiteFilter);
     const nextDay = new Date(date.getTime() + 24 * 60 * 60 * 1000);
-    const entiteScopeFilter = clientFilter ? { OR: [{ clientId: null }, clientFilter] } : {};
+    const entiteScopeFilter = tacheEntiteFilter(entiteFilter);
     const includeArgs = { client: { select: { id: true, nom: true, entite: true } }, coursier: true } as const;
 
     // Deux requêtes distinctes et volontairement séparées : `taches` (à
@@ -240,7 +251,7 @@ tachesRouter.get('/', requireRole(...ADV_ROLES), async (req, res, next) => {
 
 tachesRouter.post('/', requireRole(...ADV_ROLES), async (req, res, next) => {
   try {
-    const { clientId, type, label, date: dateStr } = req.body ?? {};
+    const { clientId, entite, type, label, date: dateStr } = req.body ?? {};
     if (!TACHE_TYPES.includes(type)) return res.status(400).json({ error: 'Type de tâche invalide' });
     const date = parseDateOnly(dateStr);
     if (!date) return res.status(400).json({ error: 'Date invalide (format AAAA-MM-JJ)' });
@@ -248,8 +259,25 @@ tachesRouter.post('/', requireRole(...ADV_ROLES), async (req, res, next) => {
       return res.status(400).json({ error: 'Client invalide' });
     }
 
+    // L'entité suit toujours le client quand il y en a un (jamais celle
+    // envoyée par le formulaire, pour ne jamais pouvoir désynchroniser une
+    // tâche de son client) -- une tâche générique (sans client) doit en
+    // revanche la préciser explicitement, faute d'autre source.
+    let entiteFinale: string;
+    if (clientId) {
+      const client = await prisma.client.findUnique({ where: { id: clientId }, select: { entite: true } });
+      if (!client) return res.status(400).json({ error: 'Client introuvable' });
+      entiteFinale = client.entite;
+    } else {
+      if (typeof entite !== 'string' || !entite.trim()) {
+        return res.status(400).json({ error: 'Entreprise requise pour une tâche sans client' });
+      }
+      entiteFinale = entite.trim();
+    }
+
     const tache = await prisma.tacheCoursier.create({
       data: {
+        entite: entiteFinale,
         clientId: clientId || null,
         type,
         label: typeof label === 'string' && label.trim() ? label.trim() : null,

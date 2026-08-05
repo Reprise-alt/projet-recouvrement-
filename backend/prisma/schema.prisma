@@ -339,6 +339,14 @@ model TacheCoursierModele {
 // lib/taches.ts:resumeJournee).
 model TacheCoursier {
   id           String              @id @default(cuid())
+  // Toujours renseigné -- reflète celle du client si un client est
+  // rattaché, saisi explicitement sinon (tâche générique du type "dépôt
+  // banque", sans client précis). Champ à part entière plutôt que dérivé
+  // du client à l'affichage : une tâche générique n'a aucune autre source
+  // pour savoir de quelle société elle relève, et le filtrage par entité
+  // (cf. routes/taches.ts) reste simple à un seul niveau plutôt que de
+  // jongler entre "clientId null" et "entité du client".
+  entite       String
   client       Client?             @relation(fields: [clientId], references: [id], onDelete: SetNull)
   clientId     String?
   type         TypeTacheCoursier

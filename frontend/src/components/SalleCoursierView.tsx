@@ -96,16 +96,12 @@ export function SalleCoursierView({ token }: { token: string }) {
               <table style={{ fontSize: 15 }}>
                 <tbody>
                   {nonAssignees.map((t) => (
-                    <tr key={t.id} style={t.client ? { boxShadow: `inset 4px 0 0 ${entityAccent(t.client.entite)}` } : undefined}>
+                    <tr key={t.id} style={{ boxShadow: `inset 4px 0 0 ${entityAccent(t.entite)}` }}>
                       <td style={{ width: '32%' }}>
-                        {t.client ? (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <EntityLogo entite={t.client.entite} size={14} />
-                            {t.client.nom}
-                          </div>
-                        ) : (
-                          <span style={{ color: 'var(--ink-soft)' }}>—</span>
-                        )}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <EntityLogo entite={t.entite} size={14} />
+                          {t.client ? t.client.nom : <span style={{ color: 'var(--ink-soft)' }}>— (générique)</span>}
+                        </div>
                       </td>
                       <td>
                         {TACHE_TYPE_LABELS[t.type]}
@@ -155,13 +151,13 @@ export function SalleCoursierView({ token }: { token: string }) {
                             padding: '8px 4px 8px 10px',
                             borderBottom: '1px solid var(--line)',
                             fontSize: 13.5,
-                            boxShadow: t.client ? `inset 3px 0 0 ${entityAccent(t.client.entite)}` : undefined,
+                            boxShadow: `inset 3px 0 0 ${entityAccent(t.entite)}`,
                           }}
                         >
                           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
                             <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                              {t.client && <EntityLogo entite={t.client.entite} size={12} />}
-                              <strong>{t.client ? t.client.nom : '—'}</strong>
+                              <EntityLogo entite={t.entite} size={12} />
+                              <strong>{t.client ? t.client.nom : '— (générique)'}</strong>
                             </span>
                             {statut !== 'a_faire' && (
                               <span

@@ -1,7 +1,7 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError, buildQuery } from '../api/client';
 import { useResource } from '../hooks/useResource';
-import { ClientListItem, Coursier, Entite, RoleUtilisateur, TachesJourResponse, TypeTacheCoursier } from '../api/types';
+import { ClientListItem, Coursier, Entite, Entreprise, RoleUtilisateur, TachesJourResponse, TypeTacheCoursier } from '../api/types';
 import { MODE_PAIEMENT_LABELS, TACHE_TYPE_LABELS, tacheStatutAffiche } from '../lib/constants';
 import { CoursiersPanel } from './CoursiersPanel';
 import { TacheModelesPanel } from './TacheModelesPanel';
@@ -40,13 +40,26 @@ export function PlanningView({ entityFilter, role }: Props) {
   const [showCoursiers, setShowCoursiers] = useState(false);
   const [showModeles, setShowModeles] = useState(false);
   const [reportDates, setReportDates] = useState<Record<string, string>>({});
+  // Entreprise du formulaire d'ajout -- verrouillée sur l'onglet actif sauf
+  // en vue "Tous", où il faut la choisir explicitement (cf. demande :
+  // aucune tâche générique ne peut être créée sans savoir de quelle
+  // société elle relève).
+  const [formEntite, setFormEntite] = useState(entityFilter !== 'ALL' ? entityFilter : '');
+  useEffect(() => {
+    if (entityFilter !== 'ALL') setFormEntite(entityFilter);
+  }, [entityFilter]);
 
   const query = { date, entite: entityFilter };
   const path = `/api/taches${buildQuery(query)}`;
   const { data, loading, refetch } = useResource<TachesJourResponse>(path);
 
   const { data: coursiers, refetch: refetchCoursiers } = useResource<Coursier[]>('/api/taches/coursiers');
-  const { data: clients } = useResource<ClientListItem[]>(`/api/clients${buildQuery({ entite: entityFilter, all: 'true' })}`);
+  const { data: entreprises } = useResource<Entreprise[]>('/api/entreprises');
+  const entreprisesSelectionnables = (entreprises ?? []).filter((e) => e.actif && !e.estCommun);
+  const clientEntiteScope = entityFilter !== 'ALL' ? entityFilter : formEntite;
+  const { data: clients } = useResource<ClientListItem[]>(
+    clientEntiteScope ? `/api/clients${buildQuery({ entite: clientEntiteScope, all: 'true' })}` : null,
+  );
 
   const coursiersActifs = (coursiers ?? []).filter((c) => c.actif);
 
@@ -70,6 +83,7 @@ export function PlanningView({ entityFilter, role }: Props) {
     await mutate(async () => {
       await api.post('/api/taches', {
         clientId: fd.get('clientId') || null,
+        entite: formEntite,
         type: fd.get('type'),
         label: fd.get('label') || undefined,
         date,
@@ -107,13 +121,33 @@ export function PlanningView({ entityFilter, role }: Props) {
 
         {showAjout && (
           <form onSubmit={handleCreate} style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap', marginTop: 16 }}>
+            <div style={{ flex: '1 1 160px' }}>
+              <label>Entreprise</label>
+              {entityFilter !== 'ALL' ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, height: 38, padding: '0 4px' }}>
+                  <EntityLogo entite={entityFilter} size={16} />
+                  <strong>{entityFilter}</strong>
+                </div>
+              ) : (
+                <select required value={formEntite} onChange={(e) => setFormEntite(e.target.value)}>
+                  <option value="" disabled>
+                    Choisir…
+                  </option>
+                  {entreprisesSelectionnables.map((e) => (
+                    <option key={e.id} value={e.code}>
+                      {e.code}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
             <div style={{ flex: '1 1 220px' }}>
               <label>Client (optionnel)</label>
-              <select name="clientId" defaultValue="">
+              <select name="clientId" defaultValue="" key={clientEntiteScope} disabled={!clientEntiteScope}>
                 <option value="">— Aucun (tâche générique) —</option>
                 {(clients ?? []).map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.nom} ({c.entite})
+                    {c.nom}
                   </option>
                 ))}
               </select>
@@ -135,7 +169,7 @@ export function PlanningView({ entityFilter, role }: Props) {
               <label>Précision (optionnel)</label>
               <input type="text" name="label" placeholder="Ex : avenant tarifaire" />
             </div>
-            <button className="primary" type="submit" disabled={busy}>
+            <button className="primary" type="submit" disabled={busy || !formEntite}>
               Ajouter
             </button>
           </form>
@@ -194,14 +228,10 @@ export function PlanningView({ entityFilter, role }: Props) {
                     return (
                       <tr key={t.id}>
                         <td>
-                          {t.client ? (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <EntityLogo entite={t.client.entite} size={14} />
-                              {t.client.nom}
-                            </div>
-                          ) : (
-                            <span style={{ color: 'var(--ink-soft)' }}>—</span>
-                          )}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <EntityLogo entite={t.entite} size={14} />
+                            {t.client ? t.client.nom : <span style={{ color: 'var(--ink-soft)' }}>— (tâche générique)</span>}
+                          </div>
                         </td>
                         <td>
                           {TACHE_TYPE_LABELS[t.type]}
