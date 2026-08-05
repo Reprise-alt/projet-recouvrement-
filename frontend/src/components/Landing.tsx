@@ -16,7 +16,16 @@ function IconRow({ icon, title, children }: { icon: Parameters<typeof Icon>[0]['
   );
 }
 
-const PRODUCT_TABS = [
+interface ProductTab {
+  key: string;
+  label: string;
+  img: string;
+  title: string;
+  intro?: string;
+  points: ReactNode[];
+}
+
+const PRODUCT_TABS: ProductTab[] = [
   {
     key: 'dashboard',
     label: 'Tableau de bord',
@@ -71,6 +80,20 @@ const PRODUCT_TABS = [
       <><strong>Analyse rédigée automatiquement</strong> — points forts, actions positives, points de vigilance et recommandations générés à partir des vrais chiffres de la période, puis librement corrigés avant envoi.</>,
       <><strong>Comparaison de deux périodes</strong> — montant encaissé, délai, volume de relances, avec l’écart déjà calculé — de quoi trancher si l’usage de la plateforme fait une vraie différence.</>,
       <><strong>Export PDF / Excel aux couleurs de chaque entité</strong> — logo, mise en forme pro, performance par agent incluse — prêt pour le comité de direction.</>,
+    ],
+  },
+  {
+    key: 'planning',
+    label: 'Planning des coursiers',
+    img: '/landing/planning.jpg',
+    title: 'Un métier à haut risque, enfin traçable',
+    intro:
+      'En Afrique de l’Ouest, faire tourner une équipe de coursiers est un vrai métier — trop souvent invisible dans les outils de gestion. On confie des chèques, des espèces, des documents contractuels à des jeunes rarement passés par une formation ou des études, qui roulent en scooter toute la journée dans une circulation dense. Ce module ne remplace pas ce savoir-faire de terrain : il le rend traçable, sans jamais l’alourdir.',
+    points: [
+      <><strong>Lien personnel, sans mot de passe</strong> — accessible d’un geste depuis n’importe quel téléphone, quel que soit le niveau d’aisance numérique.</>,
+      <><strong>Chaque remise horodatée à la minute</strong> — un chèque, des espèces, un document sensible : la preuve existe, elle protège l’entreprise autant que le coursier.</>,
+      <><strong>L’équipe garde son rituel du matin</strong> — dispatch collectif sur un écran de salle partagé, l’outil s’adapte à comment le travail se fait déjà sur le terrain.</>,
+      <><strong>Reporting par jour, par coursier, par société</strong> — charge de travail et taux de report objectivés, jamais laissés à l’impression.</>,
     ],
   },
 ];
@@ -262,7 +285,7 @@ export function Landing() {
 
       <section className="landing-section" id="produit">
         <div className="landing-eyebrow">Le produit</div>
-        <h2 className="landing-h2">Cinq écrans, un seul système</h2>
+        <h2 className="landing-h2">Six écrans, un seul système</h2>
         <div className="landing-tabs">
           {PRODUCT_TABS.map((t) => (
             <button key={t.key} className={tab === t.key ? 'active' : ''} onClick={() => setTab(t.key)}>
@@ -272,7 +295,10 @@ export function Landing() {
         </div>
         <div className="landing-tab-panel">
           <div>
-            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 21, marginBottom: 16 }}>{active.title}</h3>
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 21, marginBottom: active.intro ? 10 : 16 }}>{active.title}</h3>
+            {active.intro && (
+              <p style={{ fontSize: 13.5, color: 'var(--ink-soft)', lineHeight: 1.6, marginBottom: 18 }}>{active.intro}</p>
+            )}
             <ul>
               {active.points.map((p, i) => (
                 <li key={i} style={{ marginBottom: 10 }}>

@@ -221,7 +221,7 @@ export function App() {
           Reporting
         </button>
         <button className={view === 'planning' ? 'active' : ''} onClick={() => setView('planning')}>
-          Planning
+          Planning des coursiers
         </button>
       </div>
 
