@@ -15,6 +15,7 @@ import { EntreprisesPanel } from './components/EntreprisesPanel';
 import { EntityLogo, entityAccent } from './components/EntityLogo';
 import { Entite, Entreprise } from './api/types';
 import { useResource } from './hooks/useResource';
+import { useTheme } from './hooks/useTheme';
 
 type MainView = 'recouvrement' | 'contrats' | 'planning';
 type EntityFilter = Entite | 'ALL';
@@ -57,6 +58,7 @@ export function App() {
   const adminMenuRef = useRef<HTMLDivElement>(null);
   const [dataVersion, setDataVersion] = useState(0);
   const bumpDataVersion = () => setDataVersion((v) => v + 1);
+  const { theme, toggle: toggleTheme } = useTheme();
 
   useEffect(() => {
     if (!adminMenuOpen) return;
@@ -121,6 +123,14 @@ export function App() {
           </div>
         </div>
         <div className="topbar-actions">
+          <button
+            className="theme-toggle"
+            onClick={toggleTheme}
+            title={theme === 'dark' ? 'Passer en mode jour' : 'Passer en mode nuit'}
+            aria-label={theme === 'dark' ? 'Passer en mode jour' : 'Passer en mode nuit'}
+          >
+            {theme === 'dark' ? '☀' : '☾'}
+          </button>
           <div className="entity-toggle">
             {availableEntities.map((k) => (
               <button
