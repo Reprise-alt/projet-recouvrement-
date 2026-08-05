@@ -226,6 +226,14 @@ model Config {
   j5 Int @default(60)
   j6 Int @default(75)
   j7 Int @default(90)
+
+  // Lien unique et partagé (pas un par coursier) pour l'écran affiché en
+  // salle des coursiers -- toute l'équipe voit le planning complet du jour
+  // et se dispatche les tâches elle-même, contrairement au lien personnel
+  // de chaque coursier qui ne montre que ses propres tâches déjà
+  // assignées. Généré à la demande (cf. routes/taches.ts), jamais à la
+  // création de la config.
+  salleToken String? @unique
 }
 
 // Soumission du formulaire de contact de la page vitrine publique (non

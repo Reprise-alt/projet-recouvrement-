@@ -7,6 +7,7 @@ import { ContractsView } from './components/ContractsView';
 import { ReportingView } from './components/ReportingView';
 import { PlanningView } from './components/PlanningView';
 import { CoursierPublicView } from './components/CoursierPublicView';
+import { SalleCoursierView } from './components/SalleCoursierView';
 import { SettingsModal } from './components/SettingsModal';
 import { ImportPanel } from './components/ImportPanel';
 import { UsersPanel } from './components/UsersPanel';
@@ -38,6 +39,13 @@ export function App() {
   if (window.location.pathname.startsWith('/coursier/')) {
     const token = window.location.pathname.slice('/coursier/'.length);
     return <CoursierPublicView token={token} />;
+  }
+
+  // Écran de salle des coursiers — un seul lien partagé, pas un par
+  // personne (cf. SalleCoursierView), même logique d'accès public.
+  if (window.location.pathname.startsWith('/salle/')) {
+    const token = window.location.pathname.slice('/salle/'.length);
+    return <SalleCoursierView token={token} />;
   }
   const [view, setView] = useState<MainView>('recouvrement');
   const [entityFilter, setEntityFilter] = useState<EntityFilter>('ALL');

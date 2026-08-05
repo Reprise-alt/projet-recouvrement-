@@ -7,14 +7,40 @@ import { useToast } from '../hooks/useToast';
 export function CoursiersPanel({ onClose }: { onClose: () => void }) {
   const { showToast } = useToast();
   const { data: coursiers, loading, refetch } = useResource<Coursier[]>('/api/taches/coursiers');
+  const { data: salle, refetch: refetchSalle } = useResource<{ token: string }>('/api/taches/salle-token');
   const [busy, setBusy] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [salleCopied, setSalleCopied] = useState(false);
 
   function lienPersonnel(token: string): string {
     // Le lien coursier est servi par le frontend lui-même (route publique
     // /coursier/:token, cf. App.tsx) -- toujours la même origine que la
     // page courante, jamais celle de l'API backend.
     return `${window.location.origin}/coursier/${token}`;
+  }
+
+  function lienSalle(token: string): string {
+    return `${window.location.origin}/salle/${token}`;
+  }
+
+  async function copierLienSalle() {
+    if (!salle) return;
+    await navigator.clipboard.writeText(lienSalle(salle.token));
+    setSalleCopied(true);
+    setTimeout(() => setSalleCopied(false), 1500);
+  }
+
+  async function regenererSalle() {
+    setBusy(true);
+    try {
+      await api.post('/api/taches/salle-token/regenerate');
+      showToast('Lien de la salle régénéré — l’ancien lien ne fonctionne plus');
+      refetchSalle();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function handleCreate(e: FormEvent<HTMLFormElement>) {
@@ -72,6 +98,22 @@ export function CoursiersPanel({ onClose }: { onClose: () => void }) {
         <div style={{ color: 'var(--ink-soft)', fontSize: 12.5, marginBottom: 16 }}>
           Chaque coursier a un lien personnel, sans mot de passe, qui affiche uniquement ses tâches du jour. À partager
           une fois — le regénérer invalide l'ancien lien (utile en cas de téléphone perdu).
+        </div>
+
+        <div className="section-title">Écran de la salle des coursiers</div>
+        <div style={{ color: 'var(--ink-soft)', fontSize: 12.5, marginBottom: 10 }}>
+          Un seul lien, partagé, à ouvrir sur l'écran/tablette de la salle — toute l'équipe y voit le planning complet
+          du jour et peut se l'attribuer elle-même, sans compte individuel.
+        </div>
+        <div className="card-mini" style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button type="button" style={{ padding: '3px 9px', fontSize: 11 }} disabled={busy || !salle} onClick={copierLienSalle}>
+              {salleCopied ? 'Copié !' : 'Copier le lien de la salle'}
+            </button>
+            <button type="button" style={{ padding: '3px 9px', fontSize: 11 }} disabled={busy || !salle} onClick={regenererSalle}>
+              Régénérer le lien de la salle
+            </button>
+          </div>
         </div>
 
         <div className="section-title">Équipe</div>

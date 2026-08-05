@@ -373,6 +373,13 @@ export interface CoursierTachesPubliques {
   taches: TacheCoursierPublic[];
 }
 
+// Écran de salle : planning complet du jour (tous coursiers, y compris non
+// assigné) + la liste des coursiers actifs pour le sélecteur d'assignation.
+export interface SalleTachesResponse {
+  taches: TacheCoursier[];
+  coursiers: Coursier[];
+}
+
 export interface ImportSummary {
   message: string;
   summary: {

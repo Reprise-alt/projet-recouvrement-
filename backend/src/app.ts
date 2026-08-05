@@ -14,6 +14,7 @@ import { reportingRouter } from './routes/reporting';
 import { contactRouter } from './routes/contact';
 import { tachesRouter } from './routes/taches';
 import { coursierPublicRouter } from './routes/coursierPublic';
+import { sallePublicRouter } from './routes/sallePublic';
 import { errorHandler } from './middleware/errorHandler';
 
 export function createApp() {
@@ -40,6 +41,7 @@ export function createApp() {
   app.use('/api/contact', contactRouter);
   app.use('/api/taches', tachesRouter);
   app.use('/api/coursier-public', coursierPublicRouter);
+  app.use('/api/salle-public', sallePublicRouter);
 
   app.use(errorHandler);
   return app;

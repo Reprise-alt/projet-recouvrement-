@@ -90,6 +90,42 @@ tachesRouter.post('/coursiers/:id/regenerate-token', requireRole('admin', 'manag
 });
 
 // ---------------------------------------------------------------------
+// Lien "salle" -- un seul lien partagé pour toute l'équipe coursiers
+// (écran affiché en salle), distinct du lien personnel de chaque coursier
+// : montre le planning complet du jour (tous coursiers, y compris non
+// assigné) et permet d'assigner, jamais de marquer fait/reporter -- ça
+// reste le rôle du lien personnel, sur le terrain.
+// ---------------------------------------------------------------------
+
+async function getOrCreateSalleToken(): Promise<string> {
+  const config = await prisma.config.upsert({ where: { id: 1 }, create: { id: 1 }, update: {} });
+  if (config.salleToken) return config.salleToken;
+  const updated = await prisma.config.update({ where: { id: 1 }, data: { salleToken: crypto.randomBytes(24).toString('hex') } });
+  return updated.salleToken!;
+}
+
+tachesRouter.get('/salle-token', requireRole('admin', 'manager_entite'), async (_req, res, next) => {
+  try {
+    res.json({ token: await getOrCreateSalleToken() });
+  } catch (err) {
+    next(err);
+  }
+});
+
+tachesRouter.post('/salle-token/regenerate', requireRole('admin', 'manager_entite'), async (_req, res, next) => {
+  try {
+    const updated = await prisma.config.upsert({
+      where: { id: 1 },
+      create: { id: 1, salleToken: crypto.randomBytes(24).toString('hex') },
+      update: { salleToken: crypto.randomBytes(24).toString('hex') },
+    });
+    res.json({ token: updated.salleToken });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ---------------------------------------------------------------------
 // Modèles de tâches récurrentes
 // ---------------------------------------------------------------------
 
