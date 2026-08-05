@@ -93,3 +93,80 @@ export function resumeJournee(taches: TacheJournee[]): ResumeJournee {
   }
   return resume;
 }
+
+export interface TacheRapportEntree extends TacheJournee {
+  entite: string;
+  coursierId: string | null;
+  coursierNom: string | null;
+}
+
+export interface DecompteStatuts {
+  total: number;
+  faites: number;
+  reportees: number;
+  aFaire: number;
+  annulees: number;
+}
+
+export interface PlanningRapport {
+  parJour: (DecompteStatuts & { date: string })[];
+  parCoursier: (DecompteStatuts & { coursierId: string | null; nom: string })[];
+  reporteesParEntite: { entite: string; nombre: number }[];
+  reporteesTotal: number;
+  global: DecompteStatuts;
+}
+
+function decompteVide(): DecompteStatuts {
+  return { total: 0, faites: 0, reportees: 0, aFaire: 0, annulees: 0 };
+}
+
+function accumuler(decompte: DecompteStatuts, statut: StatutAffiche) {
+  decompte.total++;
+  if (statut === 'faite') decompte.faites++;
+  else if (statut === 'reportee') decompte.reportees++;
+  else if (statut === 'annulee') decompte.annulees++;
+  else decompte.aFaire++;
+}
+
+// Rapport agrégé sur une période -- toujours basé sur `dateInitiale` (le
+// jour où chaque tâche était prévue à l'origine), jamais sur `date` (qui
+// bouge dès qu'une tâche est reportée) : même convention que resumeJournee,
+// pour qu'une tâche reportée hors de la période ne disparaisse jamais du
+// décompte du jour où elle aurait dû être traitée.
+export function buildPlanningRapport(taches: TacheRapportEntree[]): PlanningRapport {
+  const parJourMap = new Map<string, DecompteStatuts>();
+  const parCoursierMap = new Map<string, { nom: string; decompte: DecompteStatuts }>();
+  const reporteesParEntiteMap = new Map<string, number>();
+  const global = decompteVide();
+
+  for (const t of taches) {
+    const statut = statutAffiche(t);
+    accumuler(global, statut);
+
+    const jour = new Date(t.dateInitiale).toISOString().slice(0, 10);
+    if (!parJourMap.has(jour)) parJourMap.set(jour, decompteVide());
+    accumuler(parJourMap.get(jour)!, statut);
+
+    const coursierKey = t.coursierId ?? '__non_assignee__';
+    if (!parCoursierMap.has(coursierKey)) {
+      parCoursierMap.set(coursierKey, { nom: t.coursierNom ?? 'Non assignée', decompte: decompteVide() });
+    }
+    accumuler(parCoursierMap.get(coursierKey)!.decompte, statut);
+
+    if (statut === 'reportee') {
+      reporteesParEntiteMap.set(t.entite, (reporteesParEntiteMap.get(t.entite) ?? 0) + 1);
+    }
+  }
+
+  return {
+    parJour: [...parJourMap.entries()].map(([date, decompte]) => ({ date, ...decompte })).sort((a, b) => a.date.localeCompare(b.date)),
+    parCoursier: [...parCoursierMap.entries()]
+      .map(([coursierId, { nom, decompte }]) => ({ coursierId: coursierId === '__non_assignee__' ? null : coursierId, nom, ...decompte }))
+      .sort((a, b) => b.total - a.total),
+    reporteesParEntite: [...reporteesParEntiteMap.entries()]
+      .map(([entite, nombre]) => ({ entite, nombre }))
+      .sort((a, b) => b.nombre - a.nombre),
+    reporteesTotal: global.reportees,
+    global,
+  };
+}

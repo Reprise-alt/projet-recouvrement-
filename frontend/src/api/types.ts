@@ -363,6 +363,22 @@ export interface TachesJourResponse {
   resume: ResumeJournee;
 }
 
+export interface DecompteStatuts {
+  total: number;
+  faites: number;
+  reportees: number;
+  aFaire: number;
+  annulees: number;
+}
+
+export interface PlanningRapportResponse {
+  parJour: (DecompteStatuts & { date: string })[];
+  parCoursier: (DecompteStatuts & { coursierId: string | null; nom: string })[];
+  reporteesParEntite: { entite: Entite; nombre: number }[];
+  reporteesTotal: number;
+  global: DecompteStatuts;
+}
+
 // Vue publique (lien personnel coursier, sans authentification) -- un
 // sous-ensemble volontairement réduit du client complet.
 export interface TacheCoursierPublic extends Omit<TacheCoursier, 'client' | 'coursier'> {

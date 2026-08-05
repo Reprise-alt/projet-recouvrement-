@@ -6,6 +6,7 @@ import { MODE_PAIEMENT_LABELS, TACHE_TYPE_LABELS, tacheStatutAffiche } from '../
 import { CoursiersPanel } from './CoursiersPanel';
 import { TacheModelesPanel } from './TacheModelesPanel';
 import { EntityLogo } from './EntityLogo';
+import { PlanningRapportView } from './PlanningRapportView';
 
 interface Props {
   entityFilter: Entite | 'ALL';
@@ -32,6 +33,10 @@ function tomorrow(): string {
   return d.toISOString().slice(0, 10);
 }
 
+function fmtHeure(iso: string): string {
+  return new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+}
+
 export function PlanningView({ entityFilter, role }: Props) {
   const [date, setDate] = useState(today());
   const [busy, setBusy] = useState(false);
@@ -39,6 +44,7 @@ export function PlanningView({ entityFilter, role }: Props) {
   const [showAjout, setShowAjout] = useState(false);
   const [showCoursiers, setShowCoursiers] = useState(false);
   const [showModeles, setShowModeles] = useState(false);
+  const [showRapport, setShowRapport] = useState(false);
   const [reportDates, setReportDates] = useState<Record<string, string>>({});
   // Entreprise du formulaire d'ajout -- verrouillée sur l'onglet actif sauf
   // en vue "Tous", où il faut la choisir explicitement (cf. demande :
@@ -107,6 +113,9 @@ export function PlanningView({ entityFilter, role }: Props) {
             </button>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button type="button" onClick={() => setShowRapport((v) => !v)}>
+              {showRapport ? 'Masquer le reporting' : 'Reporting planning'}
+            </button>
             <button type="button" onClick={() => setShowModeles(true)}>
               Tâches récurrentes
             </button>
@@ -176,6 +185,8 @@ export function PlanningView({ entityFilter, role }: Props) {
         )}
         {error && <div className="login-error" style={{ marginTop: 12 }}>{error}</div>}
       </div>
+
+      {showRapport && <PlanningRapportView entityFilter={entityFilter} />}
 
       {loading || !data ? (
         <div className="empty-state">Chargement…</div>
@@ -248,6 +259,11 @@ export function PlanningView({ entityFilter, role }: Props) {
                           <span className="badge" data-tone={STATUT_TONE[statut] ?? 'success'} style={!STATUT_TONE[statut] ? { background: 'var(--paper-2)', color: 'var(--ink-soft)' } : undefined}>
                             {STATUT_LABEL[statut]}
                           </span>
+                          {statut === 'faite' && t.dateExecution && (
+                            <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 3 }} className="mono">
+                              à {fmtHeure(t.dateExecution)}
+                            </div>
+                          )}
                         </td>
                         <td>
                           <select

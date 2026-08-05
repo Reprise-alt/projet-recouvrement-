@@ -3,7 +3,7 @@ import { Router } from 'express';
 import { prisma } from '../db';
 import { requireAuth, requireRole } from '../middleware/auth';
 import { Entite, resolveEntiteScope } from '../lib/entites';
-import { modeleDuLe, resumeJournee, TACHE_TYPE_LABELS } from '../lib/taches';
+import { buildPlanningRapport, modeleDuLe, resumeJournee, TACHE_TYPE_LABELS, TacheRapportEntree } from '../lib/taches';
 
 export const tachesRouter = Router();
 tachesRouter.use(requireAuth);
@@ -318,6 +318,49 @@ tachesRouter.patch('/:id', requireRole(...ADV_ROLES), async (req, res, next) => 
       include: { client: { select: { id: true, nom: true, entite: true } }, coursier: true },
     });
     res.json(tache);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ---------------------------------------------------------------------
+// Reporting planning -- agrégats sur une période (tâches par jour, par
+// coursier, reportées par entité) pour objectiver l'activité de l'équipe
+// coursiers dans la durée, distinct de la vue "un seul jour" ci-dessus.
+// ---------------------------------------------------------------------
+
+tachesRouter.get('/reporting', requireRole(...ADV_ROLES), async (req, res, next) => {
+  try {
+    const from = parseDateOnly(req.query.from);
+    const to = parseDateOnly(req.query.to);
+    if (!from || !to || from > to) {
+      return res.status(400).json({ error: 'Période invalide — from et to sont requis (format AAAA-MM-JJ)' });
+    }
+    const toExclusive = new Date(to.getTime() + 24 * 60 * 60 * 1000);
+
+    const entiteFilter = resolveEntiteScope(req.user!, req.query.entite);
+    const taches = await prisma.tacheCoursier.findMany({
+      where: { dateInitiale: { gte: from, lt: toExclusive }, ...tacheEntiteFilter(entiteFilter) },
+      select: {
+        statut: true,
+        date: true,
+        dateInitiale: true,
+        entite: true,
+        coursierId: true,
+        coursier: { select: { nom: true } },
+      },
+    });
+
+    const entrees: TacheRapportEntree[] = taches.map((t) => ({
+      statut: t.statut,
+      date: t.date,
+      dateInitiale: t.dateInitiale,
+      entite: t.entite,
+      coursierId: t.coursierId,
+      coursierNom: t.coursier?.nom ?? null,
+    }));
+
+    res.json(buildPlanningRapport(entrees));
   } catch (err) {
     next(err);
   }
