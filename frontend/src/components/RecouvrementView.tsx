@@ -6,6 +6,7 @@ import { fmtDate, fmtFCFA, PALIERS } from '../lib/constants';
 import { ClientDrawer } from './ClientDrawer';
 import { BulkRelanceModal } from './BulkRelanceModal';
 import { EntityLogo, entityAccent } from './EntityLogo';
+import { ReportingView } from './ReportingView';
 
 interface Props {
   entityFilter: Entite | 'ALL';
@@ -28,6 +29,7 @@ export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
   const [onlyATraiter, setOnlyATraiter] = useState(false);
   const [onlyRetardInhabituel, setOnlyRetardInhabituel] = useState(false);
   const [bulkRelance, setBulkRelance] = useState(false);
+  const [showReporting, setShowReporting] = useState(false);
 
   const kpisPath = `/api/clients/kpis${buildQuery({ entite: entityFilter })}`;
   const listPath = `/api/clients${buildQuery({
@@ -69,6 +71,19 @@ export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
 
   return (
     <div>
+      <div className="entity-toggle" style={{ display: 'inline-flex', marginBottom: 22 }}>
+        <button className={!showReporting ? 'active' : ''} onClick={() => setShowReporting(false)}>
+          Vue d'ensemble
+        </button>
+        <button className={showReporting ? 'active' : ''} onClick={() => setShowReporting(true)}>
+          Reporting
+        </button>
+      </div>
+
+      {showReporting ? (
+        <ReportingView entityFilter={entityFilter} role={role} />
+      ) : (
+        <>
       {aTraiter.length > 0 && (
         <div
           className="digest-banner"
@@ -362,6 +377,8 @@ export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
           onClose={() => setBulkRelance(false)}
           onDone={refetchAll}
         />
+      )}
+        </>
       )}
     </div>
   );

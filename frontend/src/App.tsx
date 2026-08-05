@@ -4,7 +4,6 @@ import { LoginPage } from './components/LoginPage';
 import { Landing } from './components/Landing';
 import { RecouvrementView } from './components/RecouvrementView';
 import { ContractsView } from './components/ContractsView';
-import { ReportingView } from './components/ReportingView';
 import { PlanningView } from './components/PlanningView';
 import { CoursierPublicView } from './components/CoursierPublicView';
 import { SalleCoursierView } from './components/SalleCoursierView';
@@ -17,7 +16,7 @@ import { EntityLogo, entityAccent } from './components/EntityLogo';
 import { Entite, Entreprise } from './api/types';
 import { useResource } from './hooks/useResource';
 
-type MainView = 'recouvrement' | 'contrats' | 'reporting' | 'planning';
+type MainView = 'recouvrement' | 'contrats' | 'planning';
 type EntityFilter = Entite | 'ALL';
 
 const ROLE_LABELS: Record<string, string> = {
@@ -217,9 +216,6 @@ export function App() {
         <button className={view === 'contrats' ? 'active' : ''} onClick={() => setView('contrats')}>
           Échéances de contrats
         </button>
-        <button className={view === 'reporting' ? 'active' : ''} onClick={() => setView('reporting')}>
-          Reporting
-        </button>
         <button className={view === 'planning' ? 'active' : ''} onClick={() => setView('planning')}>
           Planning des coursiers
         </button>
@@ -229,8 +225,6 @@ export function App() {
         <RecouvrementView entityFilter={effectiveEntity} role={user.role} reloadKey={dataVersion} />
       ) : view === 'contrats' ? (
         <ContractsView entityFilter={effectiveEntity} role={user.role} reloadKey={dataVersion} />
-      ) : view === 'reporting' ? (
-        <ReportingView entityFilter={effectiveEntity} role={user.role} />
       ) : (
         <PlanningView entityFilter={effectiveEntity} role={user.role} />
       )}
