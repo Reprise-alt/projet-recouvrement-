@@ -63,6 +63,12 @@ clientsRouter.get('/', async (req, res, next) => {
   try {
     const entiteFilter = resolveEntiteScope(req.user!, req.query.entite);
     const palierFilter = req.query.palier !== undefined ? parseInt(req.query.palier as string, 10) : null;
+    // `all=true` : renvoie aussi les clients sans encours (soldés, ou
+    // rattachés à la plateforme uniquement pour un suivi hors recouvrement,
+    // ex: maintenance imprimante côté planning coursiers) -- le tableau
+    // Recouvrement ne veut jamais de ce bruit, mais un sélecteur de client
+    // pour une tâche planning n'a aucune raison d'exclure un client soldé.
+    const includeSansEncours = req.query.all === 'true';
     const sortKey = (req.query.sort as string) || 'joursRetard';
     const sortDir = req.query.dir === 'asc' ? 1 : -1;
 
@@ -98,7 +104,7 @@ clientsRouter.get('/', async (req, res, next) => {
       };
     });
 
-    list = list.filter((c) => c.encours > 0 || palierFilter === 0);
+    list = list.filter((c) => c.encours > 0 || palierFilter === 0 || includeSansEncours);
     if (palierFilter !== null && !Number.isNaN(palierFilter)) {
       list = list.filter((c) => c.palier === palierFilter);
     }

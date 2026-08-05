@@ -12,6 +12,8 @@ import { sendEmailRouter } from './routes/sendEmail';
 import { entreprisesRouter } from './routes/entreprises';
 import { reportingRouter } from './routes/reporting';
 import { contactRouter } from './routes/contact';
+import { tachesRouter } from './routes/taches';
+import { coursierPublicRouter } from './routes/coursierPublic';
 import { errorHandler } from './middleware/errorHandler';
 
 export function createApp() {
@@ -36,6 +38,8 @@ export function createApp() {
   app.use('/api/entreprises', entreprisesRouter);
   app.use('/api/reporting', reportingRouter);
   app.use('/api/contact', contactRouter);
+  app.use('/api/taches', tachesRouter);
+  app.use('/api/coursier-public', coursierPublicRouter);
 
   app.use(errorHandler);
   return app;

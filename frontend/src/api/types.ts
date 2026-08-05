@@ -300,6 +300,79 @@ export interface GmailStatus {
 
 export type SendEmailContext = { type: 'client_letter'; clientId: string; palier: number } | { type: 'contract_doc'; contratId: string };
 
+export type TypeTacheCoursier =
+  | 'releve_compteur'
+  | 'depot_facture'
+  | 'depot_courrier'
+  | 'recuperation_reglement'
+  | 'depot_banque'
+  | 'livraison_toner'
+  | 'livraison_bac_recuperation'
+  | 'autre';
+
+export type StatutTacheCoursier = 'a_faire' | 'faite' | 'annulee';
+export type ModePaiementCollecte = 'cheque' | 'espece' | 'autre';
+
+export interface Coursier {
+  id: string;
+  nom: string;
+  token: string;
+  actif: boolean;
+  createdAt: string;
+}
+
+export interface TacheCoursierModele {
+  id: string;
+  clientId: string;
+  type: TypeTacheCoursier;
+  label: string | null;
+  jourDuMois: number;
+  actif: boolean;
+  client: { id: string; nom: string; entite: Entite };
+}
+
+export interface TacheCoursier {
+  id: string;
+  clientId: string | null;
+  type: TypeTacheCoursier;
+  label: string | null;
+  date: string;
+  dateInitiale: string;
+  statut: StatutTacheCoursier;
+  coursierId: string | null;
+  modeleId: string | null;
+  montant: number | null;
+  modePaiement: ModePaiementCollecte | null;
+  note: string | null;
+  dateExecution: string | null;
+  client: { id: string; nom: string; entite: Entite } | null;
+  coursier: Coursier | null;
+}
+
+export interface ResumeJournee {
+  total: number;
+  faites: number;
+  reportees: number;
+  aFaire: number;
+  annulees: number;
+}
+
+export interface TachesJourResponse {
+  taches: TacheCoursier[];
+  resume: ResumeJournee;
+}
+
+// Vue publique (lien personnel coursier, sans authentification) -- un
+// sous-ensemble volontairement réduit du client complet.
+export interface TacheCoursierPublic extends Omit<TacheCoursier, 'client' | 'coursier'> {
+  client: { id: string; nom: string; tel: string | null } | null;
+}
+
+export interface CoursierTachesPubliques {
+  coursier: { nom: string };
+  taches: TacheCoursierPublic[];
+}
+
 export interface ImportSummary {
   message: string;
   summary: {

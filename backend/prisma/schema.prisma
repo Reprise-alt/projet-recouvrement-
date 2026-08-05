@@ -55,23 +55,25 @@ model Entreprise {
 }
 
 model Client {
-  id        String   @id @default(cuid())
-  nom       String
-  entite    String
-  contact   String?
-  email     String?
-  tel       String?
-  note      String?
-  prochaineRelance DateTime?
+  id                   String               @id @default(cuid())
+  nom                  String
+  entite               String
+  contact              String?
+  email                String?
+  tel                  String?
+  note                 String?
+  prochaineRelance     DateTime?
   frequenceFacturation FrequenceFacturation @default(mensuelle)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
 
-  factures Facture[]
-  contrats Contrat[]
-  actions  ActionRecouvrement[]
-  contacts Contact[]
-  echeanciers EcheancierPaiement[]
+  factures              Facture[]
+  contrats              Contrat[]
+  actions               ActionRecouvrement[]
+  contacts              Contact[]
+  echeanciers           EcheancierPaiement[]
+  tachesCoursier        TacheCoursier[]
+  tachesCoursierModeles TacheCoursierModele[]
 
   // Clé de rapprochement à l'import (Excel manuel aujourd'hui, sync ARTIS/MAPON demain) :
   // un même client ne doit jamais être dupliqué d'un import à l'autre.
@@ -94,13 +96,13 @@ model EcheancierPaiement {
 }
 
 model TranchePaiement {
-  id           String        @id @default(cuid())
+  id           String             @id @default(cuid())
   echeancier   EcheancierPaiement @relation(fields: [echeancierId], references: [id], onDelete: Cascade)
   echeancierId String
   ordre        Int
   dateEcheance DateTime
   montant      Float
-  statut       StatutFacture @default(impayee)
+  statut       StatutFacture      @default(impayee)
   datePaiement DateTime?
 }
 
@@ -120,15 +122,15 @@ model Contact {
 }
 
 model Facture {
-  id           String         @id @default(cuid())
-  client       Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  id           String        @id @default(cuid())
+  client       Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
   clientId     String
   numero       String
   montant      Float
   montantHT    Float?
   dateFacture  DateTime?
   dateEcheance DateTime
-  statut       StatutFacture  @default(impayee)
+  statut       StatutFacture @default(impayee)
   datePaiement DateTime?
   modePaiement String?
   numPiece     String?
@@ -138,8 +140,8 @@ model Facture {
   traitePar    String?
   etatFactures String?
   dateDepot    DateTime?
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
   // Clé de fusion à l'import : le numéro de facture, jamais l'ordre des lignes.
   @@unique([clientId, numero])
@@ -194,11 +196,11 @@ model EnvoiContrat {
 }
 
 model Utilisateur {
-  id     String          @id @default(cuid())
-  nom    String
-  email  String          @unique
-  role   RoleUtilisateur
-  entite String?
+  id                String          @id @default(cuid())
+  nom               String
+  email             String          @unique
+  role              RoleUtilisateur
+  entite            String?
   // Mise à jour à chaque appel à /api/auth/me, qui n'est fait qu'une fois par
   // ouverture/rechargement de l'app — reflète donc "la dernière fois que
   // l'app a été ouverte", pas une présence en temps réel.
@@ -261,4 +263,99 @@ model IntegrationCredential {
   derniereSync DateTime?
   compteEmail  String?
   refreshToken String?
+}
+
+// Type de course terrain -- liste fermée + "autre" en secours pour ne
+// jamais bloquer la saisie d'un cas non prévu (cf. §planning coursiers).
+enum TypeTacheCoursier {
+  releve_compteur
+  depot_facture
+  depot_courrier
+  recuperation_reglement
+  depot_banque
+  livraison_toner
+  livraison_bac_recuperation
+  autre
+}
+
+enum StatutTacheCoursier {
+  a_faire
+  faite
+  annulee
+}
+
+enum ModePaiementCollecte {
+  cheque
+  espece
+  autre
+}
+
+// Membre de l'équipe coursiers -- pas un Utilisateur de la plateforme (pas
+// de rôle, pas de mot de passe) : identifié uniquement par un lien
+// personnel (token) qu'il ouvre depuis son téléphone pour voir et cocher
+// ses tâches du jour. Volontairement minimal pour un premier test.
+model Coursier {
+  id        String   @id @default(cuid())
+  nom       String
+  token     String   @unique
+  actif     Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  taches TacheCoursier[]
+}
+
+// Modèle de tâche récurrente (ex: "SCL, relevé compteur, tous les 5 du
+// mois") -- génère automatiquement l'instance du jour dans TacheCoursier
+// quand ce jour arrive (cf. lib/taches.ts), pour que l'ADV n'ait pas à la
+// ressaisir chaque mois. jourDuMois volontairement borné à 1-28 pour éviter
+// les mois plus courts que le jour visé.
+model TacheCoursierModele {
+  id         String            @id @default(cuid())
+  client     Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId   String
+  type       TypeTacheCoursier
+  label      String?
+  jourDuMois Int
+  actif      Boolean           @default(true)
+  createdAt  DateTime          @default(now())
+
+  taches TacheCoursier[]
+}
+
+// Instance concrète d'une tâche pour un jour donné -- ponctuelle (saisie à
+// la main par l'ADV) ou générée depuis un TacheCoursierModele échu.
+// `date` est le jour actuellement planifié (déplaçable si l'équipe
+// coursiers reporte la tâche) ; `dateInitiale` ne change jamais après
+// création et sert uniquement à reconstituer, pour le récap d'une journée
+// donnée, ce qui a été fait / reporté / laissé en l'état ce jour-là (cf.
+// lib/taches.ts:resumeJournee).
+model TacheCoursier {
+  id           String              @id @default(cuid())
+  client       Client?             @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  clientId     String?
+  type         TypeTacheCoursier
+  label        String?
+  date         DateTime
+  dateInitiale DateTime
+  statut       StatutTacheCoursier @default(a_faire)
+
+  coursier   Coursier? @relation(fields: [coursierId], references: [id], onDelete: SetNull)
+  coursierId String?
+
+  modele   TacheCoursierModele? @relation(fields: [modeleId], references: [id], onDelete: SetNull)
+  modeleId String?
+
+  // Renseignés à la clôture d'une tâche de type recuperation_reglement.
+  montant      Float?
+  modePaiement ModePaiementCollecte?
+
+  note          String?
+  dateExecution DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Empêche de générer deux fois l'instance du jour pour un même modèle
+  // récurrent (génération idempotente, cf. lib/taches.ts).
+  @@unique([modeleId, dateInitiale])
 }

@@ -5,6 +5,8 @@ import { Landing } from './components/Landing';
 import { RecouvrementView } from './components/RecouvrementView';
 import { ContractsView } from './components/ContractsView';
 import { ReportingView } from './components/ReportingView';
+import { PlanningView } from './components/PlanningView';
+import { CoursierPublicView } from './components/CoursierPublicView';
 import { SettingsModal } from './components/SettingsModal';
 import { ImportPanel } from './components/ImportPanel';
 import { UsersPanel } from './components/UsersPanel';
@@ -14,7 +16,7 @@ import { EntityLogo, entityAccent } from './components/EntityLogo';
 import { Entite, Entreprise } from './api/types';
 import { useResource } from './hooks/useResource';
 
-type MainView = 'recouvrement' | 'contrats' | 'reporting';
+type MainView = 'recouvrement' | 'contrats' | 'reporting' | 'planning';
 type EntityFilter = Entite | 'ALL';
 
 const ROLE_LABELS: Record<string, string> = {
@@ -29,6 +31,14 @@ export function App() {
   // Page vitrine publique — pas d'authentification requise, ne dépend pas de
   // l'état de connexion (contrairement au reste de l'app ci-dessous).
   if (window.location.pathname === '/presentation') return <Landing />;
+
+  // Lien personnel d'un coursier — identifié par un token dans l'URL, pas
+  // par une session : même logique d'accès public que la vitrine, mais
+  // scopée à un seul coursier côté API (cf. routes/coursierPublic.ts).
+  if (window.location.pathname.startsWith('/coursier/')) {
+    const token = window.location.pathname.slice('/coursier/'.length);
+    return <CoursierPublicView token={token} />;
+  }
   const [view, setView] = useState<MainView>('recouvrement');
   const [entityFilter, setEntityFilter] = useState<EntityFilter>('ALL');
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -202,14 +212,19 @@ export function App() {
         <button className={view === 'reporting' ? 'active' : ''} onClick={() => setView('reporting')}>
           Reporting
         </button>
+        <button className={view === 'planning' ? 'active' : ''} onClick={() => setView('planning')}>
+          Planning
+        </button>
       </div>
 
       {view === 'recouvrement' ? (
         <RecouvrementView entityFilter={effectiveEntity} role={user.role} reloadKey={dataVersion} />
       ) : view === 'contrats' ? (
         <ContractsView entityFilter={effectiveEntity} role={user.role} reloadKey={dataVersion} />
-      ) : (
+      ) : view === 'reporting' ? (
         <ReportingView entityFilter={effectiveEntity} role={user.role} />
+      ) : (
+        <PlanningView entityFilter={effectiveEntity} role={user.role} />
       )}
 
       {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} onSaved={bumpDataVersion} />}

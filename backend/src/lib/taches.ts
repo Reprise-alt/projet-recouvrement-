@@ -1,0 +1,73 @@
+// Types de tâche fermés + libellés partagés backend/frontend (même
+// convention que PALIERS dans lib/paliers.ts) -- "autre" reste toujours
+// disponible pour ne jamais bloquer une saisie imprévue.
+export const TACHE_TYPE_LABELS: Record<string, string> = {
+  releve_compteur: 'Relevé compteur imprimante',
+  depot_facture: 'Déposer une facture',
+  depot_courrier: 'Déposer un courrier client',
+  recuperation_reglement: 'Récupérer un règlement',
+  depot_banque: 'Dépôt en banque',
+  livraison_toner: 'Livraison toner',
+  livraison_bac_recuperation: 'Livraison bac de récupération',
+  autre: 'Autre',
+};
+
+export const MODE_PAIEMENT_LABELS: Record<string, string> = {
+  cheque: 'Chèque',
+  espece: 'Espèces',
+  autre: 'Autre',
+};
+
+// Un modèle récurrent est dû un jour donné si son jour du mois configuré
+// correspond au jour du mois de la date -- volontairement borné à 1-28 à la
+// création (cf. route) pour ne jamais viser un jour qui n'existe pas dans
+// un mois plus court (février notamment). getUTCDate() plutôt que getDate()
+// : les dates de tâches sont stockées à minuit UTC (même convention que
+// buildPeriod dans routes/reporting.ts), un getDate() dépendant du fuseau
+// du serveur pourrait décaler le jour d'une unité selon l'environnement.
+export function modeleDuLe(jourDuMois: number, date: Date): boolean {
+  return date.getUTCDate() === jourDuMois;
+}
+
+export interface TacheJournee {
+  statut: 'a_faire' | 'faite' | 'annulee';
+  date: Date | string;
+  dateInitiale: Date | string;
+}
+
+export type StatutAffiche = 'a_faire' | 'faite' | 'reportee' | 'annulee';
+
+// Statut "affiché" pour le récap d'une journée donnée : une tâche dont la
+// date planifiée a été déplacée après coup (report par l'équipe coursiers)
+// reste techniquement "à faire", mais doit apparaître comme "reportée" dans
+// le bilan du jour où elle était initialement prévue -- jamais comme
+// simplement "non faite", ce qui laisserait croire qu'elle a été oubliée.
+export function statutAffiche(tache: TacheJournee): StatutAffiche {
+  if (tache.statut === 'faite' || tache.statut === 'annulee') return tache.statut;
+  const date = new Date(tache.date).toISOString().slice(0, 10);
+  const dateInitiale = new Date(tache.dateInitiale).toISOString().slice(0, 10);
+  return date !== dateInitiale ? 'reportee' : 'a_faire';
+}
+
+export interface ResumeJournee {
+  total: number;
+  faites: number;
+  reportees: number;
+  aFaire: number;
+  annulees: number;
+}
+
+// Bilan de fin de journée pour les tâches initialement prévues à cette
+// date-là (cf. route GET /taches?date=) -- calculé à la volée à partir de
+// la même liste que celle affichée, jamais stocké séparément.
+export function resumeJournee(taches: TacheJournee[]): ResumeJournee {
+  const resume: ResumeJournee = { total: taches.length, faites: 0, reportees: 0, aFaire: 0, annulees: 0 };
+  for (const t of taches) {
+    const s = statutAffiche(t);
+    if (s === 'faite') resume.faites++;
+    else if (s === 'reportee') resume.reportees++;
+    else if (s === 'annulee') resume.annulees++;
+    else resume.aFaire++;
+  }
+  return resume;
+}

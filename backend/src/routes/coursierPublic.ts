@@ -1,0 +1,85 @@
+import { Router } from 'express';
+import { prisma } from '../db';
+
+export const coursierPublicRouter = Router();
+
+// Accès terrain sans authentification classique : chaque coursier a un lien
+// personnel (token imprévisible, cf. routes/taches.ts) plutôt qu'un compte
+// avec mot de passe -- volontairement minimal pour un premier test (cf.
+// discussion produit). Le token identifie le coursier, jamais un rôle
+// applicatif : aucune de ces routes ne doit exposer plus que "les tâches de
+// ce coursier, aujourd'hui".
+async function findCoursierByToken(token: string) {
+  const coursier = await prisma.coursier.findUnique({ where: { token } });
+  if (!coursier || !coursier.actif) return null;
+  return coursier;
+}
+
+function todayRange() {
+  const now = new Date();
+  const date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const nextDay = new Date(date.getTime() + 24 * 60 * 60 * 1000);
+  return { date, nextDay };
+}
+
+coursierPublicRouter.get('/:token/taches', async (req, res, next) => {
+  try {
+    const coursier = await findCoursierByToken(req.params.token);
+    if (!coursier) return res.status(404).json({ error: 'Lien invalide ou désactivé' });
+
+    const { date, nextDay } = todayRange();
+    const taches = await prisma.tacheCoursier.findMany({
+      where: { coursierId: coursier.id, date: { gte: date, lt: nextDay }, statut: { not: 'annulee' } },
+      include: { client: { select: { id: true, nom: true, tel: true } } },
+      orderBy: { createdAt: 'asc' },
+    });
+    res.json({ coursier: { nom: coursier.nom }, taches });
+  } catch (err) {
+    next(err);
+  }
+});
+
+coursierPublicRouter.patch('/:token/taches/:id', async (req, res, next) => {
+  try {
+    const coursier = await findCoursierByToken(req.params.token);
+    if (!coursier) return res.status(404).json({ error: 'Lien invalide ou désactivé' });
+
+    const tache = await prisma.tacheCoursier.findUnique({ where: { id: req.params.id } });
+    // Un coursier ne peut jamais agir sur la tâche d'un autre -- vérifié ici
+    // plutôt que de faire confiance à l'id transmis par le client.
+    if (!tache || tache.coursierId !== coursier.id) {
+      return res.status(404).json({ error: 'Tâche introuvable' });
+    }
+
+    const { statut, montant, modePaiement, note, report } = req.body ?? {};
+    const data: Record<string, unknown> = {};
+
+    if (report !== undefined) {
+      if (typeof report !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(report)) {
+        return res.status(400).json({ error: 'Date de report invalide (format AAAA-MM-JJ)' });
+      }
+      const nouvelleDate = new Date(`${report}T00:00:00.000Z`);
+      if (Number.isNaN(nouvelleDate.getTime())) return res.status(400).json({ error: 'Date de report invalide' });
+      data.date = nouvelleDate;
+    }
+
+    if (statut !== undefined) {
+      if (statut !== 'faite') return res.status(400).json({ error: 'Statut invalide' });
+      data.statut = 'faite';
+      data.dateExecution = new Date();
+      if (montant !== undefined) data.montant = montant === null || montant === '' ? null : Number(montant);
+      if (modePaiement !== undefined) data.modePaiement = modePaiement || null;
+    }
+
+    if (note !== undefined) data.note = typeof note === 'string' ? note.trim() || null : null;
+
+    const updated = await prisma.tacheCoursier.update({
+      where: { id: tache.id },
+      data,
+      include: { client: { select: { id: true, nom: true, tel: true } } },
+    });
+    res.json(updated);
+  } catch (err) {
+    next(err);
+  }
+});
