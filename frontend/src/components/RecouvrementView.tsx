@@ -68,6 +68,11 @@ export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
         (!onlyATraiter || needsAction(c)) &&
         (!onlyRetardInhabituel || c.retardInhabituel),
     ) ?? [];
+  // Un client qui a déjà reçu la relance du palier où il se trouve n'a pas à
+  // la recevoir une seconde fois avant d'avoir progressé de palier (ou que sa
+  // date de relance promise soit dépassée) — même logique que needsAction,
+  // utilisée ici pour ne pas proposer de doublon dans l'envoi groupé.
+  const clientsARelancer = filtered.filter(needsAction);
   const canBulkRelance = role === 'admin' || role === 'manager_entite';
 
   return (
@@ -259,8 +264,8 @@ export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
             {onlyATraiter && <button onClick={() => setOnlyATraiter(false)}>Afficher tous les clients</button>}
             {onlyRetardInhabituel && <button onClick={() => setOnlyRetardInhabituel(false)}>Afficher tous les clients</button>}
             {palierFilter !== null && <button onClick={() => setPalierFilter(null)}>Effacer le filtre</button>}
-            {palierFilter !== null && palierFilter > 0 && canBulkRelance && filtered.length > 0 && (
-              <button onClick={() => setBulkRelance(true)}>Relance groupée</button>
+            {palierFilter !== null && palierFilter > 0 && canBulkRelance && clientsARelancer.length > 0 && (
+              <button onClick={() => setBulkRelance(true)}>Relance groupée ({clientsARelancer.length})</button>
             )}
           </div>
         </div>
@@ -380,7 +385,7 @@ export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
       {bulkRelance && palierFilter !== null && (
         <BulkRelanceModal
           palierId={palierFilter}
-          clients={filtered}
+          clients={clientsARelancer}
           onClose={() => setBulkRelance(false)}
           onDone={refetchAll}
         />
