@@ -10,6 +10,10 @@ function tomorrow(): string {
   return d.toISOString().slice(0, 10);
 }
 
+function fmtHeure(iso: string): string {
+  return new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+}
+
 // Vue terrain sans authentification classique : identifiée uniquement par
 // le token dans l'URL (cf. App.tsx / routes/coursierPublic.ts côté
 // backend). Volontairement minimale — pas de topbar, gros boutons, pensée
@@ -69,13 +73,16 @@ export function CoursierPublicView({ token }: { token: string }) {
     }
   }
 
+  const total = data?.taches.length ?? 0;
+  const faites = data?.taches.filter((t) => tacheStatutAffiche(t) === 'faite').length ?? 0;
+
   return (
-    <div style={{ maxWidth: 480, margin: '0 auto', padding: '20px 16px 60px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
-        <svg viewBox="0 0 100 100" width="26" height="26">
+    <div className="coursier-mobile">
+      <div className="cm-header">
+        <svg viewBox="0 0 100 100" width="34" height="34">
           <circle cx="50" cy="50" r="34" fill="none" stroke="#1D9E75" strokeWidth="13" strokeLinecap="round" strokeDasharray="168 46" transform="rotate(100 50 50)" />
         </svg>
-        <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 18 }}>Olu 360 — Tournée du jour</div>
+        <div className="cm-wordmark">Olu 360 — Tournée du jour</div>
       </div>
 
       {loading ? (
@@ -87,10 +94,10 @@ export function CoursierPublicView({ token }: { token: string }) {
         </div>
       ) : data ? (
         <>
-          <div style={{ fontSize: 14, color: 'var(--ink-soft)', marginBottom: 16 }}>
+          <div className="cm-greeting">
             Bonjour <strong>{data.coursier.nom}</strong> — {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
           </div>
-          {error && <div className="login-error" style={{ marginBottom: 12 }}>{error}</div>}
+          {error && <div className="login-error">{error}</div>}
 
           {data.taches.length === 0 ? (
             <div className="empty-state">
@@ -98,92 +105,99 @@ export function CoursierPublicView({ token }: { token: string }) {
               <p>Rien à faire pour l'instant sur votre tournée d'aujourd'hui.</p>
             </div>
           ) : (
-            data.taches.map((t) => {
-              const statut = tacheStatutAffiche(t);
-              const busy = busyId === t.id;
-              return (
-                <div
-                  className="card-mini"
-                  key={t.id}
-                  style={{
-                    padding: 16,
-                    marginBottom: 12,
-                    borderLeft: `5px solid ${entityAccent(t.entite)}`,
-                  }}
-                >
-                  <div
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 5,
-                      background: 'var(--paper-2)',
-                      borderRadius: 20,
-                      padding: '3px 10px 3px 6px',
-                      marginBottom: 8,
-                    }}
-                  >
-                    <EntityLogo entite={t.entite} size={13} />
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color: entityAccent(t.entite) }}>{t.entite}</span>
-                  </div>
-                  <div style={{ fontWeight: 600, fontSize: 15 }}>{TACHE_TYPE_LABELS[t.type]}</div>
-                  {t.client && (
-                    <div style={{ fontSize: 13.5, marginTop: 2 }}>
-                      {t.client.nom}
-                      {t.client.tel && <span style={{ color: 'var(--ink-soft)' }}> · {t.client.tel}</span>}
-                    </div>
-                  )}
-                  {t.label && <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginTop: 2 }}>{t.label}</div>}
+            <>
+              <div className="cm-progress">
+                <div className="cm-progress-bar">
+                  <div className="cm-progress-fill" style={{ width: `${total ? (faites / total) * 100 : 0}%` }} />
+                </div>
+                <div className="cm-progress-label">
+                  {faites}/{total} faites
+                </div>
+              </div>
 
-                  {statut === 'faite' ? (
-                    <div style={{ marginTop: 10 }}>
-                      <span className="badge" data-tone="success">
-                        Faite
+              {data.taches.map((t) => {
+                const statut = tacheStatutAffiche(t);
+                const busy = busyId === t.id;
+                const accent = entityAccent(t.entite);
+                return (
+                  <div className={`cm-card${statut === 'faite' ? ' done' : ''}`} key={t.id} style={{ borderLeftColor: accent }}>
+                    <div className="cm-chip" style={{ background: `${accent}1f` }}>
+                      <EntityLogo entite={t.entite} size={17} />
+                      <span className="cm-chip-label" style={{ color: accent }}>
+                        {t.entite}
                       </span>
                     </div>
-                  ) : (
-                    <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      {t.type === 'recuperation_reglement' && (
-                        <div style={{ display: 'flex', gap: 8 }}>
-                          <input
-                            type="number"
-                            placeholder="Montant (FCFA)"
-                            style={{ flex: 1 }}
-                            value={montants[t.id] ?? ''}
-                            onChange={(e) => setMontants((prev) => ({ ...prev, [t.id]: e.target.value }))}
-                          />
-                          <select
-                            style={{ flex: 1 }}
-                            value={modes[t.id] ?? ''}
-                            onChange={(e) => setModes((prev) => ({ ...prev, [t.id]: e.target.value as ModePaiementCollecte }))}
-                          >
-                            <option value="">Mode…</option>
-                            {(Object.keys(MODE_PAIEMENT_LABELS) as ModePaiementCollecte[]).map((m) => (
-                              <option key={m} value={m}>
-                                {MODE_PAIEMENT_LABELS[m]}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
-                      <button className="primary" type="button" disabled={busy} style={{ width: '100%', padding: '10px 0' }} onClick={() => marquerFait(t)}>
-                        ✓ Marquer fait
-                      </button>
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <input
-                          type="date"
-                          style={{ flex: 1 }}
-                          value={reportDates[t.id] ?? tomorrow()}
-                          onChange={(e) => setReportDates((prev) => ({ ...prev, [t.id]: e.target.value }))}
-                        />
-                        <button type="button" disabled={busy} onClick={() => reporter(t)}>
-                          Reporter
-                        </button>
+                    <div className="cm-title">{TACHE_TYPE_LABELS[t.type]}</div>
+                    {t.client && (
+                      <div className="cm-client">
+                        {t.client.nom}
+                        {t.client.tel && (
+                          <>
+                            {' · '}
+                            <a href={`tel:${t.client.tel.replace(/\s+/g, '')}`}>{t.client.tel}</a>
+                          </>
+                        )}
                       </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })
+                    )}
+                    {t.label && <div className="cm-note">{t.label}</div>}
+
+                    {statut === 'faite' ? (
+                      <div className="cm-done-badge">
+                        ✓ Faite
+                        {t.dateExecution && <span className="cm-done-time">à {fmtHeure(t.dateExecution)}</span>}
+                      </div>
+                    ) : (
+                      <div className="cm-actions">
+                        {t.type === 'recuperation_reglement' && (
+                          <div className="cm-row2">
+                            <div className="cm-field" style={{ flex: 1.3 }}>
+                              <label>Montant (FCFA)</label>
+                              <input
+                                type="number"
+                                inputMode="numeric"
+                                placeholder="0"
+                                value={montants[t.id] ?? ''}
+                                onChange={(e) => setMontants((prev) => ({ ...prev, [t.id]: e.target.value }))}
+                              />
+                            </div>
+                            <div className="cm-field" style={{ flex: 1 }}>
+                              <label>Mode</label>
+                              <select
+                                value={modes[t.id] ?? ''}
+                                onChange={(e) => setModes((prev) => ({ ...prev, [t.id]: e.target.value as ModePaiementCollecte }))}
+                              >
+                                <option value="">Choisir…</option>
+                                {(Object.keys(MODE_PAIEMENT_LABELS) as ModePaiementCollecte[]).map((m) => (
+                                  <option key={m} value={m}>
+                                    {MODE_PAIEMENT_LABELS[m]}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                        )}
+                        <button className="primary" type="button" disabled={busy} onClick={() => marquerFait(t)}>
+                          ✓ Marquer fait
+                        </button>
+                        <div className="cm-row2">
+                          <div className="cm-field" style={{ flex: 1 }}>
+                            <label>Reporter au</label>
+                            <input
+                              type="date"
+                              value={reportDates[t.id] ?? tomorrow()}
+                              onChange={(e) => setReportDates((prev) => ({ ...prev, [t.id]: e.target.value }))}
+                            />
+                          </div>
+                          <button className="cm-report-btn" type="button" disabled={busy} onClick={() => reporter(t)}>
+                            Reporter
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </>
           )}
         </>
       ) : null}

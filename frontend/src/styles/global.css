@@ -334,3 +334,40 @@ label{font-family:var(--font-mono);font-size:10.5px;text-transform:uppercase;let
 
 .landing-footer{border-top:1px solid var(--line-soft);padding:28px 32px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;font-size:12px;color:var(--ink-soft);}
 .landing-footer a{color:var(--ink-soft);}
+
+/* Vue mobile coursier (lien personnel, cf. CoursierPublicView) — usage
+   terrain (scooter, plein soleil, une main) : tout est délibérément plus
+   gros et plus contrasté que le reste de l'app, pensée pour un bureau. */
+.coursier-mobile{max-width:520px;margin:0 auto;padding:18px 16px 70px;font-size:16px;}
+.coursier-mobile .cm-header{display:flex;align-items:center;gap:12px;margin-bottom:6px;}
+.coursier-mobile .cm-wordmark{font-family:var(--font-display);font-weight:700;font-size:20px;}
+.coursier-mobile .cm-greeting{font-size:16px;color:var(--ink-soft);margin:10px 0 4px;line-height:1.4;}
+.coursier-mobile .cm-progress{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:14px 0 18px;box-shadow:var(--shadow-xs);}
+.coursier-mobile .cm-progress-bar{flex:1;height:10px;border-radius:6px;background:var(--paper-2);overflow:hidden;}
+.coursier-mobile .cm-progress-fill{height:100%;background:var(--accent);border-radius:6px;transition:width .25s var(--ease);}
+.coursier-mobile .cm-progress-label{font-family:var(--font-mono);font-weight:700;font-size:15px;white-space:nowrap;}
+
+.coursier-mobile .cm-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:16px;box-shadow:var(--shadow-sm);border-left-width:8px;border-left-style:solid;}
+.coursier-mobile .cm-card.done{background:var(--accent-soft);}
+.coursier-mobile .cm-chip{display:inline-flex;align-items:center;gap:6px;border-radius:20px;padding:6px 14px 6px 10px;margin-bottom:10px;}
+.coursier-mobile .cm-chip-label{font-family:var(--font-mono);font-size:14px;font-weight:700;letter-spacing:.03em;}
+.coursier-mobile .cm-title{font-family:var(--font-display);font-weight:700;font-size:20px;line-height:1.25;margin-bottom:4px;}
+.coursier-mobile .cm-client{font-size:16.5px;margin-top:4px;}
+.coursier-mobile .cm-client a{color:var(--accent-dark);font-weight:600;text-decoration:none;}
+.coursier-mobile .cm-client a:active{opacity:.6;}
+.coursier-mobile .cm-note{font-size:15px;color:var(--ink-soft);margin-top:6px;line-height:1.4;}
+
+.coursier-mobile .cm-done-badge{display:inline-flex;align-items:center;gap:8px;font-family:var(--font-mono);font-weight:700;font-size:16px;color:var(--accent-dark);margin-top:12px;}
+.coursier-mobile .cm-done-time{font-size:14px;color:var(--ink-soft);font-weight:500;}
+
+.coursier-mobile .cm-actions{margin-top:16px;display:flex;flex-direction:column;gap:12px;}
+.coursier-mobile .cm-field label{display:block;font-family:var(--font-mono);font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin-bottom:6px;}
+.coursier-mobile .cm-row2{display:flex;gap:10px;}
+.coursier-mobile input,.coursier-mobile select{font-size:16px;padding:14px 12px;border-radius:11px;border:1.5px solid var(--line);}
+.coursier-mobile button{font-size:17px;font-weight:700;padding:16px 18px;border-radius:12px;min-height:54px;}
+.coursier-mobile button.primary{width:100%;letter-spacing:.01em;}
+.coursier-mobile button.cm-report-btn{white-space:nowrap;padding:16px 20px;}
+.coursier-mobile .empty-state{background:#fff;border:1px solid var(--line);border-radius:16px;padding:48px 20px;}
+.coursier-mobile .empty-state h3{font-size:19px;}
+.coursier-mobile .empty-state p{font-size:15.5px;}
+.coursier-mobile .login-error{font-size:15px;padding:14px 16px;border-radius:12px;}
