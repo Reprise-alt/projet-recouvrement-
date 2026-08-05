@@ -19,8 +19,11 @@ export const CONTRACT_ALERTS: ContractAlert[] = [
 ];
 
 export interface ContractLike {
+  dateDebut?: Date | string | null;
   dateFin: Date | string;
   dateRevisionTarif?: Date | string | null;
+  tauxAugmentation?: number | null;
+  dateDerniereRevision?: Date | string | null;
 }
 
 export interface ContractEcheance {
@@ -29,14 +32,44 @@ export interface ContractEcheance {
   jours: number;
 }
 
+// Prochaine occurrence du jour/mois de `anchor`, strictement après `anchor`
+// lui-même et au plus tôt à `from` -- jamais l'année de `anchor` elle-même,
+// même si cette occurrence n'est pas encore passée. Sans cette double
+// contrainte, appliquer une révision un peu avant sa date anniversaire réelle
+// (anchor déplacé sur une date encore à venir) ferait ressortir la même date
+// comme "prochaine révision" au lieu d'avancer d'un an.
+export function nextAnniversary(anchor: Date | string, from: Date = new Date()): Date {
+  const a = typeof anchor === 'string' ? new Date(anchor) : anchor;
+  const today = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  let candidate = new Date(a.getFullYear() + 1, a.getMonth(), a.getDate());
+  while (candidate.getTime() < today.getTime()) {
+    candidate = new Date(candidate.getFullYear() + 1, a.getMonth(), a.getDate());
+  }
+  return candidate;
+}
+
+// Montant après application du taux d'augmentation annuel (composé : appliqué
+// sur le dernier montant en vigueur, pas sur le montant initial du contrat).
+export function montantProjete(montantActuel: number, tauxAugmentation: number): number {
+  return Math.round(montantActuel * (1 + tauxAugmentation / 100));
+}
+
 // Renvoie l'échéance pertinente d'UN contrat : sa fin, ou sa révision tarifaire
-// annuelle si elle arrive avant (et n'est pas déjà passée).
+// si elle arrive avant (et n'est pas déjà passée). La date de révision est soit
+// dérivée automatiquement de la date anniversaire du contrat (quand un taux
+// d'augmentation est renseigné), soit celle saisie manuellement sinon.
 export function contractEcheance(contract: ContractLike): ContractEcheance {
   const jFin = daysUntil(contract.dateFin);
-  if (contract.dateRevisionTarif) {
-    const jTarif = daysUntil(contract.dateRevisionTarif);
+  let revisionDate: Date | string | null = null;
+  if (contract.tauxAugmentation && contract.dateDebut) {
+    revisionDate = nextAnniversary(contract.dateDerniereRevision ?? contract.dateDebut);
+  } else if (contract.dateRevisionTarif) {
+    revisionDate = contract.dateRevisionTarif;
+  }
+  if (revisionDate) {
+    const jTarif = daysUntil(revisionDate);
     if (jTarif >= 0 && jTarif < jFin) {
-      return { type: 'revision_tarif', date: contract.dateRevisionTarif, jours: jTarif };
+      return { type: 'revision_tarif', date: revisionDate, jours: jTarif };
     }
   }
   return { type: 'renouvellement', date: contract.dateFin, jours: jFin };

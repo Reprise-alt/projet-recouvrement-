@@ -98,6 +98,9 @@ export interface Contrat {
   dateFin: string;
   tacite: boolean;
   dateRevisionTarif: string | null;
+  montantActuel: number | null;
+  tauxAugmentation: number | null;
+  dateDerniereRevision: string | null;
   statutSource: string | null;
   commentaire: string | null;
   envois: EnvoiContrat[];
@@ -277,6 +280,8 @@ export interface ContractDetail extends Contrat {
   client: { id: string; nom: string; entite: Entite; contact: string | null; email: string | null };
   echeance: { type: 'revision_tarif' | 'renouvellement'; date: string; jours: number };
   alertLevel: number;
+  montantApresRevision: number | null;
+  prochaineRevision: string | null;
 }
 
 export interface ContractsKpis {

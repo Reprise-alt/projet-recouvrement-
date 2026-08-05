@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { prisma } from '../db';
-import { contractAlertLevel, contractEcheance } from '../lib/contracts';
+import { contractAlertLevel, contractEcheance, montantProjete, nextAnniversary } from '../lib/contracts';
 import { generateContractDoc } from '../lib/letters';
 import { Entite, resolveEntiteScope } from '../lib/entites';
 import { assertEntiteInScope, requireAuth, requireRole } from '../middleware/auth';
@@ -76,7 +76,76 @@ contractsRouter.get('/:id', async (req, res, next) => {
     if (!assertEntiteInScope(req, res, contrat.client.entite as Entite)) return;
 
     const e = contractEcheance(contrat);
-    res.json({ ...contrat, echeance: e, alertLevel: contractAlertLevel(contrat) });
+    const montantApresRevision =
+      contrat.montantActuel != null && contrat.tauxAugmentation != null
+        ? montantProjete(contrat.montantActuel, contrat.tauxAugmentation)
+        : null;
+    // Toujours calculée quand un taux est configuré, indépendamment de si
+    // c'est l'échéance la plus proche (contrairement à `echeance`, qui ne
+    // retient que celle des deux -- fin de contrat ou révision -- la plus
+    // urgente) : sert d'affichage dédié pour la tarification, pas d'alerte.
+    const prochaineRevision = contrat.tauxAugmentation != null ? nextAnniversary(contrat.dateDerniereRevision ?? contrat.dateDebut) : null;
+    res.json({ ...contrat, echeance: e, alertLevel: contractAlertLevel(contrat), montantApresRevision, prochaineRevision });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Active ou met à jour l'augmentation tarifaire automatique d'un contrat.
+// Au premier réglage (dateDerniereRevision pas encore fixée), on l'ancre sur
+// dateDebut pour que la date anniversaire se calcule dès la prochaine
+// occurrence de la date de signature -- pas sur "aujourd'hui".
+contractsRouter.patch('/:id/tarification', requireRole('admin', 'manager_entite'), async (req, res, next) => {
+  try {
+    const contrat = await prisma.contrat.findUnique({ where: { id: req.params.id }, include: { client: true } });
+    if (!contrat) return res.status(404).json({ error: 'Contrat introuvable' });
+    if (!assertEntiteInScope(req, res, contrat.client.entite as Entite)) return;
+
+    const { montantActuel, tauxAugmentation } = req.body ?? {};
+    if (montantActuel == null || isNaN(Number(montantActuel)) || Number(montantActuel) < 0) {
+      return res.status(400).json({ error: 'Montant invalide' });
+    }
+    if (tauxAugmentation == null || isNaN(Number(tauxAugmentation))) {
+      return res.status(400).json({ error: 'Taux invalide' });
+    }
+
+    const updated = await prisma.contrat.update({
+      where: { id: req.params.id },
+      data: {
+        montantActuel: Number(montantActuel),
+        tauxAugmentation: Number(tauxAugmentation),
+        dateDerniereRevision: contrat.dateDerniereRevision ?? contrat.dateDebut,
+      },
+    });
+    res.json(updated);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Applique la révision due : fait passer le montant au montant projeté
+// (composé sur le montant en vigueur) et avance l'ancre sur la date
+// anniversaire qui vient d'échoir -- pas sur "aujourd'hui", pour que le
+// cycle reste calé sur la vraie date anniversaire même si le geste est fait
+// avec quelques jours de retard.
+contractsRouter.post('/:id/appliquer-revision', requireRole('admin', 'manager_entite'), async (req, res, next) => {
+  try {
+    const contrat = await prisma.contrat.findUnique({ where: { id: req.params.id }, include: { client: true } });
+    if (!contrat) return res.status(404).json({ error: 'Contrat introuvable' });
+    if (!assertEntiteInScope(req, res, contrat.client.entite as Entite)) return;
+    if (contrat.montantActuel == null || contrat.tauxAugmentation == null) {
+      return res.status(400).json({ error: "Aucune augmentation tarifaire configurée sur ce contrat" });
+    }
+
+    const echeanceEnCours = nextAnniversary(contrat.dateDerniereRevision ?? contrat.dateDebut);
+    const updated = await prisma.contrat.update({
+      where: { id: req.params.id },
+      data: {
+        montantActuel: montantProjete(contrat.montantActuel, contrat.tauxAugmentation),
+        dateDerniereRevision: echeanceEnCours,
+      },
+    });
+    res.json(updated);
   } catch (err) {
     next(err);
   }

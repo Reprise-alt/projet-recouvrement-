@@ -148,19 +148,27 @@ model Facture {
 }
 
 model Contrat {
-  id                String    @id @default(cuid())
-  client            Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  clientId          String
-  numero            String
-  type              String?
-  dateDebut         DateTime
-  dateFin           DateTime
-  tacite            Boolean   @default(false)
-  dateRevisionTarif DateTime?
-  statutSource      String?
-  commentaire       String?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  id                   String    @id @default(cuid())
+  client               Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId             String
+  numero               String
+  type                 String?
+  dateDebut            DateTime
+  dateFin              DateTime
+  tacite               Boolean   @default(false)
+  dateRevisionTarif    DateTime?
+  // Augmentation tarifaire annuelle automatique -- optionnelle, coexiste avec
+  // dateRevisionTarif (utilisée quand tauxAugmentation n'est pas renseigné).
+  // Quand un taux est fixé, la date de révision se déduit de la date
+  // anniversaire du contrat (dateDerniereRevision, ou dateDebut à défaut) au
+  // lieu d'être ressaisie à la main -- cf lib/contracts.ts.
+  montantActuel        Float?
+  tauxAugmentation     Float?
+  dateDerniereRevision DateTime?
+  statutSource         String?
+  commentaire          String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   envois EnvoiContrat[]
 

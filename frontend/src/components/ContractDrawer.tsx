@@ -4,7 +4,7 @@ import { api, ApiError } from '../api/client';
 import { ContractDetail, ContractDoc, RoleUtilisateur } from '../api/types';
 import { useResource } from '../hooks/useResource';
 import { useToast } from '../hooks/useToast';
-import { CONTRACT_ALERTS, fmtDate } from '../lib/constants';
+import { CONTRACT_ALERTS, fmtDate, fmtFCFA } from '../lib/constants';
 
 interface Props {
   contratId: string;
@@ -22,8 +22,51 @@ export function ContractDrawer({ contratId, role, onClose, onChanged }: Props) {
   const [attachments, setAttachments] = useState<File[]>([]);
   const [sendStatus, setSendStatus] = useState<{ kind: 'ok' | 'err'; message: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [editingTarif, setEditingTarif] = useState(false);
+  const [montantInput, setMontantInput] = useState('');
+  const [tauxInput, setTauxInput] = useState('');
+  const [tarifBusy, setTarifBusy] = useState(false);
 
   const canAct = role === 'admin' || role === 'manager_entite';
+
+  function openTarifForm() {
+    setMontantInput(contrat?.montantActuel != null ? String(contrat.montantActuel) : '');
+    setTauxInput(contrat?.tauxAugmentation != null ? String(contrat.tauxAugmentation) : '');
+    setEditingTarif(true);
+  }
+
+  async function handleSaveTarification(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setTarifBusy(true);
+    try {
+      await api.patch(`/api/contracts/${contratId}/tarification`, {
+        montantActuel: Number(montantInput),
+        tauxAugmentation: Number(tauxInput),
+      });
+      setEditingTarif(false);
+      refetch();
+      onChanged();
+      showToast('Tarification annuelle enregistrée');
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setTarifBusy(false);
+    }
+  }
+
+  async function handleAppliquerRevision() {
+    setTarifBusy(true);
+    try {
+      await api.post(`/api/contracts/${contratId}/appliquer-revision`);
+      refetch();
+      onChanged();
+      showToast('Révision appliquée');
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setTarifBusy(false);
+    }
+  }
 
   async function loadDocument() {
     setBusy(true);
@@ -99,7 +142,11 @@ export function ContractDrawer({ contratId, role, onClose, onChanged }: Props) {
               </div>
               <div>
                 <span>Révision tarifaire</span>
-                {contrat.dateRevisionTarif ? fmtDate(contrat.dateRevisionTarif) : 'Non renseignée'}
+                {contrat.prochaineRevision
+                  ? fmtDate(contrat.prochaineRevision)
+                  : contrat.dateRevisionTarif
+                    ? fmtDate(contrat.dateRevisionTarif)
+                    : 'Non renseignée'}
               </div>
               <div>
                 <span>Reconduction</span>
@@ -120,6 +167,79 @@ export function ContractDrawer({ contratId, role, onClose, onChanged }: Props) {
                     <span>Commentaire</span>
                     {contrat.commentaire}
                   </div>
+                )}
+              </div>
+            )}
+
+            <div className="section-title">
+              <span>Tarification annuelle</span>
+              {canAct && contrat.tauxAugmentation != null && !editingTarif && (
+                <button onClick={openTarifForm}>Modifier</button>
+              )}
+            </div>
+            {editingTarif ? (
+              <form onSubmit={handleSaveTarification} className="card-mini" style={{ borderColor: 'var(--accent)' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                  <div>
+                    <label>Montant actuel (FCFA)</label>
+                    <input type="number" min="0" step="1" value={montantInput} onChange={(e) => setMontantInput(e.target.value)} required />
+                  </div>
+                  <div>
+                    <label>Augmentation annuelle (%)</label>
+                    <input type="number" step="0.1" value={tauxInput} onChange={(e) => setTauxInput(e.target.value)} required />
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="primary" type="submit" disabled={tarifBusy}>
+                    Enregistrer
+                  </button>
+                  <button type="button" onClick={() => setEditingTarif(false)} disabled={tarifBusy}>
+                    Annuler
+                  </button>
+                </div>
+              </form>
+            ) : contrat.tauxAugmentation != null && contrat.montantActuel != null ? (
+              <div className="card-mini">
+                <div className="info-grid">
+                  <div>
+                    <span>Montant actuel</span>
+                    {fmtFCFA(contrat.montantActuel)}
+                  </div>
+                  <div>
+                    <span>Augmentation annuelle</span>
+                    {contrat.tauxAugmentation} %
+                  </div>
+                  <div>
+                    <span>Prochaine révision</span>
+                    {contrat.prochaineRevision ? fmtDate(contrat.prochaineRevision) : '—'}
+                  </div>
+                  <div>
+                    <span>Montant après révision</span>
+                    {contrat.montantApresRevision != null ? fmtFCFA(contrat.montantApresRevision) : '—'}
+                  </div>
+                </div>
+                {canAct && (
+                  <button
+                    className="primary"
+                    style={{ marginTop: 12 }}
+                    disabled={tarifBusy}
+                    onClick={handleAppliquerRevision}
+                    title="Fait passer le montant au montant projeté et avance la date anniversaire d'un an"
+                  >
+                    Marquer la révision appliquée
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginBottom: canAct ? 8 : 0 }}>
+                Pas d'augmentation automatique configurée sur ce contrat.
+                {canAct && (
+                  <>
+                    {' '}
+                    <button style={{ padding: '2px 10px', fontSize: 12 }} onClick={openTarifForm}>
+                      Configurer
+                    </button>
+                  </>
                 )}
               </div>
             )}
