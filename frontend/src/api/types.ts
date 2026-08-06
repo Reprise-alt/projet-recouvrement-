@@ -512,9 +512,17 @@ export interface ClientOperationsRow {
   dernierContact: string | null;
   climat: Climat | null;
   dernierReleve: string | null;
+  releveFait: boolean;
   resilie: boolean;
   problemesOuverts: number;
   problemesBloquants: number;
+  problemePlusAncienJours: number | null;
+  action: string | null;
+  actionEcheance: string | null;
+  actionFait: boolean;
+  finContrat: string | null;
+  enDemarrage: boolean;
+  tendance: number[];
   scores: ScoresAxes;
   tone: Tone;
 }

@@ -6,16 +6,17 @@ import { useResource } from '../hooks/useResource';
 import { useToast } from '../hooks/useToast';
 import { fmtDate } from '../lib/constants';
 import { CRITICITE_LABELS, MOTIF_RESILIATION_LABELS, SECTEUR_LABELS } from '../lib/operationsConstants';
-import { ScoreGauge } from './ScoreGauge';
+import { Sparkline } from './Sparkline';
 
 interface Props {
   id: string;
   user: CurrentUser;
+  initialSection?: 'resiliation';
   onClose: () => void;
   onChanged: () => void;
 }
 
-export function ClientOperationsDrawer({ id, user, onClose, onChanged }: Props) {
+export function ClientOperationsDrawer({ id, user, initialSection, onClose, onChanged }: Props) {
   const { showToast } = useToast();
   const { data: co, loading, error, refetch } = useResource<ClientOperationsDetail>(`/api/operations/clients/${id}`);
   // Signal recouvrement -> opérations (cahier §8) : un booléen, jamais un
@@ -26,7 +27,7 @@ export function ClientOperationsDrawer({ id, user, onClose, onChanged }: Props) 
   const [addingProbleme, setAddingProbleme] = useState(false);
   const [showReleve, setShowReleve] = useState(false);
   const [climatChoice, setClimatChoice] = useState<Climat | ''>('');
-  const [showResiliation, setShowResiliation] = useState(false);
+  const [showResiliation, setShowResiliation] = useState(initialSection === 'resiliation');
   const [busy, setBusy] = useState(false);
 
   const canEdit = user.roleOperations === 'directrice_operations' || user.roleOperations === 'direction_generale';
@@ -167,6 +168,19 @@ export function ClientOperationsDrawer({ id, user, onClose, onChanged }: Props) 
     }
   }
 
+  async function toggleVip() {
+    if (!co) return;
+    setBusy(true);
+    try {
+      await api.patch(`/api/operations/clients/${id}`, { vip: !co.vip });
+      afterMutation();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const problemesOuverts = co?.problemes.filter((p) => !p.resoluLe) ?? [];
   const problemesResolus = co?.problemes.filter((p) => p.resoluLe) ?? [];
 
@@ -180,9 +194,18 @@ export function ClientOperationsDrawer({ id, user, onClose, onChanged }: Props) 
           <div>{error || 'Chargement…'}</div>
         ) : (
           <>
-            <h2>{co.client.nom}</h2>
+            <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {co.client.nom}
+              {co.vip && (
+                <span className="badge" data-tone="amber" style={{ fontSize: 11 }}>
+                  VIP
+                </span>
+              )}
+            </h2>
             <div className="sub">
-              {co.client.entite} · {co.client.codeClient || 'sans code client'} {co.resilie && '· Résilié'}
+              {co.client.entite} · {SECTEUR_LABELS[co.secteur]}
+              {co.chargeDeCompte && ` · ${co.chargeDeCompte.nom}`}
+              {co.resilie && ' · Résilié'}
             </div>
 
             {signalRecouvrement?.enLitige && (
@@ -198,14 +221,78 @@ export function ClientOperationsDrawer({ id, user, onClose, onChanged }: Props) 
               </div>
             )}
 
+            {!co.resilie && (
+              <label className={`toggle-card danger${showResiliation ? ' open' : ''}`}>
+                <input type="checkbox" checked={showResiliation} disabled={!canEdit} onChange={(e) => setShowResiliation(e.target.checked)} />
+                <div>
+                  <strong>Déclarer une résiliation</strong>
+                  <div className="toggle-card-desc">Le motif est obligatoire : il alimente la statistique mensuelle.</div>
+                </div>
+              </label>
+            )}
+            {showResiliation && !co.resilie && (
+              <form onSubmit={handleResiliation} style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: -6, marginBottom: 14 }}>
+                <div>
+                  <label>Motif</label>
+                  <select name="motif" required defaultValue="">
+                    <option value="" disabled>
+                      Choisir un motif…
+                    </option>
+                    {(Object.keys(MOTIF_RESILIATION_LABELS) as MotifResiliation[]).map((m) => (
+                      <option key={m} value={m}>
+                        {MOTIF_RESILIATION_LABELS[m]}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label>Circonstances</label>
+                  <textarea name="detail" rows={2} />
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button type="submit" disabled={busy} style={{ color: 'var(--danger)' }}>
+                    Confirmer la résiliation
+                  </button>
+                  <button type="button" onClick={() => setShowResiliation(false)}>
+                    Annuler
+                  </button>
+                </div>
+              </form>
+            )}
+
+            <label className={`toggle-card${co.vip ? ' open' : ''}`}>
+              <input type="checkbox" checked={co.vip} disabled={busy || !canEdit} onChange={toggleVip} />
+              <div>
+                <strong>Grand compte (VIP)</strong>
+                <div className="toggle-card-desc">Déclenche un dossier COPIL mensuel et un rythme de contact d'un mois au lieu de deux.</div>
+              </div>
+            </label>
+
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, margin: '16px 0' }}>
-              <ScoreGauge scores={co.scores} size="lg" />
               <div>
                 <div style={{ fontSize: 26, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{co.scores.global}</div>
-                <span className="badge" data-tone={co.tone}>
-                  {co.tone === 'success' ? 'Sain' : co.tone === 'amber' ? 'À surveiller' : 'Fragile'}
-                </span>
+                <div style={{ fontSize: 11.5, color: 'var(--ink-soft)' }}>Santé du compte</div>
+                <div style={{ fontSize: 10.5, color: 'var(--ink-soft)' }}>recalculée à chaque saisie</div>
               </div>
+              <Sparkline values={co.releves.map((r) => r.score).reverse()} width={140} height={36} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginBottom: 8 }}>
+              {(
+                [
+                  ['Échanges', co.scores.contact],
+                  ['Climat', co.scores.climat],
+                  ['Problèmes', co.scores.problemes],
+                  ['Engagements', co.scores.engagements],
+                ] as [string, number][]
+              ).map(([label, v]) => (
+                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 90, fontFamily: 'var(--font-mono)', fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--ink-soft)' }}>{label}</div>
+                  <div style={{ flex: 1, height: 6, background: 'var(--line-soft)', borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{ width: `${Math.round(v)}%`, height: '100%', background: v >= 70 ? 'var(--success)' : v >= 45 ? 'var(--amber)' : 'var(--danger)' }} />
+                  </div>
+                  <div style={{ width: 28, textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 12.5, fontWeight: 600 }}>{Math.round(v)}</div>
+                </div>
+              ))}
             </div>
 
             <div className="section-title">
@@ -484,60 +571,30 @@ export function ClientOperationsDrawer({ id, user, onClose, onChanged }: Props) 
               </div>
             )}
 
-            <div className="section-title">
-              <span>Statut du compte</span>
-            </div>
-            {co.resilie ? (
-              <div>
-                <div className="info-grid" style={{ marginBottom: 10 }}>
-                  <div>
-                    <span>Résilié le</span>
-                    {fmtDate(co.dateResiliation)}
-                  </div>
-                  <div>
-                    <span>Motif</span>
-                    {co.motifResiliation ? MOTIF_RESILIATION_LABELS[co.motifResiliation] : '—'}
-                  </div>
+            {co.resilie && (
+              <>
+                <div className="section-title">
+                  <span>Statut du compte</span>
                 </div>
-                {canEdit && (
-                  <button onClick={reactiver} disabled={busy}>
-                    Réactiver le compte
-                  </button>
-                )}
-              </div>
-            ) : canEdit ? (
-              showResiliation ? (
-                <form onSubmit={handleResiliation} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div>
-                    <label>Motif</label>
-                    <select name="motif" required defaultValue="">
-                      <option value="" disabled>
-                        Choisir un motif…
-                      </option>
-                      {(Object.keys(MOTIF_RESILIATION_LABELS) as MotifResiliation[]).map((m) => (
-                        <option key={m} value={m}>
-                          {MOTIF_RESILIATION_LABELS[m]}
-                        </option>
-                      ))}
-                    </select>
+                <div>
+                  <div className="info-grid" style={{ marginBottom: 10 }}>
+                    <div>
+                      <span>Résilié le</span>
+                      {fmtDate(co.dateResiliation)}
+                    </div>
+                    <div>
+                      <span>Motif</span>
+                      {co.motifResiliation ? MOTIF_RESILIATION_LABELS[co.motifResiliation] : '—'}
+                    </div>
                   </div>
-                  <div>
-                    <label>Circonstances</label>
-                    <textarea name="detail" rows={2} />
-                  </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button type="submit" disabled={busy} style={{ color: 'var(--danger)' }}>
-                      Confirmer la résiliation
+                  {canEdit && (
+                    <button onClick={reactiver} disabled={busy}>
+                      Réactiver le compte
                     </button>
-                    <button type="button" onClick={() => setShowResiliation(false)}>
-                      Annuler
-                    </button>
-                  </div>
-                </form>
-              ) : (
-                <button onClick={() => setShowResiliation(true)}>Déclarer une résiliation</button>
-              )
-            ) : null}
+                  )}
+                </div>
+              </>
+            )}
           </>
         )}
       </div>

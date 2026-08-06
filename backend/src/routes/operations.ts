@@ -12,6 +12,7 @@ import {
   alertesClient,
   couleurScore,
   DEFAULT_CONFIG_OPERATIONS,
+  enDemarrage,
   etatDemarrage,
   scoresClient,
   semaineIsoKey,
@@ -160,8 +161,25 @@ operationsRouter.get('/portefeuille', async (req, res, next) => {
       etapesParEntite.set(entite, await getEtapesConfig(entite));
     }
 
+    // Une seule requête groupée pour l'historique de score de tout le
+    // portefeuille (sparkline "Tendance") plutôt qu'une par ligne -- même
+    // portefeuille de 280 comptes, une seule allée-retour base.
+    const releves = await prisma.releveHebdo.findMany({
+      where: { clientOperationsId: { in: rows.map((r) => r.id) } },
+      orderBy: { date: 'asc' },
+      select: { clientOperationsId: true, score: true },
+    });
+    const tendanceParClient = new Map<string, number[]>();
+    for (const rel of releves) {
+      const liste = tendanceParClient.get(rel.clientOperationsId) ?? [];
+      liste.push(rel.score);
+      tendanceParClient.set(rel.clientOperationsId, liste);
+    }
+
+    const now = Date.now();
     const portefeuille = rows.map((r) => {
       const problemes = r.problemes.map(toProblemeLike);
+      const ouverts = problemes.filter((p) => !p.resoluLe);
       const scores = scoresClient(
         {
           vip: r.vip,
@@ -180,6 +198,7 @@ operationsRouter.get('/portefeuille', async (req, res, next) => {
         [], // faits de démarrage non chargés en liste (perf) -- l'étape "en retard" suffit ici, cf. fiche détail pour le détail
         config,
       );
+      const plusAncien = ouverts.length ? Math.max(...ouverts.map((p) => Math.floor((now - new Date(p.ouvertLe).getTime()) / 86400000))) : null;
       return {
         id: r.id,
         client: r.client,
@@ -190,9 +209,17 @@ operationsRouter.get('/portefeuille', async (req, res, next) => {
         dernierContact: r.dernierContact,
         climat: r.climat,
         dernierReleve: r.dernierReleve,
+        releveFait: !!r.dernierReleve && semaineIsoKey(r.dernierReleve) === semaineIsoKey(),
         resilie: r.resilie,
-        problemesOuverts: problemes.filter((p) => !p.resoluLe).length,
-        problemesBloquants: problemes.filter((p) => !p.resoluLe && p.gravite === 'bloquant').length,
+        problemesOuverts: ouverts.length,
+        problemesBloquants: ouverts.filter((p) => p.gravite === 'bloquant').length,
+        problemePlusAncienJours: plusAncien,
+        action: r.action,
+        actionEcheance: r.actionEcheance,
+        actionFait: r.actionFait,
+        finContrat: r.finContrat,
+        enDemarrage: enDemarrage(r),
+        tendance: tendanceParClient.get(r.id) ?? [],
         scores,
         tone: couleurScore(scores.global),
       };

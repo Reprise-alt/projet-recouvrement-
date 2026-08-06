@@ -256,6 +256,14 @@ tr.row-hover:hover{background:var(--paper);cursor:pointer;}
 .climat-option[data-climat="orange"].active{border-color:var(--amber);background:var(--amber-soft);}
 .climat-option[data-climat="rouge"].active{border-color:var(--danger);background:var(--danger-soft);}
 
+.toggle-card{display:flex;align-items:flex-start;gap:12px;padding:13px 14px;border:1px solid var(--line);border-radius:var(--radius-sm);margin-bottom:10px;cursor:pointer;background:var(--surface);}
+.toggle-card input{width:auto;margin-top:3px;flex-shrink:0;}
+.toggle-card strong{display:block;font-size:13.5px;margin-bottom:2px;}
+.toggle-card-desc{font-size:12px;color:var(--ink-soft);}
+.toggle-card.open{border-color:var(--accent);background:var(--accent-soft);}
+.toggle-card.danger{border-color:var(--danger-soft);background:var(--danger-soft);}
+.toggle-card.danger.open{border-color:var(--danger);}
+
 .card-mini{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);padding:16px;margin-bottom:12px;box-shadow:var(--shadow-xs);}
 .card-mini .row{display:flex;justify-content:space-between;font-size:13px;align-items:center;}
 .timeline-item{border-left:2px solid var(--line);padding:0 0 14px 14px;margin-left:4px;position:relative;font-size:12.5px;}
