@@ -15,8 +15,6 @@ const CONFIG_FIELDS: { key: keyof ConfigOperations; label: string }[] = [
   { key: 'problemeRisqueJours', label: 'Problème ouvert — risque (j)' },
   { key: 'problemeBloquantRisqueJours', label: 'Problème bloquant — risque (j)' },
   { key: 'demarrageRisqueRetardJours', label: 'Étape de démarrage — risque si retard (j)' },
-  { key: 'finContratVigilanceJours', label: 'Fin de contrat — vigilance (j)' },
-  { key: 'finContratRisqueJours', label: 'Fin de contrat — risque (j)' },
 ];
 
 // Réservé à direction_generale (cahier §7 : "administration des seuils et
@@ -74,6 +72,18 @@ export function OperationsAdminPanel({ onClose }: { onClose: () => void }) {
     }
   }
 
+  async function reinitialiserAlertes() {
+    setBusy(true);
+    try {
+      const res = await api.post<{ contactInitialise: number; copilInitialise: number }>('/api/operations/alertes/reinitialiser-depart', {});
+      showToast(`Point de départ posé sur ${res.contactInitialise} compte(s)${res.copilInitialise ? ` et ${res.copilInitialise} COPIL` : ''}`);
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="modal-overlay open" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal" style={{ width: 'min(620px,94%)', maxHeight: '88vh' }}>
@@ -111,6 +121,20 @@ export function OperationsAdminPanel({ onClose }: { onClose: () => void }) {
               Enregistrer les seuils
             </button>
           </form>
+        )}
+
+        {tab === 'seuils' && config && (
+          <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--paper-2)' }}>
+            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>Repartir de zéro sur les alertes</div>
+            <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginBottom: 10 }}>
+              Un compte repris par import n'a pas d'historique de contact ni de COPIL : sans action, il alerte "aucun contact" dès aujourd'hui comme s'il avait été
+              négligé pendant des mois. Pose la date du jour comme point de départ, uniquement sur les comptes qui n'ont encore aucune date enregistrée — ne touche
+              jamais un compte déjà suivi.
+            </div>
+            <button type="button" onClick={reinitialiserAlertes} disabled={busy}>
+              Poser le point de départ à aujourd'hui
+            </button>
+          </div>
         )}
 
         {tab === 'etapes' && (

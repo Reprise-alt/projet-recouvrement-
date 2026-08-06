@@ -1,4 +1,4 @@
-import { daysBetween, daysUntil } from './dates';
+import { daysBetween } from './dates';
 
 // Port fidèle de la logique métier du prototype olu360-suivi-operations.html,
 // vérifiée formule par formule contre le cahier des charges OLU360 — Suivi
@@ -16,8 +16,6 @@ export interface ConfigOperationsLike {
   problemeRisqueJours: number;
   problemeBloquantRisqueJours: number;
   demarrageRisqueRetardJours: number;
-  finContratVigilanceJours: number;
-  finContratRisqueJours: number;
 }
 
 export const DEFAULT_CONFIG_OPERATIONS: ConfigOperationsLike = {
@@ -29,8 +27,6 @@ export const DEFAULT_CONFIG_OPERATIONS: ConfigOperationsLike = {
   problemeRisqueJours: 30,
   problemeBloquantRisqueJours: 7,
   demarrageRisqueRetardJours: 15,
-  finContratVigilanceJours: 90,
-  finContratRisqueJours: 30,
 };
 
 /* ---------- Fonction d'interpolation (cahier §4.1) ---------- */
@@ -272,7 +268,6 @@ export interface AlerteClientInput extends ScoreClientLike {
   id: string;
   nom: string;
   criticite: 'A' | 'B' | 'C';
-  finContrat: Date | string | null;
 }
 
 export function alertesClient(
@@ -346,18 +341,10 @@ export function alertesClient(
     }
   }
 
-  // Fin de contrat -- corrige un bug du prototype : celui-ci calcule
-  // jours(today(), finContrat) sans vérifier que finContrat est renseigné,
-  // ce qui donne 0 (donc "échu depuis 0 j") pour n'importe quel compte sans
-  // date de fin saisie. Ici, silence tant que la date n'est pas connue.
-  if (client.finContrat) {
-    const jFin = daysUntil(client.finContrat);
-    if (jFin <= config.finContratRisqueJours) {
-      push('risque', 'Contrat à échéance', jFin < 0 ? `Échu depuis ${Math.abs(jFin)} j` : `Fin dans ${jFin} jours`);
-    } else if (jFin <= config.finContratVigilanceJours) {
-      push('vigilance', 'Renouvellement à préparer', `Fin de contrat dans ${jFin} jours`);
-    }
-  }
+  // Pas d'alerte d'échéance de contrat ici : le module Recouvrement gère déjà
+  // ce suivi (relances, paliers) -- le doublonner dans Opérations ferait
+  // remonter le même signal deux fois. La date de fin reste visible en
+  // colonne Portefeuille, à titre indicatif seulement.
 
   return out.map((a) => ({ ...a, clientId: client.id, clientNom: client.nom, vip: client.vip, criticite: client.criticite }));
 }

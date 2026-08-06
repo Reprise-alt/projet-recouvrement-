@@ -612,8 +612,6 @@ export interface ConfigOperations {
   problemeRisqueJours: number;
   problemeBloquantRisqueJours: number;
   demarrageRisqueRetardJours: number;
-  finContratVigilanceJours: number;
-  finContratRisqueJours: number;
 }
 
 // Signal opérations -> recouvrement (cahier §8) -- rien de plus que ce que

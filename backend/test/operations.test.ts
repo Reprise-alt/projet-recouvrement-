@@ -215,26 +215,14 @@ describe('alertesClient', () => {
       id: 'c1',
       nom: 'Client Test',
       criticite: 'B',
-      finContrat: null,
       ...baseClient(),
       ...overrides,
     };
   }
 
-  it("n'alerte jamais sur une fin de contrat non renseignée (régression du bug du prototype)", () => {
-    const alertes = alertesClient(baseInput({ finContrat: null }), [], [], null);
-    expect(alertes.some((a) => a.titre === 'Contrat à échéance')).toBe(false);
-  });
-
-  it('alerte "risque" sur un contrat échu, "vigilance" sur un contrat proche', () => {
-    const echu = alertesClient(baseInput({ finContrat: '2026-08-01' }), [], [], null);
-    expect(echu.find((a) => a.titre === 'Contrat à échéance')).toMatchObject({ niveau: 'risque' });
-
-    const proche = alertesClient(baseInput({ finContrat: '2026-09-20' }), [], [], null);
-    expect(proche.find((a) => a.titre === 'Renouvellement à préparer')).toMatchObject({ niveau: 'vigilance' });
-
-    const loin = alertesClient(baseInput({ finContrat: '2027-06-01' }), [], [], null);
-    expect(loin.some((a) => a.titre.includes('chéance') || a.titre.includes('enouvellement'))).toBe(false);
+  it("n'alerte jamais sur une échéance de contrat (couvert par le module Recouvrement)", () => {
+    const alertes = alertesClient(baseInput(), [], [], null);
+    expect(alertes.some((a) => a.titre.includes('chéance') || a.titre.includes('enouvellement'))).toBe(false);
   });
 
   it('alerte sur un problème bloquant dès le seuil configuré, avant un problème simple équivalent', () => {

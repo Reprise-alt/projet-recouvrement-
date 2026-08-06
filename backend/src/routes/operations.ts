@@ -75,8 +75,6 @@ operationsRouter.patch('/config', requireModuleOperations('direction_generale'),
       'problemeRisqueJours',
       'problemeBloquantRisqueJours',
       'demarrageRisqueRetardJours',
-      'finContratVigilanceJours',
-      'finContratRisqueJours',
     ];
     const data: Record<string, number> = {};
     for (const key of allowed) {
@@ -163,6 +161,32 @@ operationsRouter.patch('/fenetres-saisonnieres/:secteur', requireModuleOperation
     if (label != null) data.label = String(label);
     const updated = await prisma.fenetreSaisonniere.update({ where: { secteur: req.params.secteur as any }, data });
     res.json(updated);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Démarrage à froid : un portefeuille repris par import (nom/entité/dates de
+// contrat seulement, cf. POST /import) n'a jamais de dernierContact ni de
+// dernierCopil -- sans ça, les alertes de contact et de COPIL remontent
+// immédiatement pour tout le portefeuille dès la première ouverture du
+// Cockpit, comme si des mois avaient été négligés. Cette route pose le
+// point de départ à aujourd'hui une bonne fois, uniquement là où c'est
+// encore vide (ne touche jamais un compte déjà suivi), pour que le suivi
+// reparte de zéro plutôt que de faire remonter un faux passif.
+operationsRouter.post('/alertes/reinitialiser-depart', requireModuleOperations('direction_generale'), async (req, res, next) => {
+  try {
+    const entiteFilter = resolveEntiteScopeOperations(req.user!, req.body?.entite);
+    const now = new Date();
+    const contact = await prisma.clientOperations.updateMany({
+      where: { client: entiteWhereClient(entiteFilter), resilie: false, dernierContact: null },
+      data: { dernierContact: now },
+    });
+    const copil = await prisma.clientOperations.updateMany({
+      where: { client: entiteWhereClient(entiteFilter), resilie: false, vip: true, dernierCopil: null },
+      data: { dernierCopil: now },
+    });
+    res.json({ contactInitialise: contact.count, copilInitialise: copil.count });
   } catch (err) {
     next(err);
   }
@@ -285,7 +309,6 @@ operationsRouter.get('/cockpit', async (req, res, next) => {
           nom: r.client.nom,
           criticite: r.criticite,
           vip: r.vip,
-          finContrat: r.finContrat,
           dernierContact: r.dernierContact,
           climat: r.climat,
           action: r.action,
@@ -447,6 +470,11 @@ operationsRouter.post(
             criticite: 'C',
             debutContrat: row.debutContrat ? new Date(row.debutContrat) : null,
             finContrat: row.finContrat ? new Date(row.finContrat) : null,
+            // Point de départ du suivi posé à l'import plutôt que laissé vide
+            // -- sinon chaque compte importé alerte "aucun contact" dès la
+            // première ouverture du Cockpit, pour un historique qui n'existe
+            // simplement pas encore côté Opérations.
+            dernierContact: new Date(),
           },
         });
         created++;
