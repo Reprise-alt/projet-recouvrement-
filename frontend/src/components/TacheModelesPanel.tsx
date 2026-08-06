@@ -1,4 +1,5 @@
 import { ChangeEvent, FormEvent, useRef, useState } from 'react';
+import { X } from 'lucide-react';
 import { api, ApiError, buildQuery } from '../api/client';
 import { ClientListItem, Entite, Entreprise, TacheCoursierModele, TypeTacheCoursier } from '../api/types';
 import { useResource } from '../hooks/useResource';
@@ -20,6 +21,7 @@ export function TacheModelesPanel({ entityFilter, onClose }: { entityFilter: Ent
   const { data: entreprises } = useResource<Entreprise[]>('/api/entreprises');
   const entreprisesSelectionnables = (entreprises ?? []).filter((e) => e.actif && !e.estCommun);
   const [busy, setBusy] = useState(false);
+  const [showManual, setShowManual] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [importEntite, setImportEntite] = useState(entityFilter !== 'ALL' ? entityFilter : '');
   const [importType, setImportType] = useState<TypeTacheCoursier>('releve_compteur');
@@ -85,7 +87,12 @@ export function TacheModelesPanel({ entityFilter, onClose }: { entityFilter: Ent
   return (
     <div className="modal-overlay open" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal" style={{ width: 'min(640px, 92%)' }}>
-        <h2 style={{ marginBottom: 4 }}>Tâches récurrentes</h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <h2 style={{ marginBottom: 4 }}>Tâches récurrentes</h2>
+          <button onClick={onClose} aria-label="Fermer" style={{ background: 'none', border: 'none' }}>
+            <X size={16} />
+          </button>
+        </div>
         <div style={{ color: 'var(--ink-soft)', fontSize: 12.5, marginBottom: 16 }}>
           Une tâche qui revient chaque mois (ex : relevé compteur imprimante le 5 de chaque mois), ou tous les N mois pour
           un client facturé moins souvent — l'instance du jour est générée automatiquement dans le planning, sans
@@ -121,58 +128,6 @@ export function TacheModelesPanel({ entityFilter, onClose }: { entityFilter: Ent
             </div>
           ))
         )}
-
-        <div className="section-title">Nouveau modèle récurrent</div>
-        <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div>
-            <label>Client</label>
-            <select name="clientId" required defaultValue="">
-              <option value="" disabled>
-                Choisir un client…
-              </option>
-              {(clients ?? []).map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.nom} ({c.entite})
-                </option>
-              ))}
-            </select>
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <div style={{ flex: 2 }}>
-              <label>Type de tâche</label>
-              <select name="type" required defaultValue="">
-                <option value="" disabled>
-                  Choisir…
-                </option>
-                {TYPE_KEYS.map((t) => (
-                  <option key={t} value={t}>
-                    {TACHE_TYPE_LABELS[t]}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label>Jour du mois</label>
-              <input type="number" name="jourDuMois" min={1} max={31} required style={{ width: 80 }} />
-            </div>
-            <div>
-              <label>Tous les combien de mois</label>
-              <input type="number" name="intervalleMois" min={1} max={12} defaultValue={1} style={{ width: 80 }} />
-            </div>
-          </div>
-          <div>
-            <label>Précision (optionnel)</label>
-            <input type="text" name="label" placeholder="Ex : compteur n°2" />
-          </div>
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
-            <button type="button" onClick={onClose}>
-              Fermer
-            </button>
-            <button className="primary" type="submit" disabled={busy}>
-              Créer
-            </button>
-          </div>
-        </form>
 
         <div className="section-title" style={{ marginTop: 8 }}>
           Importer un historique
@@ -226,12 +181,73 @@ export function TacheModelesPanel({ entityFilter, onClose }: { entityFilter: Ent
             </div>
             {importResult && (
               <div className="card-mini">
-                {importResult.created} modèle{importResult.created !== 1 ? 's' : ''} créé{importResult.created !== 1 ? 's' : ''}
+                Import terminé — {importResult.created} modèle{importResult.created !== 1 ? 's' : ''} créé
+                {importResult.created !== 1 ? 's' : ''}
                 {importResult.dejaExistant > 0 ? `, ${importResult.dejaExistant} déjà existant${importResult.dejaExistant !== 1 ? 's' : ''}` : ''} sur{' '}
                 {importResult.total} ligne{importResult.total !== 1 ? 's' : ''} lue{importResult.total !== 1 ? 's' : ''}.
               </div>
             )}
           </div>
+        )}
+
+        <div className="section-title" style={{ marginTop: 16 }}>
+          Ajouter un modèle manuellement
+        </div>
+        {!showManual ? (
+          <button type="button" onClick={() => setShowManual(true)}>
+            + Ajouter un modèle
+          </button>
+        ) : (
+          <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div>
+              <label>Client</label>
+              <select name="clientId" required defaultValue="">
+                <option value="" disabled>
+                  Choisir un client…
+                </option>
+                {(clients ?? []).map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nom} ({c.entite})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ flex: 2 }}>
+                <label>Type de tâche</label>
+                <select name="type" required defaultValue="">
+                  <option value="" disabled>
+                    Choisir…
+                  </option>
+                  {TYPE_KEYS.map((t) => (
+                    <option key={t} value={t}>
+                      {TACHE_TYPE_LABELS[t]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label>Jour du mois</label>
+                <input type="number" name="jourDuMois" min={1} max={31} required style={{ width: 80 }} />
+              </div>
+              <div>
+                <label>Tous les combien de mois</label>
+                <input type="number" name="intervalleMois" min={1} max={12} defaultValue={1} style={{ width: 80 }} />
+              </div>
+            </div>
+            <div>
+              <label>Précision (optionnel)</label>
+              <input type="text" name="label" placeholder="Ex : compteur n°2" />
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
+              <button type="button" onClick={() => setShowManual(false)}>
+                Annuler
+              </button>
+              <button className="primary" type="submit" disabled={busy}>
+                Créer
+              </button>
+            </div>
+          </form>
         )}
       </div>
     </div>
