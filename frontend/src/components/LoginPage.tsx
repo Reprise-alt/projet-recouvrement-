@@ -54,7 +54,7 @@ export function LoginPage() {
       </div>
       <div className="login-card">
         <h1>Connexion</h1>
-        <div className="sub">Suivi du recouvrement — SORAM · SIS · IRIS Afrique</div>
+        <div className="sub">SORAM · SIS · IRIS Afrique — écosystème IT</div>
 
         {supabaseAvailable ? (
           <form onSubmit={handleSubmit}>
