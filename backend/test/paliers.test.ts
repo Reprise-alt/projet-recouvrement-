@@ -8,6 +8,7 @@ import {
   clientRetardInhabituel,
   computePalier,
   DEFAULT_CONFIG,
+  enLitigeSignal,
 } from '../src/lib/paliers';
 
 describe('computePalier', () => {
@@ -195,5 +196,47 @@ describe('clientRetardInhabituel', () => {
       ],
     };
     expect(clientRetardInhabituel(client)).toBe(true);
+  });
+});
+
+describe('enLitigeSignal', () => {
+  function facture(dateEcheance: string, statut: 'impayee' | 'payee') {
+    return { montant: 1000, dateEcheance, statut };
+  }
+
+  it('false under the threshold', () => {
+    const factures = Array.from({ length: 6 }, (_, i) => facture(`2026-0${i + 1}-01`, 'impayee'));
+    expect(enLitigeSignal(factures)).toBe(false);
+  });
+
+  it('true at exactly 7 consecutive unpaid invoices', () => {
+    const factures = Array.from({ length: 7 }, (_, i) => facture(`2026-0${i + 1}-01`, 'impayee'));
+    expect(enLitigeSignal(factures)).toBe(true);
+  });
+
+  it('a single paid invoice in the middle breaks the streak', () => {
+    const factures = [
+      facture('2026-01-01', 'impayee'),
+      facture('2026-02-01', 'payee'),
+      facture('2026-03-01', 'impayee'),
+      facture('2026-04-01', 'impayee'),
+      facture('2026-05-01', 'impayee'),
+      facture('2026-06-01', 'impayee'),
+      facture('2026-07-01', 'impayee'),
+      facture('2026-08-01', 'impayee'),
+    ];
+    // seulement 6 impayées consécutives depuis la plus récente (mars à août)
+    expect(enLitigeSignal(factures)).toBe(false);
+  });
+
+  it('ignores order in the input array (sorts by dateEcheance internally)', () => {
+    const factures = Array.from({ length: 7 }, (_, i) => facture(`2026-0${i + 1}-01`, 'impayee')).reverse();
+    expect(enLitigeSignal(factures)).toBe(true);
+  });
+
+  it('respects a custom threshold', () => {
+    const factures = Array.from({ length: 3 }, (_, i) => facture(`2026-0${i + 1}-01`, 'impayee'));
+    expect(enLitigeSignal(factures, 3)).toBe(true);
+    expect(enLitigeSignal(factures, 4)).toBe(false);
   });
 });

@@ -160,6 +160,37 @@ clientsRouter.get('/:id', async (req, res, next) => {
   }
 });
 
+// Signal croisé opérations -> recouvrement (cahier OLU360 — Suivi des
+// opérations, §8) : "nombre de problèmes ouverts, dont bloquants, et climat
+// du compte", rien de plus -- jamais les scores, l'historique ou le détail
+// des problèmes eux-mêmes, pour garder le couplage entre les deux modules
+// aussi mince que celui déjà en place dans l'autre sens (voir
+// routes/operations.ts:enLitigeSignal). hasOperations=false si ce client n'a
+// pas de fiche Opérations -- cas normal, pas une erreur.
+clientsRouter.get('/:id/signal-operations', async (req, res, next) => {
+  try {
+    const client = await prisma.client.findUnique({ where: { id: req.params.id } });
+    if (!client) return res.status(404).json({ error: 'Client introuvable' });
+    if (!assertEntiteInScope(req, res, client.entite as Entite)) return;
+
+    const co = await prisma.clientOperations.findUnique({
+      where: { clientId: client.id },
+      include: { problemes: true },
+    });
+    if (!co) return res.json({ hasOperations: false });
+
+    const ouverts = co.problemes.filter((p) => !p.resoluLe);
+    res.json({
+      hasOperations: true,
+      problemesOuverts: ouverts.length,
+      problemesBloquants: ouverts.filter((p) => p.gravite === 'bloquant').length,
+      climat: co.climat,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 clientsRouter.patch('/:id/contact', requireRole('admin', 'manager_entite'), async (req, res, next) => {
   try {
     const existing = await prisma.client.findUnique({ where: { id: req.params.id } });

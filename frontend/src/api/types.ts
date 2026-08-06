@@ -600,6 +600,10 @@ export interface ConfigOperations {
   finContratRisqueJours: number;
 }
 
+// Signal opérations -> recouvrement (cahier §8) -- rien de plus que ce que
+// le cahier autorise à franchir la frontière entre les deux modules.
+export type SignalOperations = { hasOperations: false } | { hasOperations: true; problemesOuverts: number; problemesBloquants: number; climat: Climat | null };
+
 export interface Campagne {
   id: string;
   nom: string;

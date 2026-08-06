@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { prisma } from '../db';
 import { Entite } from '../lib/entites';
+import { enLitigeSignal } from '../lib/paliers';
 import { chargeDeCompteWhere, resolveEntiteScopeOperations, userCanAccessEntiteOperations } from '../lib/operationsAuth';
 import { requireAuth, requireModuleOperations } from '../middleware/auth';
 import {
@@ -310,6 +311,28 @@ operationsRouter.get('/clients/:id', async (req, res, next) => {
     const demarrage = etatDemarrage(co, etapesConfig, co.etapesDemarrage);
 
     res.json({ ...co, scores, tone: couleurScore(scores.global), demarrage });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Signal croisé recouvrement -> opérations (cahier §8) : un booléen, jamais
+// un montant -- "ce client est en litige, à qualifier" dès 7 factures
+// consécutives impayées (enLitigeSignal, lib/paliers.ts, partagée avec le
+// recouvrement). Lit la table Facture côté serveur sans jamais renvoyer un
+// seul de ses champs : l'isolation financière du module (cf. CLIENT_SELECT
+// plus haut) reste intacte.
+operationsRouter.get('/clients/:id/signal-recouvrement', async (req, res, next) => {
+  try {
+    const scoped = await loadScoped(req, req.params.id);
+    if (scoped.error) return res.status(scoped.error).json(scoped.body);
+    const co = scoped.co!;
+
+    const factures = await prisma.facture.findMany({
+      where: { clientId: co.clientId },
+      select: { statut: true, dateEcheance: true },
+    });
+    res.json({ enLitige: enLitigeSignal(factures) });
   } catch (err) {
     next(err);
   }

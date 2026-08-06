@@ -123,3 +123,30 @@ export function clientRetardInhabituel(client: ClientWithFactures): boolean {
   if (moyenne === null) return false;
   return joursRetard > Math.max(moyenne, 0) * 2;
 }
+
+// Type délibérément plus étroit que FactureLike (pas de montant) : la route
+// qui appelle enLitigeSignal ne sélectionne même pas ce champ en base, pour
+// que l'isolation financière du module Opérations ne dépende pas d'une
+// discipline de code côté appelant.
+export interface FactureStatutLike {
+  dateEcheance: Date | string;
+  statut: 'impayee' | 'payee';
+}
+
+// Signal croisé recouvrement -> opérations (cahier des charges OLU360 —
+// Suivi des opérations, §8) : à partir de 7 factures consécutives impayées,
+// ce n'est plus un sujet de trésorerie mais le symptôme d'un service
+// contesté -- donc du ressort des opérations. Volontairement un booléen,
+// jamais un montant : c'est tout ce qui doit franchir la frontière entre
+// les deux modules. "Consécutives" s'entend dans l'ordre chronologique des
+// échéances, en partant de la plus récente -- une seule facture payée au
+// milieu de la série casse le compte.
+export function enLitigeSignal(factures: FactureStatutLike[], seuil = 7): boolean {
+  const triees = [...factures].sort((a, b) => new Date(a.dateEcheance).getTime() - new Date(b.dateEcheance).getTime());
+  let streak = 0;
+  for (let i = triees.length - 1; i >= 0; i--) {
+    if (triees[i].statut !== 'impayee') break;
+    streak++;
+  }
+  return streak >= seuil;
+}

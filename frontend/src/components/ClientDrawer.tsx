@@ -1,7 +1,7 @@
 import { FormEvent, useState } from 'react';
 import { AlertTriangle, CheckCircle2, TrendingUp, X } from 'lucide-react';
 import { api, ApiError } from '../api/client';
-import { ClientDetail, Contact, EcheancierPaiement, RoleUtilisateur } from '../api/types';
+import { ClientDetail, Contact, EcheancierPaiement, RoleUtilisateur, SignalOperations } from '../api/types';
 import { useResource } from '../hooks/useResource';
 import { useToast } from '../hooks/useToast';
 import { fmtDate, fmtFCFA, PALIERS } from '../lib/constants';
@@ -16,6 +16,11 @@ interface Props {
 export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
   const { showToast } = useToast();
   const { data: client, loading, error, refetch } = useResource<ClientDetail>(`/api/clients/${clientId}`);
+  // Signal opérations -> recouvrement (cahier §8) : n'affiche rien tant que
+  // le client n'a pas de fiche Opérations -- silencieux plutôt qu'un état
+  // "vide" qui laisserait croire que le module a été consulté sans rien y
+  // trouver.
+  const { data: signalOperations } = useResource<SignalOperations>(`/api/clients/${clientId}/signal-operations`);
 
   const [editingContact, setEditingContact] = useState(false);
   const [editingNote, setEditingNote] = useState(false);
@@ -357,6 +362,24 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
             <div className="sub">
               {client.entite} · {client.contact || '—'}
             </div>
+
+            {signalOperations?.hasOperations && (signalOperations.problemesOuverts > 0 || signalOperations.climat === 'rouge') && (
+              <div
+                className="signal-banner"
+                style={{ margin: '12px 0' }}
+                title="Signal en provenance du module Opérations — jamais de détail, juste ce compteur et le climat"
+              >
+                <AlertTriangle size={17} />
+                <div>
+                  Suivi Opérations : {signalOperations.problemesOuverts} problème{signalOperations.problemesOuverts > 1 ? 's' : ''} ouvert
+                  {signalOperations.problemesOuverts > 1 ? 's' : ''}
+                  {signalOperations.problemesBloquants > 0 && ` (${signalOperations.problemesBloquants} bloquant${signalOperations.problemesBloquants > 1 ? 's' : ''})`}
+                  {signalOperations.climat === 'rouge' && ' · Climat rouge'}
+                  {' — '}
+                  un agent qui voit ce signal doit alerter plutôt qu'escalader vers une mise en demeure.
+                </div>
+              </div>
+            )}
 
             <div className="section-title">
               <span>Contact</span>

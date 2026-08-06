@@ -1,5 +1,5 @@
 import { FormEvent, useState } from 'react';
-import { CheckCircle2, Circle, PlusCircle, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Circle, PlusCircle, X } from 'lucide-react';
 import { api, ApiError } from '../api/client';
 import { ClientOperationsDetail, Climat, CurrentUser, GraviteProbleme, MotifResiliation, Secteur } from '../api/types';
 import { useResource } from '../hooks/useResource';
@@ -18,6 +18,9 @@ interface Props {
 export function ClientOperationsDrawer({ id, user, onClose, onChanged }: Props) {
   const { showToast } = useToast();
   const { data: co, loading, error, refetch } = useResource<ClientOperationsDetail>(`/api/operations/clients/${id}`);
+  // Signal recouvrement -> opérations (cahier §8) : un booléen, jamais un
+  // montant -- déclenché à 7 factures consécutives impayées.
+  const { data: signalRecouvrement } = useResource<{ enLitige: boolean }>(`/api/operations/clients/${id}/signal-recouvrement`);
 
   const [editingIdentite, setEditingIdentite] = useState(false);
   const [addingProbleme, setAddingProbleme] = useState(false);
@@ -180,6 +183,19 @@ export function ClientOperationsDrawer({ id, user, onClose, onChanged }: Props) 
             <div className="sub">
               {co.client.entite} · {co.client.codeClient || 'sans code client'} {co.resilie && '· Résilié'}
             </div>
+
+            {signalRecouvrement?.enLitige && (
+              <div
+                className="signal-banner"
+                style={{ margin: '12px 0' }}
+                title="Signal en provenance du recouvrement — jamais un montant, juste ce signal"
+              >
+                <AlertTriangle size={17} />
+                <div>
+                  Signal recouvrement : 7 factures consécutives impayées — ce n'est plus un sujet de trésorerie, à qualifier ici.
+                </div>
+              </div>
+            )}
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, margin: '16px 0' }}>
               <ScoreGauge scores={co.scores} size="lg" />
