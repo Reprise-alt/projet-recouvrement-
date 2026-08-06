@@ -1,14 +1,26 @@
 import { FormEvent, useState } from 'react';
-import { AlertTriangle, PlusCircle, Search, ShieldAlert, Users } from 'lucide-react';
+import { AlertTriangle, PlusCircle, Search, Settings, ShieldAlert, Users } from 'lucide-react';
 import { api, ApiError, buildQuery } from '../api/client';
 import { useResource } from '../hooks/useResource';
-import { CockpitResponse, ClientOperationsRow, CurrentUser, Entite, ReleveFileEntry, Secteur } from '../api/types';
+import {
+  Campagne,
+  CampagneDetail,
+  CockpitResponse,
+  ClientOperationsRow,
+  CopilEntry,
+  CurrentUser,
+  Entite,
+  ReleveFileEntry,
+  ResiliationsReport,
+  Secteur,
+} from '../api/types';
 import { fmtDate } from '../lib/constants';
-import { CRITICITE_LABELS, SECTEUR_LABELS, toneBg, toneColor } from '../lib/operationsConstants';
+import { CRITICITE_LABELS, MOTIF_RESILIATION_LABELS, SECTEUR_LABELS, toneBg, toneColor } from '../lib/operationsConstants';
 import { useToast } from '../hooks/useToast';
 import { EntityLogo, entityAccent } from './EntityLogo';
 import { ScoreGauge } from './ScoreGauge';
 import { ClientOperationsDrawer } from './ClientOperationsDrawer';
+import { OperationsAdminPanel } from './OperationsAdminPanel';
 
 interface Props {
   entityFilter: Entite | 'ALL';
@@ -16,40 +28,55 @@ interface Props {
   reloadKey: unknown;
 }
 
-type OpsTab = 'cockpit' | 'portefeuille' | 'releve';
+type OpsTab = 'cockpit' | 'portefeuille' | 'releve' | 'campagnes' | 'copil' | 'resiliations';
 
 export function OperationsView({ entityFilter, user, reloadKey }: Props) {
   const [tab, setTab] = useState<OpsTab>('cockpit');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [adminOpen, setAdminOpen] = useState(false);
+  const [localReload, setLocalReload] = useState(0);
+  const bump = () => setLocalReload((v) => v + 1);
+  const combinedReload = `${String(reloadKey)}:${localReload}`;
 
   return (
     <div>
-      <div className="entity-toggle" style={{ display: 'inline-flex', marginBottom: 22 }}>
-        <button className={tab === 'cockpit' ? 'active' : ''} onClick={() => setTab('cockpit')}>
-          Cockpit
-        </button>
-        <button className={tab === 'portefeuille' ? 'active' : ''} onClick={() => setTab('portefeuille')}>
-          Portefeuille
-        </button>
-        <button className={tab === 'releve' ? 'active' : ''} onClick={() => setTab('releve')}>
-          Relevé hebdo
-        </button>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 22 }}>
+        <div className="entity-toggle" style={{ display: 'inline-flex' }}>
+          <button className={tab === 'cockpit' ? 'active' : ''} onClick={() => setTab('cockpit')}>
+            Cockpit
+          </button>
+          <button className={tab === 'portefeuille' ? 'active' : ''} onClick={() => setTab('portefeuille')}>
+            Portefeuille
+          </button>
+          <button className={tab === 'releve' ? 'active' : ''} onClick={() => setTab('releve')}>
+            Relevé hebdo
+          </button>
+          <button className={tab === 'campagnes' ? 'active' : ''} onClick={() => setTab('campagnes')}>
+            Campagnes
+          </button>
+          <button className={tab === 'copil' ? 'active' : ''} onClick={() => setTab('copil')}>
+            COPIL grands comptes
+          </button>
+          <button className={tab === 'resiliations' ? 'active' : ''} onClick={() => setTab('resiliations')}>
+            Résiliations
+          </button>
+        </div>
+        {user.roleOperations === 'direction_generale' && (
+          <button onClick={() => setAdminOpen(true)}>
+            <Settings size={13} /> Administration
+          </button>
+        )}
       </div>
 
-      {tab === 'cockpit' && <CockpitTab entityFilter={entityFilter} reloadKey={reloadKey} onSelect={setSelectedId} />}
-      {tab === 'portefeuille' && <PortefeuilleTab entityFilter={entityFilter} reloadKey={reloadKey} onSelect={setSelectedId} />}
-      {tab === 'releve' && <ReleveTab entityFilter={entityFilter} reloadKey={reloadKey} onSelect={setSelectedId} />}
+      {tab === 'cockpit' && <CockpitTab entityFilter={entityFilter} reloadKey={combinedReload} onSelect={setSelectedId} />}
+      {tab === 'portefeuille' && <PortefeuilleTab entityFilter={entityFilter} reloadKey={combinedReload} onSelect={setSelectedId} />}
+      {tab === 'releve' && <ReleveTab entityFilter={entityFilter} reloadKey={combinedReload} onSelect={setSelectedId} />}
+      {tab === 'campagnes' && <CampagnesTab entityFilter={entityFilter} reloadKey={combinedReload} user={user} onSelect={setSelectedId} onChanged={bump} />}
+      {tab === 'copil' && <CopilTab entityFilter={entityFilter} reloadKey={combinedReload} onSelect={setSelectedId} />}
+      {tab === 'resiliations' && <ResiliationsTab entityFilter={entityFilter} reloadKey={combinedReload} onSelect={setSelectedId} />}
 
-      {selectedId && (
-        <ClientOperationsDrawer
-          id={selectedId}
-          user={user}
-          onClose={() => setSelectedId(null)}
-          onChanged={() => {
-            /* les onglets se rafraîchissent via reloadKey au niveau App si besoin ; ici un simple refetch local suffit au retour */
-          }}
-        />
-      )}
+      {selectedId && <ClientOperationsDrawer id={selectedId} user={user} onClose={() => setSelectedId(null)} onChanged={bump} />}
+      {adminOpen && <OperationsAdminPanel onClose={() => setAdminOpen(false)} />}
     </div>
   );
 }
@@ -431,6 +458,345 @@ function ReleveTab({ entityFilter, reloadKey, onSelect }: { entityFilter: Entite
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function CampagnesTab({
+  entityFilter,
+  reloadKey,
+  user,
+  onSelect,
+  onChanged,
+}: {
+  entityFilter: Entite | 'ALL';
+  reloadKey: unknown;
+  user: CurrentUser;
+  onSelect: (id: string) => void;
+  onChanged: () => void;
+}) {
+  const { showToast } = useToast();
+  const [creating, setCreating] = useState(false);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const { data, loading, error, refetch } = useResource<Campagne[]>('/api/operations/campagnes', reloadKey);
+  const detail = useResource<CampagneDetail>(openId ? `/api/operations/campagnes/${openId}` : null, reloadKey);
+  const canCreate = user.roleOperations === 'directrice_operations' || user.roleOperations === 'direction_generale';
+
+  const visibles = (data ?? []).filter((c) => c.entite === 'GROUPE' || entityFilter === 'ALL' || c.entite === entityFilter);
+
+  async function handleCreate(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = new FormData(e.currentTarget);
+    const secteurs = Array.from(form.getAll('secteurs')) as string[];
+    if (!secteurs.length) {
+      showToast('Choisissez au moins un secteur');
+      return;
+    }
+    setBusy(true);
+    try {
+      await api.post('/api/operations/campagnes', {
+        nom: form.get('nom'),
+        objectif: form.get('objectif'),
+        secteurs,
+        entite: form.get('entite'),
+        echeance: form.get('echeance'),
+      });
+      setCreating(false);
+      refetch();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function marquerTraite(clientOperationsId: string) {
+    if (!openId) return;
+    setBusy(true);
+    try {
+      await api.post(`/api/operations/campagnes/${openId}/faits`, { clientOperationsId });
+      detail.refetch();
+      refetch();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function cloturer(id: string) {
+    setBusy(true);
+    try {
+      await api.post(`/api/operations/campagnes/${id}/cloturer`, {});
+      showToast('Campagne clôturée');
+      refetch();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="table-card">
+      <div className="table-head">
+        <div style={{ fontWeight: 600, fontSize: 14 }}>Campagnes sectorielles</div>
+        {canCreate && <button onClick={() => setCreating(true)}><PlusCircle size={13} /> Nouvelle campagne</button>}
+      </div>
+      {loading ? (
+        <div className="empty-state">Chargement…</div>
+      ) : error ? (
+        <div className="empty-state"><h3>Erreur</h3><p>{error}</p></div>
+      ) : !visibles.length ? (
+        <div className="empty-state"><h3>Aucune campagne</h3><p>Créez-en une pour traiter plusieurs comptes d'un même secteur en une opération.</p></div>
+      ) : (
+        <div>
+          {visibles.map((c) => (
+            <div key={c.id} style={{ borderBottom: '1px solid var(--line-soft)' }}>
+              <div
+                className="row-hover"
+                onClick={() => setOpenId(openId === c.id ? null : c.id)}
+                style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 20px', cursor: 'pointer' }}
+              >
+                <div style={{ flex: 1 }}>
+                  <strong>{c.nom}</strong>
+                  {c.cloturee && (
+                    <span className="badge" data-tone="success" style={{ marginLeft: 8 }}>Clôturée</span>
+                  )}
+                  <div style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>
+                    {c.secteurs.map((s) => SECTEUR_LABELS[s]).join(', ')} · {c.entite} · échéance {fmtDate(c.echeance)}
+                  </div>
+                </div>
+                <div style={{ width: 140 }}>
+                  <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginBottom: 3 }}>
+                    {c.traitesCount}/{c.ciblesCount} traités
+                  </div>
+                  <div style={{ height: 6, background: 'var(--line-soft)', borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{ width: `${c.ciblesCount ? (c.traitesCount / c.ciblesCount) * 100 : 0}%`, height: '100%', background: 'var(--accent)' }} />
+                  </div>
+                </div>
+              </div>
+              {openId === c.id && (
+                <div style={{ padding: '4px 20px 16px 20px', background: 'var(--paper-2)' }}>
+                  {!c.cloturee && canCreate && (
+                    <button onClick={() => cloturer(c.id)} disabled={busy} style={{ marginBottom: 10 }}>
+                      Clôturer la campagne
+                    </button>
+                  )}
+                  {detail.loading ? (
+                    <div style={{ fontSize: 13 }}>Chargement des cibles…</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {(detail.data?.cibles ?? []).map((cible) => (
+                        <div key={cible.clientOperationsId} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
+                          <input
+                            type="checkbox"
+                            checked={cible.traite}
+                            disabled={cible.traite || busy || !canCreate}
+                            onChange={() => marquerTraite(cible.clientOperationsId)}
+                          />
+                          <span
+                            style={{ flex: 1, cursor: 'pointer', textDecoration: cible.traite ? 'line-through' : undefined, color: cible.traite ? 'var(--ink-soft)' : 'var(--ink)' }}
+                            onClick={() => onSelect(cible.clientOperationsId)}
+                          >
+                            {cible.client.nom}
+                          </span>
+                          <EntityLogo entite={cible.client.entite} size={12} />
+                        </div>
+                      ))}
+                      {!detail.data?.cibles.length && <div style={{ fontSize: 13, color: 'var(--ink-soft)' }}>Aucun compte actif dans ce secteur pour l'instant.</div>}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {creating && (
+        <div className="modal-overlay open" onClick={(e) => e.target === e.currentTarget && setCreating(false)}>
+          <div className="modal">
+            <h2 style={{ marginBottom: 16 }}>Nouvelle campagne</h2>
+            <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div>
+                <label>Intitulé</label>
+                <input type="text" name="nom" placeholder="Ex. Rentrée scolaire 2026" required />
+              </div>
+              <div>
+                <label>Objectif</label>
+                <input type="text" name="objectif" placeholder="Ce qu'on va dire ou vérifier chez chaque client" />
+              </div>
+              <div>
+                <label>Entité</label>
+                <select name="entite" defaultValue={entityFilter !== 'ALL' ? entityFilter : 'SORAM'}>
+                  <option value="SORAM">SORAM</option>
+                  <option value="IRIS">IRIS</option>
+                  <option value="GROUPE">Groupe (les deux)</option>
+                </select>
+              </div>
+              <div>
+                <label>Échéance</label>
+                <input type="date" name="echeance" required />
+              </div>
+              <div>
+                <label>Secteurs ciblés</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, maxHeight: 160, overflowY: 'auto', border: '1px solid var(--line)', borderRadius: 8, padding: 8 }}>
+                  {(Object.keys(SECTEUR_LABELS) as Secteur[]).map((s) => (
+                    <label key={s} style={{ display: 'flex', alignItems: 'center', gap: 5, textTransform: 'none', fontSize: 12.5 }}>
+                      <input type="checkbox" name="secteurs" value={s} /> {SECTEUR_LABELS[s]}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                <button className="primary" type="submit" disabled={busy}>Créer la campagne</button>
+                <button type="button" onClick={() => setCreating(false)}>Annuler</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CopilTab({ entityFilter, reloadKey, onSelect }: { entityFilter: Entite | 'ALL'; reloadKey: unknown; onSelect: (id: string) => void }) {
+  const { data, loading, error } = useResource<CopilEntry[]>(`/api/operations/copil${buildQuery({ entite: entityFilter })}`, reloadKey);
+
+  return (
+    <div className="table-card">
+      <div className="table-head">
+        <div style={{ fontWeight: 600, fontSize: 14 }}>Grands comptes ({data?.length ?? 0})</div>
+      </div>
+      {loading ? (
+        <div className="empty-state">Chargement…</div>
+      ) : error ? (
+        <div className="empty-state"><h3>Erreur</h3><p>{error}</p></div>
+      ) : !data?.length ? (
+        <div className="empty-state"><h3>Aucun grand compte</h3><p>Marquez un compte VIP depuis sa fiche pour le faire apparaître ici.</p></div>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>Client</th>
+              <th>Entité</th>
+              <th>Dernier COPIL</th>
+              <th>Problèmes ouverts</th>
+              <th>Enjeux</th>
+              <th>Score</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.map((c) => (
+              <tr key={c.id} className="row-hover" onClick={() => onSelect(c.id)}>
+                <td>
+                  {c.client.nom}
+                  {!c.copilFaitCeMois && (
+                    <span className="badge" data-tone="danger" style={{ marginLeft: 8 }}>COPIL du mois non tenu</span>
+                  )}
+                </td>
+                <td>
+                  <span className="entity-tag" style={{ borderLeftColor: entityAccent(c.client.entite), borderLeftWidth: 3 }}>
+                    <EntityLogo entite={c.client.entite} size={12} />
+                    {c.client.entite}
+                  </span>
+                </td>
+                <td>{fmtDate(c.dernierCopil)}</td>
+                <td>{c.problemesOuverts || <span style={{ color: 'var(--ink-soft)' }}>—</span>}</td>
+                <td style={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.enjeux || '—'}</td>
+                <td>
+                  <span className="badge" data-tone={c.tone} style={{ fontFamily: 'var(--font-mono)' }}>{c.scores.global}</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+function ResiliationsTab({ entityFilter, reloadKey, onSelect }: { entityFilter: Entite | 'ALL'; reloadKey: unknown; onSelect: (id: string) => void }) {
+  const { data, loading, error } = useResource<ResiliationsReport>(`/api/operations/resiliations${buildQuery({ entite: entityFilter })}`, reloadKey);
+  const maxMois = Math.max(1, ...(data?.histogramme12Mois.map((m) => m.nombre) ?? [1]));
+
+  if (loading) return <div className="empty-state">Chargement…</div>;
+  if (error || !data) return <div className="empty-state"><h3>Erreur</h3><p>{error}</p></div>;
+
+  return (
+    <div>
+      <div className="kpis">
+        <div className="kpi">
+          <div className="kpi-label">Résiliations totales</div>
+          <div className="kpi-value">{data.compteurs.total}</div>
+        </div>
+        <div className="kpi">
+          <div className="kpi-label">Ce mois-ci</div>
+          <div className="kpi-value">{data.compteurs.moisCourant}</div>
+        </div>
+      </div>
+
+      <div className="table-card" style={{ marginBottom: 20 }}>
+        <div className="table-head">
+          <div style={{ fontWeight: 600, fontSize: 14 }}>Sur 12 mois glissants</div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, padding: '20px', height: 120 }}>
+          {data.histogramme12Mois.map((m) => (
+            <div key={m.mois} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+              <div style={{ width: '100%', height: 80, display: 'flex', alignItems: 'flex-end' }}>
+                <div style={{ width: '100%', height: `${(m.nombre / maxMois) * 100}%`, minHeight: m.nombre ? 4 : 0, background: 'var(--danger)', borderRadius: '3px 3px 0 0' }} />
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--ink-soft)', fontFamily: 'var(--font-mono)' }}>{m.mois.slice(5)}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="table-card" style={{ marginBottom: 20 }}>
+        <div className="table-head">
+          <div style={{ fontWeight: 600, fontSize: 14 }}>Répartition par motif</div>
+        </div>
+        <div style={{ padding: '12px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {data.parMotif.length === 0 && <div style={{ fontSize: 13, color: 'var(--ink-soft)' }}>Aucune résiliation.</div>}
+          {data.parMotif.map((m) => (
+            <div key={m.motif} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+              <span>{MOTIF_RESILIATION_LABELS[m.motif]}</span>
+              <strong>{m.nombre}</strong>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="table-card">
+        <div className="table-head">
+          <div style={{ fontWeight: 600, fontSize: 14 }}>Liste détaillée</div>
+        </div>
+        {!data.liste.length ? (
+          <div className="empty-state"><h3>Aucune résiliation</h3></div>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Client</th>
+                <th>Date</th>
+                <th>Motif</th>
+                <th>Circonstances</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.liste.map((r) => (
+                <tr key={r.id} className="row-hover" onClick={() => onSelect(r.id)}>
+                  <td>{r.client.nom}</td>
+                  <td>{fmtDate(r.dateResiliation)}</td>
+                  <td>{r.motifResiliation ? MOTIF_RESILIATION_LABELS[r.motifResiliation] : '—'}</td>
+                  <td style={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.motifDetail || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
     </div>
   );
 }

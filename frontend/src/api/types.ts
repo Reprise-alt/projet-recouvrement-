@@ -600,6 +600,48 @@ export interface ConfigOperations {
   finContratRisqueJours: number;
 }
 
+export interface Campagne {
+  id: string;
+  nom: string;
+  objectif: string | null;
+  secteurs: Secteur[];
+  entite: string;
+  echeance: string;
+  creeLe: string;
+  cloturee: boolean;
+  ciblesCount: number;
+  traitesCount: number;
+}
+
+export interface CampagneCible {
+  clientOperationsId: string;
+  client: ClientOperationsIdentite;
+  traite: boolean;
+  fait: { date: string; note: string | null } | null;
+}
+
+export interface CampagneDetail extends Campagne {
+  cibles: CampagneCible[];
+}
+
+export interface CopilEntry {
+  id: string;
+  client: ClientOperationsIdentite;
+  enjeux: string | null;
+  dernierCopil: string | null;
+  copilFaitCeMois: boolean;
+  problemesOuverts: number;
+  scores: ScoresAxes;
+  tone: Tone;
+}
+
+export interface ResiliationsReport {
+  compteurs: { total: number; moisCourant: number };
+  histogramme12Mois: { mois: string; nombre: number }[];
+  parMotif: { motif: MotifResiliation; nombre: number }[];
+  liste: ClientOperationsDetail[];
+}
+
 export interface FenetreSaisonniere {
   secteur: Secteur;
   label: string;
