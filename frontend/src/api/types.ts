@@ -602,6 +602,24 @@ export interface ReleveFileEntry {
   scores: ScoresAxes;
 }
 
+export interface RevueTrimestreEntry {
+  id: string;
+  client: ClientOperationsIdentite;
+  criticite: Criticite;
+  dernierContact: string | null;
+  semaineAffectee: number;
+  scores: ScoresAxes;
+}
+
+export interface RevueTrimestreResponse {
+  trimestre: string;
+  semaine: number;
+  totalSemaines: number;
+  totalEligibles: number;
+  totalFaits: number;
+  aTraiter: RevueTrimestreEntry[];
+}
+
 export interface ConfigOperations {
   id: number;
   contactStdVigilance: number;

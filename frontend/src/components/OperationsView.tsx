@@ -12,6 +12,7 @@ import {
   Entite,
   ReleveFileEntry,
   ResiliationsReport,
+  RevueTrimestreResponse,
   Secteur,
 } from '../api/types';
 import { fmtDate } from '../lib/constants';
@@ -675,12 +676,72 @@ function NouveauCompteModal({ entityFilter, onClose, onCreated }: { entityFilter
   );
 }
 
+function RevueTrimestreCard({ entityFilter, reloadKey, onSelect }: { entityFilter: Entite | 'ALL'; reloadKey: unknown; onSelect: (id: string) => void }) {
+  const { data } = useResource<RevueTrimestreResponse>(`/api/operations/revue-trimestre${buildQuery({ entite: entityFilter })}`, reloadKey);
+
+  if (!data || data.totalEligibles === 0) return null;
+
+  const pct = data.totalEligibles ? Math.round((100 * data.totalFaits) / data.totalEligibles) : 0;
+
+  return (
+    <div className="table-card" style={{ marginBottom: 20 }}>
+      <div className="table-head">
+        <div style={{ fontWeight: 600, fontSize: 14 }}>
+          Revue trimestrielle — semaine {data.semaine}/{data.totalSemaines}
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>SORAM · IRIS, hors VIP (COPIL mensuel dédié)</div>
+      </div>
+      <div style={{ padding: '14px 20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+          <div style={{ flex: 1, height: 6, background: 'var(--line-soft)', borderRadius: 3, overflow: 'hidden' }}>
+            <div style={{ width: `${pct}%`, height: '100%', background: 'var(--accent)' }} />
+          </div>
+          <div style={{ fontSize: 12.5, fontFamily: 'var(--font-mono)', color: 'var(--ink-soft)', flexShrink: 0 }}>
+            {data.totalFaits}/{data.totalEligibles} comptes vus ce trimestre
+          </div>
+        </div>
+        {data.aTraiter.length === 0 ? (
+          <p style={{ fontSize: 13, color: 'var(--ink-soft)', margin: '10px 0 0' }}>Rien à traiter cette semaine — tout est à jour.</p>
+        ) : (
+          <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', margin: '10px 0 6px' }}>
+            {data.aTraiter.length} compte{data.aTraiter.length !== 1 ? 's' : ''} suggéré{data.aTraiter.length !== 1 ? 's' : ''} cette semaine
+          </div>
+        )}
+      </div>
+      {data.aTraiter.length > 0 && (
+        <div>
+          {data.aTraiter.map((r) => (
+            <div
+              key={r.id}
+              className="row-hover"
+              onClick={() => onSelect(r.id)}
+              style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 20px', borderTop: '1px solid var(--line-soft)', cursor: 'pointer' }}
+            >
+              <Search size={14} style={{ color: 'var(--ink-soft)', flexShrink: 0 }} />
+              <div style={{ flex: 1 }}>
+                <strong>{r.client.nom}</strong>
+                <div style={{ fontSize: 11.5, color: 'var(--ink-soft)' }}>
+                  <EntityLogo entite={r.client.entite} size={11} /> {r.client.entite}
+                  {r.semaineAffectee < data.semaine ? ' · en attente depuis une semaine passée' : ''}
+                </div>
+              </div>
+              <ScoreGauge scores={r.scores} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ReleveTab({ entityFilter, reloadKey, onSelect }: { entityFilter: Entite | 'ALL'; reloadKey: unknown; onSelect: (id: string) => void }) {
   const { data, loading, error } = useResource<ReleveFileEntry[]>(`/api/operations/releve-file${buildQuery({ entite: entityFilter })}`, reloadKey);
   const restants = (data ?? []).filter((r) => !r.releveFait);
 
   return (
-    <div className="table-card">
+    <div>
+      <RevueTrimestreCard entityFilter={entityFilter} reloadKey={reloadKey} onSelect={onSelect} />
+      <div className="table-card">
       <div className="table-head">
         <div style={{ fontWeight: 600, fontSize: 14 }}>
           File du relevé hebdomadaire — {restants.length} restant{restants.length !== 1 ? 's' : ''} sur {data?.length ?? 0}
@@ -735,6 +796,7 @@ function ReleveTab({ entityFilter, reloadKey, onSelect }: { entityFilter: Entite
           ))}
         </div>
       )}
+      </div>
     </div>
   );
 }

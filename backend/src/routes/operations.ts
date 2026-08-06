@@ -7,6 +7,7 @@ import { enLitigeSignal } from '../lib/paliers';
 import { parseOperationsImportWorkbook } from '../lib/parsers/operationsImport';
 import { getKnownEntitesForImport } from '../services/entrepriseService';
 import { ETAPES_DEMARRAGE_DEFAUT } from '../lib/operationsDefaults';
+import { repartir, trimestreInfo } from '../lib/revueTrimestre';
 import { chargeDeCompteWhere, resolveEntiteScopeOperations, userCanAccessEntiteOperations } from '../lib/operationsAuth';
 import { requireAuth, requireModuleOperations } from '../middleware/auth';
 import {
@@ -674,6 +675,77 @@ operationsRouter.get('/releve-file', async (req, res, next) => {
       );
 
     res.json(file);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Revue trimestrielle (SORAM/IRIS, comptes non-VIP uniquement -- les VIP
+// suivent leur COPIL mensuel) : objectif du dir des opérations, voir 100% du
+// parc en un trimestre sans repasser deux fois par le même compte avant
+// d'avoir fait le tour (cf. lib/revueTrimestre.ts). L'affectation aux
+// semaines est calculée à la volée et posée une seule fois par compte --
+// jamais de cron, juste une réparation paresseuse à chaque appel pour les
+// comptes qui n'ont pas encore de tirage ce trimestre (nouveau compte, VIP
+// repassé standard, ou tout simplement premier appel du trimestre).
+operationsRouter.get('/revue-trimestre', async (req, res, next) => {
+  try {
+    const entiteFilter = resolveEntiteScopeOperations(req.user!, req.query.entite);
+    const entitesRevue = ['SORAM', 'IRIS'].filter((e) => entiteFilter === 'ALL' || e === entiteFilter);
+    const info = trimestreInfo();
+
+    const eligibles = await prisma.clientOperations.findMany({
+      where: {
+        vip: false,
+        resilie: false,
+        client: { entite: { in: entitesRevue } },
+        ...chargeDeCompteWhere(req.user!),
+      },
+      include: { client: { select: CLIENT_SELECT }, problemes: true, etapesDemarrage: true },
+    });
+
+    const nonAffectes = eligibles.filter((r) => r.revueTrimestreCle !== info.cle);
+    if (nonAffectes.length) {
+      const affectation = repartir(
+        nonAffectes.map((r) => r.id),
+        info,
+      );
+      await Promise.all(
+        [...affectation.entries()].map(([id, semaine]) =>
+          prisma.clientOperations.update({ where: { id }, data: { revueTrimestreCle: info.cle, revueTrimestreSemaine: semaine } }),
+        ),
+      );
+      for (const r of nonAffectes) r.revueTrimestreSemaine = affectation.get(r.id) ?? null;
+    }
+
+    const config = await getConfig();
+    const etapesParEntite = new Map<string, EtapeDemarrageConfigLike[]>();
+    for (const entite of new Set(eligibles.map((r) => r.client.entite))) {
+      etapesParEntite.set(entite, await getEtapesConfig(entite));
+    }
+
+    const faitCeTrimestre = (r: (typeof eligibles)[number]) => !!r.dernierReleve && r.dernierReleve >= info.debut;
+
+    const aTraiter = eligibles
+      .filter((r) => (r.revueTrimestreSemaine ?? info.semaine) <= info.semaine && !faitCeTrimestre(r))
+      .map((r) => ({
+        id: r.id,
+        client: r.client,
+        criticite: r.criticite,
+        dernierContact: r.dernierContact,
+        semaineAffectee: r.revueTrimestreSemaine ?? info.semaine,
+        scores: scoresClient(r, etapesParEntite.get(r.client.entite) ?? [], r.etapesDemarrage, config),
+      }))
+      .sort((a, b) => a.semaineAffectee - b.semaineAffectee || a.scores.global - b.scores.global);
+
+    res.json({
+      trimestre: info.cle,
+      semaine: info.semaine,
+      totalSemaines: info.totalSemaines,
+      totalEligibles: eligibles.length,
+      totalFaits: eligibles.filter(faitCeTrimestre).length,
+      aTraiter,
+    });
   } catch (err) {
     next(err);
   }

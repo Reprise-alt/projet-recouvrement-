@@ -565,6 +565,15 @@ model ClientOperations {
   motifResiliation MotifResiliation?
   motifDetail      String?
 
+  // Revue trimestrielle (comptes non-VIP uniquement -- les VIP suivent leur
+  // propre cycle COPIL mensuel) : répartition mélangée du portefeuille sur
+  // les semaines du trimestre en cours, posée une fois par compte puis
+  // stable, pour que 100% du parc soit vu en fin de trimestre sans repasser
+  // deux fois par le même compte. Recalculée à la volée (jamais de cron) —
+  // cf. GET /revue-trimestre.
+  revueTrimestreCle     String?
+  revueTrimestreSemaine Int?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
