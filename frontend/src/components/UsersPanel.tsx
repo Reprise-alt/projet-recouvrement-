@@ -10,6 +10,12 @@ const ROLE_LABELS: Record<string, string> = {
   comptable: 'Comptable',
 };
 
+const ROLE_OPERATIONS_LABELS: Record<string, string> = {
+  directrice_operations: 'Directrice des opérations',
+  charge_compte: 'Chargé de compte',
+  direction_generale: 'Direction générale',
+};
+
 export function UsersPanel({ onClose }: { onClose: () => void }) {
   const { showToast } = useToast();
   const { data: users, loading, refetch } = useResource<CurrentUser[]>('/api/users');
@@ -29,6 +35,8 @@ export function UsersPanel({ onClose }: { onClose: () => void }) {
         role,
         entite: entite || undefined,
         estAgentRecouvrement: form.get('estAgentRecouvrement') === 'on',
+        accesRecouvrement: form.get('accesRecouvrement') === 'on',
+        roleOperations: form.get('roleOperations') || undefined,
       });
       showToast('Utilisateur créé');
       (e.target as HTMLFormElement).reset();
@@ -44,6 +52,30 @@ export function UsersPanel({ onClose }: { onClose: () => void }) {
     setBusy(true);
     try {
       await api.patch(`/api/users/${u.id}`, { estAgentRecouvrement: !u.estAgentRecouvrement });
+      refetch();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggleRecouvrement(u: CurrentUser) {
+    setBusy(true);
+    try {
+      await api.patch(`/api/users/${u.id}`, { accesRecouvrement: !u.accesRecouvrement });
+      refetch();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function updateRoleOperations(u: CurrentUser, roleOperations: string) {
+    setBusy(true);
+    try {
+      await api.patch(`/api/users/${u.id}`, { roleOperations: roleOperations || null });
       refetch();
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Erreur');
@@ -97,16 +129,36 @@ export function UsersPanel({ onClose }: { onClose: () => void }) {
                   </button>
                 </div>
               </div>
-              <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>
-                  Dernière connexion :{' '}
-                  {u.derniereConnexion
-                    ? new Date(u.derniereConnexion).toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' })
-                    : 'jamais'}
-                </span>
+              <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 6 }}>
+                Dernière connexion :{' '}
+                {u.derniereConnexion
+                  ? new Date(u.derniereConnexion).toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' })
+                  : 'jamais'}
+              </div>
+              <div style={{ fontSize: 11.5, marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 5, textTransform: 'none', fontFamily: 'var(--font-body)', cursor: 'pointer' }}>
                   <input type="checkbox" checked={u.estAgentRecouvrement} disabled={busy} onChange={() => toggleAgent(u)} style={{ width: 'auto' }} />
                   Agent de recouvrement
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 5, textTransform: 'none', fontFamily: 'var(--font-body)', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={u.accesRecouvrement} disabled={busy} onChange={() => toggleRecouvrement(u)} style={{ width: 'auto' }} />
+                  Accès module Recouvrement
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 5, textTransform: 'none', fontFamily: 'var(--font-body)' }}>
+                  Accès Opérations :
+                  <select
+                    value={u.roleOperations ?? ''}
+                    disabled={busy}
+                    onChange={(e) => updateRoleOperations(u, e.target.value)}
+                    style={{ fontSize: 11.5, padding: '2px 6px', width: 'auto' }}
+                  >
+                    <option value="">Aucun</option>
+                    {Object.entries(ROLE_OPERATIONS_LABELS).map(([v, l]) => (
+                      <option key={v} value={v}>
+                        {l}
+                      </option>
+                    ))}
+                  </select>
                 </label>
               </div>
             </div>
@@ -148,6 +200,21 @@ export function UsersPanel({ onClose }: { onClose: () => void }) {
             <input type="checkbox" name="estAgentRecouvrement" defaultChecked style={{ width: 'auto' }} />
             Agent de recouvrement — apparaît dans le reporting de performance
           </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, textTransform: 'none', fontFamily: 'var(--font-body)', fontSize: 13, cursor: 'pointer' }}>
+            <input type="checkbox" name="accesRecouvrement" defaultChecked style={{ width: 'auto' }} />
+            Accès au module Recouvrement
+          </label>
+          <div>
+            <label>Accès Opérations (optionnel)</label>
+            <select name="roleOperations" defaultValue="">
+              <option value="">Aucun</option>
+              {Object.entries(ROLE_OPERATIONS_LABELS).map(([v, l]) => (
+                <option key={v} value={v}>
+                  {l}
+                </option>
+              ))}
+            </select>
+          </div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
             <button type="button" onClick={onClose}>
               Fermer
