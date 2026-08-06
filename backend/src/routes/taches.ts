@@ -1,9 +1,12 @@
 import crypto from 'crypto';
 import { Router } from 'express';
+import multer from 'multer';
+import * as XLSX from 'xlsx';
 import { prisma } from '../db';
 import { requireAccesRecouvrement, requireAuth, requireRole } from '../middleware/auth';
-import { Entite, resolveEntiteScope } from '../lib/entites';
+import { Entite, resolveEntiteScope, userCanAccessEntite } from '../lib/entites';
 import { buildPlanningRapport, modeleDuLe, resumeJournee, TACHE_TYPE_LABELS, TacheRapportEntree } from '../lib/taches';
+import { parseTacheCoursierImportWorkbook } from '../lib/parsers/tacheCoursierImport';
 
 export const tachesRouter = Router();
 tachesRouter.use(requireAuth, requireAccesRecouvrement);
@@ -154,15 +157,25 @@ tachesRouter.get('/modeles', requireRole(...ADV_ROLES), async (req, res, next) =
 
 tachesRouter.post('/modeles', requireRole(...ADV_ROLES), async (req, res, next) => {
   try {
-    const { clientId, type, label, jourDuMois } = req.body ?? {};
+    const { clientId, type, label, jourDuMois, intervalleMois } = req.body ?? {};
     if (!clientId || typeof clientId !== 'string') return res.status(400).json({ error: 'Client requis' });
     if (!TACHE_TYPES.includes(type)) return res.status(400).json({ error: 'Type de tâche invalide' });
     const jour = parseInt(jourDuMois, 10);
-    if (!Number.isInteger(jour) || jour < 1 || jour > 28) {
-      return res.status(400).json({ error: 'Jour du mois invalide (1 à 28)' });
+    if (!Number.isInteger(jour) || jour < 1 || jour > 31) {
+      return res.status(400).json({ error: 'Jour du mois invalide (1 à 31)' });
+    }
+    const intervalle = intervalleMois != null ? parseInt(intervalleMois, 10) : 1;
+    if (!Number.isInteger(intervalle) || intervalle < 1 || intervalle > 12) {
+      return res.status(400).json({ error: 'Intervalle invalide (1 à 12 mois)' });
     }
     const modele = await prisma.tacheCoursierModele.create({
-      data: { clientId, type, label: typeof label === 'string' && label.trim() ? label.trim() : null, jourDuMois: jour },
+      data: {
+        clientId,
+        type,
+        label: typeof label === 'string' && label.trim() ? label.trim() : null,
+        jourDuMois: jour,
+        intervalleMois: intervalle,
+      },
       include: { client: { select: { id: true, nom: true, entite: true } } },
     });
     res.status(201).json(modele);
@@ -185,6 +198,60 @@ tachesRouter.patch('/modeles/:id', requireRole(...ADV_ROLES), async (req, res, n
   }
 });
 
+const uploadTaches = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+
+// Reprise d'un historique de paramétrage tenu ailleurs (ex: planning
+// coursiers d'un logiciel précédent) -- fichier au format "jour du mois en
+// colonne A (posé une fois par bloc) / raison sociale en colonne B /
+// fréquence optionnelle en colonne C" (cf. lib/parsers/tacheCoursierImport).
+// Rattache à un client existant (nom+entité) ou en crée un nouveau, comme
+// pour l'import Opérations -- mieux vaut un planning peuplé à corriger
+// depuis l'écran ensuite qu'aucun planning tant que chaque client n'a pas
+// été ressaisi à la main. Idempotent par (client, jour, type) : un second
+// import du même fichier ne duplique pas les modèles déjà créés.
+tachesRouter.post('/modeles/import', requireRole(...ADV_ROLES), uploadTaches.single('file'), async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Aucun fichier reçu' });
+    const entite = typeof req.body?.entite === 'string' ? req.body.entite.trim() : '';
+    const type = typeof req.body?.type === 'string' ? req.body.type.trim() : '';
+    if (!entite) return res.status(400).json({ error: 'Entité requise' });
+    if (!TACHE_TYPES.includes(type)) return res.status(400).json({ error: 'Type de tâche invalide' });
+    if (!userCanAccessEntite(req.user!, entite as Entite)) {
+      return res.status(403).json({ error: 'Accès refusé — hors du périmètre de votre compte' });
+    }
+
+    const wb = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: true });
+    const rows = parseTacheCoursierImportWorkbook(wb);
+    if (!rows.length) {
+      return res.status(422).json({ error: "Aucune donnée exploitable dans ce fichier -- format attendu : jour du mois en colonne A, raison sociale en colonne B, fréquence optionnelle en colonne C." });
+    }
+
+    let created = 0;
+    let dejaExistant = 0;
+    for (const row of rows) {
+      let client = await prisma.client.findUnique({ where: { nom_entite: { nom: row.nom, entite } } });
+      if (!client) {
+        client = await prisma.client.create({ data: { nom: row.nom, entite } });
+      }
+      const existing = await prisma.tacheCoursierModele.findFirst({
+        where: { clientId: client.id, jourDuMois: row.jourDuMois, type: type as any, actif: true },
+      });
+      if (existing) {
+        dejaExistant++;
+        continue;
+      }
+      await prisma.tacheCoursierModele.create({
+        data: { clientId: client.id, type: type as any, jourDuMois: row.jourDuMois, intervalleMois: row.intervalleMois },
+      });
+      created++;
+    }
+
+    res.json({ total: rows.length, created, dejaExistant });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ---------------------------------------------------------------------
 // Tâches du jour
 // ---------------------------------------------------------------------
@@ -198,7 +265,7 @@ async function genererTachesDues(date: Date) {
     where: { actif: true },
     include: { client: { select: { entite: true } } },
   });
-  const dus = modeles.filter((m) => modeleDuLe(m.jourDuMois, date));
+  const dus = modeles.filter((m) => modeleDuLe(m, date));
   if (dus.length === 0) return;
   await prisma.tacheCoursier.createMany({
     data: dus.map((m) => ({

@@ -29,14 +29,37 @@ export const MOTIF_REPORT_LABELS: Record<string, string> = {
 
 const MS_PAR_JOUR = 24 * 60 * 60 * 1000;
 
+export interface ModeleRecurrence {
+  jourDuMois: number;
+  // 1 = tous les mois (comportement historique). > 1 = un mois sur N,
+  // ancré sur le mois de création du modèle (cf. moisEligible).
+  intervalleMois?: number;
+  createdAt?: Date | string;
+}
+
+// Un modèle "tous les N mois" est dû sur les mois dont l'écart au mois de
+// création est un multiple de N -- un modèle créé en août pour "tous les 3
+// mois" est donc dû en août, novembre, février... Un modèle mensuel
+// (intervalleMois <= 1, ou non renseigné) est toujours éligible, quel que
+// soit son mois de création : ça préserve exactement le comportement
+// historique pour tous les modèles existants avant l'ajout de ce champ.
+function moisEligible(intervalleMois: number | undefined, createdAt: Date | string | undefined, moisCible: Date): boolean {
+  if (!intervalleMois || intervalleMois <= 1 || !createdAt) return true;
+  const creation = typeof createdAt === 'string' ? new Date(createdAt) : createdAt;
+  const indexCible = moisCible.getUTCFullYear() * 12 + moisCible.getUTCMonth();
+  const indexCreation = creation.getUTCFullYear() * 12 + creation.getUTCMonth();
+  const delta = indexCible - indexCreation;
+  return ((delta % intervalleMois) + intervalleMois) % intervalleMois === 0;
+}
+
 // Un modèle récurrent est dû un jour donné si son jour du mois configuré
-// correspond au jour du mois de la date -- volontairement borné à 1-28 à la
-// création (cf. route) pour ne jamais viser un jour qui n'existe pas dans
-// un mois plus court (février notamment). getUTCDate()/getUTCDay() plutôt
-// que leurs équivalents locaux : les dates de tâches sont stockées à
-// minuit UTC (même convention que buildPeriod dans routes/reporting.ts),
-// une version dépendant du fuseau du serveur pourrait décaler le jour
-// d'une unité selon l'environnement.
+// correspond au jour du mois de la date -- jourDuMois va jusqu'à 31, un
+// jour qui n'existe pas dans un mois plus court (février notamment) ne
+// matche simplement jamais ce mois-là, sans erreur ni report.
+// getUTCDate()/getUTCDay() plutôt que leurs équivalents locaux : les dates
+// de tâches sont stockées à minuit UTC (même convention que buildPeriod
+// dans routes/reporting.ts), une version dépendant du fuseau du serveur
+// pourrait décaler le jour d'une unité selon l'environnement.
 //
 // Un jour du mois qui tombe un samedi ou un dimanche ne déclenche jamais
 // la tâche ce jour-là -- elle est reportée au lundi suivant (l'équipe
@@ -44,18 +67,22 @@ const MS_PAR_JOUR = 24 * 60 * 60 * 1000;
 // de dates réelles (reculer de 1 ou 2 jours depuis un lundi) plutôt que
 // par un calcul "candidat du mois", pour rester correct même quand le
 // report fait franchir la fin du mois (ex: le 28 tombe un samedi fin de
-// mois -> reporté au lundi du mois suivant).
-export function modeleDuLe(jourDuMois: number, date: Date): boolean {
+// mois -> reporté au lundi du mois suivant). L'éligibilité "tous les N
+// mois" se vérifie sur le mois du jour visé, pas sur celui de la date de
+// report -- un jour 31 de janvier reporté au 1er février reste rattaché à
+// janvier pour le calcul de l'intervalle.
+export function modeleDuLe(modele: ModeleRecurrence, date: Date): boolean {
+  const { jourDuMois, intervalleMois, createdAt } = modele;
   const jourSemaine = date.getUTCDay(); // 0 = dimanche, 6 = samedi
   if (jourSemaine === 0 || jourSemaine === 6) return false;
-  if (date.getUTCDate() === jourDuMois) return true;
+  if (date.getUTCDate() === jourDuMois) return moisEligible(intervalleMois, createdAt, date);
   if (jourSemaine !== 1) return false; // seul un lundi peut être une date de report
 
   const veille = new Date(date.getTime() - MS_PAR_JOUR);
-  if (veille.getUTCDay() === 0 && veille.getUTCDate() === jourDuMois) return true; // dimanche -> lundi
+  if (veille.getUTCDay() === 0 && veille.getUTCDate() === jourDuMois) return moisEligible(intervalleMois, createdAt, veille); // dimanche -> lundi
 
   const avantVeille = new Date(date.getTime() - 2 * MS_PAR_JOUR);
-  if (avantVeille.getUTCDay() === 6 && avantVeille.getUTCDate() === jourDuMois) return true; // samedi -> lundi
+  if (avantVeille.getUTCDay() === 6 && avantVeille.getUTCDate() === jourDuMois) return moisEligible(intervalleMois, createdAt, avantVeille); // samedi -> lundi
 
   return false;
 }

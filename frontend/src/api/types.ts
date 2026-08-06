@@ -337,6 +337,7 @@ export interface TacheCoursierModele {
   type: TypeTacheCoursier;
   label: string | null;
   jourDuMois: number;
+  intervalleMois: number;
   actif: boolean;
   client: { id: string; nom: string; entite: Entite };
 }

@@ -379,17 +379,24 @@ model Coursier {
 // Modèle de tâche récurrente (ex: "SCL, relevé compteur, tous les 5 du
 // mois") -- génère automatiquement l'instance du jour dans TacheCoursier
 // quand ce jour arrive (cf. lib/taches.ts), pour que l'ADV n'ait pas à la
-// ressaisir chaque mois. jourDuMois volontairement borné à 1-28 pour éviter
-// les mois plus courts que le jour visé.
+// ressaisir chaque mois. jourDuMois va jusqu'à 31 -- un jour qui n'existe
+// pas dans un mois donné (ex: 31 en avril, 29 en février) est simplement
+// sauté ce mois-là (cf. modeleDuLe), jamais reporté ni en erreur.
+//
+// intervalleMois (1 = tous les mois, 3 = un mois sur trois, etc.) ancre son
+// décompte sur le mois de création du modèle plutôt qu'un champ séparé --
+// un modèle importé aujourd'hui pour "tous les 3 mois" est donc dû ce
+// mois-ci puis tous les 3 mois à partir de là (cf. modeleDuLe).
 model TacheCoursierModele {
-  id         String            @id @default(cuid())
-  client     Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  clientId   String
-  type       TypeTacheCoursier
-  label      String?
-  jourDuMois Int
-  actif      Boolean           @default(true)
-  createdAt  DateTime          @default(now())
+  id             String            @id @default(cuid())
+  client         Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId       String
+  type           TypeTacheCoursier
+  label          String?
+  jourDuMois     Int
+  intervalleMois Int               @default(1)
+  actif          Boolean           @default(true)
+  createdAt      DateTime          @default(now())
 
   taches TacheCoursier[]
 }
