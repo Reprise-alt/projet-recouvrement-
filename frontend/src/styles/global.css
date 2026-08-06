@@ -266,6 +266,16 @@ label{font-family:var(--font-mono);font-size:10.5px;text-transform:uppercase;let
 
 .role-badge{font-family:var(--font-mono);font-size:10.5px;text-transform:uppercase;color:var(--ink-soft);}
 
+.module-chooser{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:radial-gradient(circle at 50% 0%,var(--accent-soft) 0%,var(--paper) 55%);}
+.module-chooser-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);padding:36px;width:min(480px,100%);box-shadow:var(--shadow-lg);text-align:center;}
+.module-chooser-sub{color:var(--ink-soft);font-size:13.5px;margin:18px 0 26px;}
+.module-chooser-options{display:flex;flex-direction:column;gap:12px;}
+.module-chooser-option{display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:16px 18px;border-radius:var(--radius-md);border:1px solid var(--line);background:var(--paper);text-align:left;transition:.15s var(--ease);}
+.module-chooser-option:hover{border-color:var(--accent);background:var(--accent-soft);}
+.module-chooser-option strong{font-size:15px;}
+.module-chooser-option span{font-size:12.5px;color:var(--ink-soft);}
+.module-chooser-logout{margin-top:22px;font-size:12.5px;color:var(--ink-soft);background:none;border:none;text-decoration:underline;}
+
 /* ===================================================================
    Page vitrine publique (landing) — tokens et classes additifs uniquement.
    Rien ci-dessus n'est modifié : la page vitrine emprunte la palette et les

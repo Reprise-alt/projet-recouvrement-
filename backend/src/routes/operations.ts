@@ -258,6 +258,7 @@ operationsRouter.get('/cockpit', async (req, res, next) => {
 
     const demarragesEnCours = rows
       .map((r) => ({
+        id: r.id,
         client: r.client,
         etat: etatDemarrage(r, etapesParEntite.get(r.client.entite) ?? [], []),
       }))

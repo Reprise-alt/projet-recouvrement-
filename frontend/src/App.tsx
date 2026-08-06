@@ -13,18 +13,27 @@ import { UsersPanel } from './components/UsersPanel';
 import { IntegrationsPanel } from './components/IntegrationsPanel';
 import { EntreprisesPanel } from './components/EntreprisesPanel';
 import { EntityLogo, entityAccent } from './components/EntityLogo';
+import { OperationsView } from './components/OperationsView';
 import { Entite, Entreprise } from './api/types';
 import { useResource } from './hooks/useResource';
 import { useTheme } from './hooks/useTheme';
-import { ChevronDown, Moon, Sun } from 'lucide-react';
+import { ChevronDown, Moon, Sun, Repeat } from 'lucide-react';
 
 type MainView = 'recouvrement' | 'contrats' | 'planning';
 type EntityFilter = Entite | 'ALL';
+type Module = 'recouvrement' | 'operations';
+const MODULE_KEY = 'recouvrement:module';
 
 const ROLE_LABELS: Record<string, string> = {
   admin: 'Admin',
   manager_entite: "Manager d'entité",
   comptable: 'Comptable',
+};
+
+const ROLE_OPERATIONS_LABELS: Record<string, string> = {
+  directrice_operations: 'Directrice des opérations',
+  charge_compte: 'Chargé de compte',
+  direction_generale: 'Direction générale',
 };
 
 export function App() {
@@ -60,6 +69,14 @@ export function App() {
   const [dataVersion, setDataVersion] = useState(0);
   const bumpDataVersion = () => setDataVersion((v) => v + 1);
   const { theme, toggle: toggleTheme } = useTheme();
+  const [moduleState, setModuleState] = useState<Module | null>(() => {
+    const stored = localStorage.getItem(MODULE_KEY);
+    return stored === 'recouvrement' || stored === 'operations' ? (stored as Module) : null;
+  });
+  function setModule(m: Module) {
+    localStorage.setItem(MODULE_KEY, m);
+    setModuleState(m);
+  }
 
   useEffect(() => {
     if (!adminMenuOpen) return;
@@ -84,8 +101,77 @@ export function App() {
 
   const effectiveEntity: EntityFilter = availableEntities.includes(entityFilter) ? entityFilter : availableEntities[0];
 
+  // Opérations ne concerne que SORAM et IRIS (cahier §1) -- jamais SIS ni
+  // COMMUN, contrairement au sélecteur d'entité du recouvrement ci-dessus.
+  const availableEntitiesOperations = useMemo<EntityFilter[]>(() => {
+    if (!user) return ['ALL'];
+    const codes = (entreprises ?? []).filter((e) => e.code === 'SORAM' || e.code === 'IRIS').map((e) => e.code);
+    if (user.roleOperations === 'direction_generale' || !user.entite) return ['ALL', ...codes];
+    return [user.entite];
+  }, [user, entreprises]);
+  const [entityFilterOperations, setEntityFilterOperations] = useState<EntityFilter>('ALL');
+  const effectiveEntityOperations: EntityFilter = availableEntitiesOperations.includes(entityFilterOperations)
+    ? entityFilterOperations
+    : availableEntitiesOperations[0];
+
+  const availableModules = useMemo<Module[]>(() => {
+    if (!user) return [];
+    const mods: Module[] = [];
+    if (user.accesRecouvrement) mods.push('recouvrement');
+    if (user.roleOperations) mods.push('operations');
+    return mods;
+  }, [user]);
+  const effectiveModule: Module | null = moduleState && availableModules.includes(moduleState) ? moduleState : availableModules.length === 1 ? availableModules[0] : null;
+
   if (loading) return null;
   if (!user) return <LoginPage />;
+
+  if (availableModules.length === 0) {
+    return (
+      <div className="empty-state" style={{ marginTop: 80 }}>
+        <h3>Aucun accès</h3>
+        <p>Votre compte n'a accès à aucun module de la plateforme. Contactez un administrateur.</p>
+        <button onClick={() => logout()} style={{ marginTop: 16 }}>
+          Déconnexion
+        </button>
+      </div>
+    );
+  }
+
+  if (!effectiveModule) {
+    return (
+      <div className="module-chooser">
+        <div className="module-chooser-card">
+          <div className="brand-logo-row" style={{ justifyContent: 'center' }}>
+            <svg className="brand-mark" viewBox="0 0 100 100" width="32" height="32">
+              <circle cx="50" cy="50" r="34" fill="none" stroke="#1D9E75" strokeWidth="13" strokeLinecap="round" strokeDasharray="168 46" transform="rotate(100 50 50)" />
+            </svg>
+            <div className="brand-wordmark">
+              <span className="w-olu">OLU</span> <span className="w-360">360</span>
+            </div>
+          </div>
+          <p className="module-chooser-sub">Bonjour {user.nom.split(' ')[0]} — quel module souhaitez-vous ouvrir ?</p>
+          <div className="module-chooser-options">
+            {availableModules.includes('recouvrement') && (
+              <button className="module-chooser-option" onClick={() => setModule('recouvrement')}>
+                <strong>Recouvrement</strong>
+                <span>Suivi des relances, contrats, planning coursiers</span>
+              </button>
+            )}
+            {availableModules.includes('operations') && (
+              <button className="module-chooser-option" onClick={() => setModule('operations')}>
+                <strong>Opérations</strong>
+                <span>Suivi relationnel du portefeuille SORAM / IRIS</span>
+              </button>
+            )}
+          </div>
+          <button className="module-chooser-logout" onClick={() => logout()}>
+            Déconnexion
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const isAdmin = user.role === 'admin';
 
@@ -113,7 +199,7 @@ export function App() {
           </div>
           <div className="brand-rule"></div>
           <div className="brand-eyebrow">SORAM · IRIS · SIS — écosystème IT</div>
-          <h1 className="brand-title">Suivi du recouvrement</h1>
+          <h1 className="brand-title">{effectiveModule === 'operations' ? 'Suivi des opérations' : 'Suivi du recouvrement'}</h1>
           <div className="brand-partners">
             {(['SORAM', 'SIS', 'IRIS'] as const).map((code) => (
               <div key={code} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
@@ -133,12 +219,12 @@ export function App() {
             {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
           </button>
           <div className="entity-toggle">
-            {availableEntities.map((k) => (
+            {(effectiveModule === 'operations' ? availableEntitiesOperations : availableEntities).map((k) => (
               <button
                 key={k}
-                className={effectiveEntity === k ? 'active' : ''}
-                onClick={() => setEntityFilter(k)}
-                disabled={availableEntities.length === 1}
+                className={(effectiveModule === 'operations' ? effectiveEntityOperations : effectiveEntity) === k ? 'active' : ''}
+                onClick={() => (effectiveModule === 'operations' ? setEntityFilterOperations(k) : setEntityFilter(k))}
+                disabled={(effectiveModule === 'operations' ? availableEntitiesOperations : availableEntities).length === 1}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -151,7 +237,17 @@ export function App() {
               </button>
             ))}
           </div>
-          {isAdmin && (
+          {availableModules.length > 1 && (
+            <button
+              className="theme-toggle"
+              onClick={() => setModule(effectiveModule === 'operations' ? 'recouvrement' : 'operations')}
+              title={effectiveModule === 'operations' ? 'Passer au module Recouvrement' : 'Passer au module Opérations'}
+              aria-label="Changer de module"
+            >
+              <Repeat size={16} />
+            </button>
+          )}
+          {isAdmin && effectiveModule === 'recouvrement' && (
             <div className="admin-menu" ref={adminMenuRef}>
               <button className="admin-menu-trigger" onClick={() => setAdminMenuOpen((v) => !v)}>
                 Administration <ChevronDown size={14} />
@@ -213,31 +309,39 @@ export function App() {
             </div>
             <div className="topbar-user-info">
               <strong>{user.nom}</strong>
-              <div className="role-badge">{ROLE_LABELS[user.role] ?? user.role}</div>
+              <div className="role-badge">
+                {effectiveModule === 'operations' ? ROLE_OPERATIONS_LABELS[user.roleOperations!] : ROLE_LABELS[user.role] ?? user.role}
+              </div>
             </div>
           </div>
           <button onClick={() => logout()}>Déconnexion</button>
         </div>
       </div>
 
-      <div className="main-tabs">
-        <button className={view === 'recouvrement' ? 'active' : ''} onClick={() => setView('recouvrement')}>
-          Recouvrement
-        </button>
-        <button className={view === 'contrats' ? 'active' : ''} onClick={() => setView('contrats')}>
-          Échéances de contrats
-        </button>
-        <button className={view === 'planning' ? 'active' : ''} onClick={() => setView('planning')}>
-          Planning des coursiers
-        </button>
-      </div>
-
-      {view === 'recouvrement' ? (
-        <RecouvrementView entityFilter={effectiveEntity} role={user.role} reloadKey={dataVersion} />
-      ) : view === 'contrats' ? (
-        <ContractsView entityFilter={effectiveEntity} role={user.role} reloadKey={dataVersion} />
+      {effectiveModule === 'operations' ? (
+        <OperationsView entityFilter={effectiveEntityOperations} user={user} reloadKey={dataVersion} />
       ) : (
-        <PlanningView entityFilter={effectiveEntity} role={user.role} />
+        <>
+          <div className="main-tabs">
+            <button className={view === 'recouvrement' ? 'active' : ''} onClick={() => setView('recouvrement')}>
+              Recouvrement
+            </button>
+            <button className={view === 'contrats' ? 'active' : ''} onClick={() => setView('contrats')}>
+              Échéances de contrats
+            </button>
+            <button className={view === 'planning' ? 'active' : ''} onClick={() => setView('planning')}>
+              Planning des coursiers
+            </button>
+          </div>
+
+          {view === 'recouvrement' ? (
+            <RecouvrementView entityFilter={effectiveEntity} role={user.role} reloadKey={dataVersion} />
+          ) : view === 'contrats' ? (
+            <ContractsView entityFilter={effectiveEntity} role={user.role} reloadKey={dataVersion} />
+          ) : (
+            <PlanningView entityFilter={effectiveEntity} role={user.role} />
+          )}
+        </>
       )}
 
       {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} onSaved={bumpDataVersion} />}

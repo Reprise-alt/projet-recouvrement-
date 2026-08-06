@@ -12,6 +12,8 @@ export interface Entreprise {
   actif: boolean;
 }
 
+export type RoleOperations = 'directrice_operations' | 'charge_compte' | 'direction_generale';
+
 export interface CurrentUser {
   id: string;
   nom: string;
@@ -19,6 +21,8 @@ export interface CurrentUser {
   role: RoleUtilisateur;
   entite: Entite | null;
   estAgentRecouvrement: boolean;
+  accesRecouvrement: boolean;
+  roleOperations: RoleOperations | null;
   derniereConnexion?: string | null;
 }
 
@@ -402,6 +406,206 @@ export interface CoursierTachesPubliques {
 export interface SalleTachesResponse {
   taches: TacheCoursier[];
   coursiers: Coursier[];
+}
+
+// ============================================================================
+// Module Opérations -- suivi relationnel du portefeuille (SORAM/IRIS),
+// volontairement sans aucun champ financier (cf. cahier des charges §1/§7).
+// ============================================================================
+
+export type Secteur =
+  | 'education'
+  | 'administration'
+  | 'sante'
+  | 'hotellerie'
+  | 'distribution'
+  | 'agro'
+  | 'btp'
+  | 'banque'
+  | 'telecom'
+  | 'industrie'
+  | 'logistique'
+  | 'maritime'
+  | 'utilities'
+  | 'mines'
+  | 'ong'
+  | 'it'
+  | 'services'
+  | 'autre';
+
+export type Criticite = 'A' | 'B' | 'C';
+export type Climat = 'vert' | 'orange' | 'rouge';
+export type GraviteProbleme = 'gene' | 'bloquant';
+export type MotifResiliation = 'prix' | 'qualite' | 'suivi' | 'litige' | 'ao' | 'perimetre' | 'internal' | 'cessation' | 'autre';
+export type Tone = 'success' | 'amber' | 'danger';
+
+export interface ClientOperationsIdentite {
+  id: string;
+  nom: string;
+  entite: Entite;
+  codeClient: string | null;
+  contact: string | null;
+  email: string | null;
+  tel: string | null;
+}
+
+export interface ScoresAxes {
+  contact: number;
+  climat: number;
+  problemes: number;
+  engagements: number;
+  global: number;
+}
+
+export interface ProblemeOperations {
+  id: string;
+  clientOperationsId: string;
+  texte: string;
+  gravite: GraviteProbleme;
+  ouvertLe: string;
+  resoluLe: string | null;
+}
+
+export interface ReleveHebdo {
+  id: string;
+  clientOperationsId: string;
+  semaineIso: string;
+  date: string;
+  score: number;
+  commentaire: string | null;
+  action: string | null;
+}
+
+export interface EtapeDemarrageConfig {
+  id: string;
+  entite: Entite;
+  cle: string;
+  libelle: string;
+  delaiJours: number;
+  ordre: number;
+}
+
+export interface EtapeDemarrageFait {
+  id: string;
+  clientOperationsId: string;
+  cle: string;
+  date: string;
+}
+
+export interface DemarrageEtat {
+  age: number;
+  nbFaits: number;
+  total: number;
+  pct: number;
+  restantes: EtapeDemarrageConfig[];
+  retard: EtapeDemarrageConfig[];
+}
+
+export interface ClientOperationsRow {
+  id: string;
+  client: ClientOperationsIdentite;
+  secteur: Secteur;
+  criticite: Criticite;
+  vip: boolean;
+  chargeDeCompte: { id: string; nom: string } | null;
+  dernierContact: string | null;
+  climat: Climat | null;
+  dernierReleve: string | null;
+  resilie: boolean;
+  problemesOuverts: number;
+  problemesBloquants: number;
+  scores: ScoresAxes;
+  tone: Tone;
+}
+
+export interface ClientOperationsDetail {
+  id: string;
+  clientId: string;
+  secteur: Secteur;
+  criticite: Criticite;
+  vip: boolean;
+  chargeDeCompteId: string | null;
+  chargeDeCompte: { id: string; nom: string } | null;
+  debutContrat: string | null;
+  finContrat: string | null;
+  dernierContact: string | null;
+  climat: Climat | null;
+  commentaire: string | null;
+  action: string | null;
+  actionEcheance: string | null;
+  actionFait: boolean;
+  demarreLe: string | null;
+  demarrageCloture: boolean;
+  dernierCopil: string | null;
+  enjeux: string | null;
+  dernierReleve: string | null;
+  resilie: boolean;
+  dateResiliation: string | null;
+  motifResiliation: MotifResiliation | null;
+  motifDetail: string | null;
+  client: ClientOperationsIdentite;
+  problemes: ProblemeOperations[];
+  releves: ReleveHebdo[];
+  etapesDemarrage: EtapeDemarrageFait[];
+  scores: ScoresAxes;
+  tone: Tone;
+  demarrage: DemarrageEtat | null;
+}
+
+export interface AlerteClient {
+  niveau: 'vigilance' | 'risque';
+  titre: string;
+  detail: string;
+  clientId: string;
+  clientNom: string;
+  vip: boolean;
+  criticite: Criticite;
+}
+
+export interface CockpitCompteurs {
+  problemesOuverts: number;
+  horsRegleContact: number;
+  copilDuMois: number;
+  engagementsEnRetard: number;
+  releveDeLaSemaine: number;
+  totalPortefeuille: number;
+}
+
+export interface CockpitResponse {
+  compteurs: CockpitCompteurs;
+  alertes: AlerteClient[];
+  demarragesEnCours: { id: string; client: ClientOperationsIdentite; etat: DemarrageEtat }[];
+}
+
+export interface ReleveFileEntry {
+  id: string;
+  client: ClientOperationsIdentite;
+  vip: boolean;
+  criticite: Criticite;
+  releveFait: boolean;
+  scores: ScoresAxes;
+}
+
+export interface ConfigOperations {
+  id: number;
+  contactStdVigilance: number;
+  contactStdRisque: number;
+  contactVipVigilance: number;
+  contactVipRisque: number;
+  problemeVigilanceJours: number;
+  problemeRisqueJours: number;
+  problemeBloquantRisqueJours: number;
+  demarrageRisqueRetardJours: number;
+  finContratVigilanceJours: number;
+  finContratRisqueJours: number;
+}
+
+export interface FenetreSaisonniere {
+  secteur: Secteur;
+  label: string;
+  mois: number;
+  jour: number;
+  anticipationJours: number;
 }
 
 export interface ImportSummary {
