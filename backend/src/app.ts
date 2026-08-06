@@ -13,6 +13,7 @@ import { entreprisesRouter } from './routes/entreprises';
 import { reportingRouter } from './routes/reporting';
 import { contactRouter } from './routes/contact';
 import { tachesRouter } from './routes/taches';
+import { operationsRouter } from './routes/operations';
 import { coursierPublicRouter } from './routes/coursierPublic';
 import { sallePublicRouter } from './routes/sallePublic';
 import { errorHandler } from './middleware/errorHandler';
@@ -40,6 +41,7 @@ export function createApp() {
   app.use('/api/reporting', reportingRouter);
   app.use('/api/contact', contactRouter);
   app.use('/api/taches', tachesRouter);
+  app.use('/api/operations', operationsRouter);
   app.use('/api/coursier-public', coursierPublicRouter);
   app.use('/api/salle-public', sallePublicRouter);
 

@@ -1,0 +1,607 @@
+import { Router } from 'express';
+import { prisma } from '../db';
+import { Entite } from '../lib/entites';
+import { chargeDeCompteWhere, resolveEntiteScopeOperations, userCanAccessEntiteOperations } from '../lib/operationsAuth';
+import { requireAuth, requireModuleOperations } from '../middleware/auth';
+import {
+  alertesClient,
+  couleurScore,
+  DEFAULT_CONFIG_OPERATIONS,
+  etatDemarrage,
+  scoresClient,
+  semaineIsoKey,
+  trierAlertes,
+  type ConfigOperationsLike,
+  type EtapeDemarrageConfigLike,
+  type ProblemeLike,
+} from '../lib/operations';
+
+export const operationsRouter = Router();
+operationsRouter.use(requireAuth, requireModuleOperations());
+
+// Sélection Client volontairement minimale et sans jointure facture/contrat :
+// le module Opérations ne doit jamais pouvoir renvoyer une donnée
+// financière, même à un utilisateur qui aurait par ailleurs accès au
+// recouvrement (cahier §7 -- "aucune donnée financière ne doit apparaître
+// dans l'interface des directrices des opérations"). Appliqué une fois ici
+// plutôt que recopié dans chaque route, pour qu'un oubli futur ne puisse pas
+// réintroduire un champ montant par erreur.
+const CLIENT_SELECT = { id: true, nom: true, entite: true, codeClient: true, contact: true, email: true, tel: true } as const;
+
+function entiteWhereClient(entiteFilter: Entite | 'ALL') {
+  if (entiteFilter === 'ALL') return {};
+  return { entite: entiteFilter };
+}
+
+async function getConfig(): Promise<ConfigOperationsLike> {
+  const row = await prisma.configOperations.upsert({ where: { id: 1 }, create: { id: 1 }, update: {} });
+  return row;
+}
+
+async function getEtapesConfig(entite: string): Promise<EtapeDemarrageConfigLike[]> {
+  return prisma.etapeDemarrageConfig.findMany({ where: { entite }, orderBy: { ordre: 'asc' } });
+}
+
+function toProblemeLike(p: { gravite: string; ouvertLe: Date; resoluLe: Date | null }): ProblemeLike {
+  return { gravite: p.gravite as 'gene' | 'bloquant', ouvertLe: p.ouvertLe, resoluLe: p.resoluLe };
+}
+
+/* ---------- Config & nomenclatures paramétrables ---------- */
+
+operationsRouter.get('/config', async (_req, res, next) => {
+  try {
+    res.json(await getConfig());
+  } catch (err) {
+    next(err);
+  }
+});
+
+operationsRouter.patch('/config', requireModuleOperations('direction_generale'), async (req, res, next) => {
+  try {
+    const body = req.body ?? {};
+    const allowed: (keyof ConfigOperationsLike)[] = [
+      'contactStdVigilance',
+      'contactStdRisque',
+      'contactVipVigilance',
+      'contactVipRisque',
+      'problemeVigilanceJours',
+      'problemeRisqueJours',
+      'problemeBloquantRisqueJours',
+      'demarrageRisqueRetardJours',
+      'finContratVigilanceJours',
+      'finContratRisqueJours',
+    ];
+    const data: Record<string, number> = {};
+    for (const key of allowed) {
+      if (body[key] != null && !isNaN(Number(body[key]))) data[key] = Number(body[key]);
+    }
+    const updated = await prisma.configOperations.upsert({ where: { id: 1 }, create: { id: 1, ...data }, update: data });
+    res.json(updated);
+  } catch (err) {
+    next(err);
+  }
+});
+
+operationsRouter.get('/etapes-demarrage', async (req, res, next) => {
+  try {
+    const entite = typeof req.query.entite === 'string' ? req.query.entite : undefined;
+    if (entite && !userCanAccessEntiteOperations(req.user!, entite)) {
+      return res.status(403).json({ error: 'Accès refusé — hors du périmètre de votre compte' });
+    }
+    const etapes = await prisma.etapeDemarrageConfig.findMany({
+      where: entite ? { entite } : {},
+      orderBy: [{ entite: 'asc' }, { ordre: 'asc' }],
+    });
+    res.json(etapes);
+  } catch (err) {
+    next(err);
+  }
+});
+
+operationsRouter.patch('/etapes-demarrage/:id', requireModuleOperations('direction_generale'), async (req, res, next) => {
+  try {
+    const { libelle, delaiJours, ordre } = req.body ?? {};
+    const data: Record<string, unknown> = {};
+    if (libelle != null) data.libelle = String(libelle);
+    if (delaiJours != null && !isNaN(Number(delaiJours))) data.delaiJours = Number(delaiJours);
+    if (ordre != null && !isNaN(Number(ordre))) data.ordre = Number(ordre);
+    const updated = await prisma.etapeDemarrageConfig.update({ where: { id: req.params.id }, data });
+    res.json(updated);
+  } catch (err) {
+    next(err);
+  }
+});
+
+operationsRouter.get('/fenetres-saisonnieres', async (_req, res, next) => {
+  try {
+    res.json(await prisma.fenetreSaisonniere.findMany());
+  } catch (err) {
+    next(err);
+  }
+});
+
+operationsRouter.patch('/fenetres-saisonnieres/:secteur', requireModuleOperations('direction_generale'), async (req, res, next) => {
+  try {
+    const { mois, jour, anticipationJours, label } = req.body ?? {};
+    const data: Record<string, unknown> = {};
+    if (mois != null && !isNaN(Number(mois))) data.mois = Number(mois);
+    if (jour != null && !isNaN(Number(jour))) data.jour = Number(jour);
+    if (anticipationJours != null && !isNaN(Number(anticipationJours))) data.anticipationJours = Number(anticipationJours);
+    if (label != null) data.label = String(label);
+    const updated = await prisma.fenetreSaisonniere.update({ where: { secteur: req.params.secteur as any }, data });
+    res.json(updated);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* ---------- Portefeuille ---------- */
+
+operationsRouter.get('/portefeuille', async (req, res, next) => {
+  try {
+    const entiteFilter = resolveEntiteScopeOperations(req.user!, req.query.entite);
+    const rows = await prisma.clientOperations.findMany({
+      where: { client: entiteWhereClient(entiteFilter), ...chargeDeCompteWhere(req.user!) },
+      include: {
+        client: { select: CLIENT_SELECT },
+        problemes: true,
+        chargeDeCompte: { select: { id: true, nom: true } },
+      },
+    });
+
+    const config = await getConfig();
+    const etapesParEntite = new Map<string, EtapeDemarrageConfigLike[]>();
+    for (const entite of new Set(rows.map((r) => r.client.entite))) {
+      etapesParEntite.set(entite, await getEtapesConfig(entite));
+    }
+
+    const portefeuille = rows.map((r) => {
+      const problemes = r.problemes.map(toProblemeLike);
+      const scores = scoresClient(
+        {
+          vip: r.vip,
+          dernierContact: r.dernierContact,
+          climat: r.climat,
+          action: r.action,
+          actionEcheance: r.actionEcheance,
+          actionFait: r.actionFait,
+          dernierCopil: r.dernierCopil,
+          demarreLe: r.demarreLe,
+          demarrageCloture: r.demarrageCloture,
+          resilie: r.resilie,
+          problemes,
+        },
+        etapesParEntite.get(r.client.entite) ?? [],
+        [], // faits de démarrage non chargés en liste (perf) -- l'étape "en retard" suffit ici, cf. fiche détail pour le détail
+        config,
+      );
+      return {
+        id: r.id,
+        client: r.client,
+        secteur: r.secteur,
+        criticite: r.criticite,
+        vip: r.vip,
+        chargeDeCompte: r.chargeDeCompte,
+        dernierContact: r.dernierContact,
+        climat: r.climat,
+        dernierReleve: r.dernierReleve,
+        resilie: r.resilie,
+        problemesOuverts: problemes.filter((p) => !p.resoluLe).length,
+        problemesBloquants: problemes.filter((p) => !p.resoluLe && p.gravite === 'bloquant').length,
+        scores,
+        tone: couleurScore(scores.global),
+      };
+    });
+
+    res.json(portefeuille);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* ---------- Cockpit ---------- */
+
+operationsRouter.get('/cockpit', async (req, res, next) => {
+  try {
+    const entiteFilter = resolveEntiteScopeOperations(req.user!, req.query.entite);
+    const rows = await prisma.clientOperations.findMany({
+      where: { client: entiteWhereClient(entiteFilter), resilie: false, ...chargeDeCompteWhere(req.user!) },
+      include: { client: { select: CLIENT_SELECT }, problemes: true },
+    });
+
+    const config = await getConfig();
+    const etapesParEntite = new Map<string, EtapeDemarrageConfigLike[]>();
+    const fenetres = await prisma.fenetreSaisonniere.findMany();
+    const fenetreParSecteur = new Map(fenetres.map((f) => [f.secteur, f]));
+    for (const entite of new Set(rows.map((r) => r.client.entite))) {
+      etapesParEntite.set(entite, await getEtapesConfig(entite));
+    }
+
+    const now = new Date();
+    const toutesAlertes = rows.flatMap((r) => {
+      const problemes = r.problemes.map(toProblemeLike);
+      return alertesClient(
+        {
+          id: r.id,
+          nom: r.client.nom,
+          criticite: r.criticite,
+          vip: r.vip,
+          finContrat: r.finContrat,
+          dernierContact: r.dernierContact,
+          climat: r.climat,
+          action: r.action,
+          actionEcheance: r.actionEcheance,
+          actionFait: r.actionFait,
+          dernierCopil: r.dernierCopil,
+          demarreLe: r.demarreLe,
+          demarrageCloture: r.demarrageCloture,
+          resilie: r.resilie,
+          problemes,
+        },
+        etapesParEntite.get(r.client.entite) ?? [],
+        [],
+        fenetreParSecteur.get(r.secteur) ?? null,
+        config,
+      );
+    });
+    const alertesTriees = trierAlertes(toutesAlertes);
+
+    const problemesOuvertsCount = rows.reduce((s, r) => s + r.problemes.filter((p) => !p.resoluLe).length, 0);
+    const horsRegleContact = rows.filter((r) => {
+      const depuis = r.dernierContact ? Math.floor((now.getTime() - new Date(r.dernierContact).getTime()) / 86400000) : null;
+      const seuilRisque = r.vip ? config.contactVipRisque : config.contactStdRisque;
+      return depuis == null || depuis >= seuilRisque;
+    }).length;
+    const copilDuMois = rows.filter((r) => r.vip && r.dernierCopil && new Date(r.dernierCopil).getMonth() === now.getMonth() && new Date(r.dernierCopil).getFullYear() === now.getFullYear()).length;
+    const engagementsEnRetard = rows.filter((r) => r.action && !r.actionFait && r.actionEcheance && new Date(r.actionEcheance) < now).length;
+    const releveDeLaSemaine = rows.filter((r) => r.dernierReleve && semaineIsoKey(r.dernierReleve) === semaineIsoKey(now)).length;
+
+    const demarragesEnCours = rows
+      .map((r) => ({
+        client: r.client,
+        etat: etatDemarrage(r, etapesParEntite.get(r.client.entite) ?? [], []),
+      }))
+      .filter((d) => d.etat != null);
+
+    res.json({
+      compteurs: {
+        problemesOuverts: problemesOuvertsCount,
+        horsRegleContact,
+        copilDuMois,
+        engagementsEnRetard,
+        releveDeLaSemaine,
+        totalPortefeuille: rows.length,
+      },
+      alertes: alertesTriees,
+      demarragesEnCours,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* ---------- Fiche compte ---------- */
+
+operationsRouter.get('/clients/:id', async (req, res, next) => {
+  try {
+    const co = await prisma.clientOperations.findUnique({
+      where: { id: req.params.id },
+      include: {
+        client: { select: CLIENT_SELECT },
+        problemes: { orderBy: { ouvertLe: 'desc' } },
+        releves: { orderBy: { date: 'desc' }, take: 52 },
+        etapesDemarrage: true,
+        chargeDeCompte: { select: { id: true, nom: true } },
+      },
+    });
+    if (!co) return res.status(404).json({ error: 'Compte introuvable' });
+    if (!userCanAccessEntiteOperations(req.user!, co.client.entite)) {
+      return res.status(403).json({ error: 'Accès refusé — hors du périmètre de votre compte' });
+    }
+    if (req.user!.roleOperations === 'charge_compte' && co.chargeDeCompteId !== req.user!.id) {
+      return res.status(403).json({ error: 'Accès refusé — ce compte ne vous est pas rattaché' });
+    }
+
+    const config = await getConfig();
+    const etapesConfig = await getEtapesConfig(co.client.entite);
+    const problemes = co.problemes.map(toProblemeLike);
+    const scores = scoresClient(co, etapesConfig, co.etapesDemarrage, config);
+    const demarrage = etatDemarrage(co, etapesConfig, co.etapesDemarrage);
+
+    res.json({ ...co, scores, tone: couleurScore(scores.global), demarrage });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Création d'une fiche Opérations -- rattachée à un Client existant
+// (identifié par codeClient+entite ou nom+entite) ou à un Client créé à la
+// volée si aucun ne correspond. `demarrerSuivi` est explicite plutôt
+// qu'automatique : contrairement à un tout nouveau produit, cette
+// plateforme rattache aussi des comptes déjà anciens -- les faire démarrer
+// un suivi "90 premiers jours" par défaut créerait de fausses alertes de
+// retard sur tout le portefeuille existant dès la mise en service.
+operationsRouter.post('/clients', requireModuleOperations('directrice_operations', 'direction_generale'), async (req, res, next) => {
+  try {
+    const { nom, entite, codeClient, secteur, criticite, vip, chargeDeCompteId, debutContrat, finContrat, demarrerSuivi } = req.body ?? {};
+    if (!nom || !entite) return res.status(400).json({ error: 'Nom et entité requis' });
+    if (!userCanAccessEntiteOperations(req.user!, entite)) {
+      return res.status(403).json({ error: 'Accès refusé — hors du périmètre de votre compte' });
+    }
+    if (!secteur) return res.status(400).json({ error: 'Secteur requis' });
+
+    let client = await prisma.client.findUnique({ where: { nom_entite: { nom, entite } } });
+    if (!client) {
+      client = await prisma.client.create({ data: { nom, entite, codeClient: codeClient || null } });
+    } else if (codeClient && !client.codeClient) {
+      client = await prisma.client.update({ where: { id: client.id }, data: { codeClient } });
+    }
+
+    const existing = await prisma.clientOperations.findUnique({ where: { clientId: client.id } });
+    if (existing) return res.status(409).json({ error: 'Ce client a déjà une fiche Opérations', clientOperationsId: existing.id });
+
+    const co = await prisma.clientOperations.create({
+      data: {
+        clientId: client.id,
+        secteur,
+        criticite: criticite ?? 'C',
+        vip: !!vip,
+        chargeDeCompteId: chargeDeCompteId || null,
+        debutContrat: debutContrat ? new Date(debutContrat) : null,
+        finContrat: finContrat ? new Date(finContrat) : null,
+        demarreLe: demarrerSuivi ? new Date() : null,
+      },
+      include: { client: { select: CLIENT_SELECT } },
+    });
+    res.status(201).json(co);
+  } catch (err) {
+    next(err);
+  }
+});
+
+async function loadScoped(req: { user?: any }, id: string) {
+  const co = await prisma.clientOperations.findUnique({ where: { id }, include: { client: { select: CLIENT_SELECT } } });
+  if (!co) return { error: 404 as const, body: { error: 'Compte introuvable' } };
+  if (!userCanAccessEntiteOperations(req.user!, co.client.entite)) {
+    return { error: 403 as const, body: { error: 'Accès refusé — hors du périmètre de votre compte' } };
+  }
+  if (req.user!.roleOperations === 'charge_compte' && co.chargeDeCompteId !== req.user!.id) {
+    return { error: 403 as const, body: { error: 'Accès refusé — ce compte ne vous est pas rattaché' } };
+  }
+  return { co };
+}
+
+operationsRouter.patch('/clients/:id', async (req, res, next) => {
+  try {
+    const scoped = await loadScoped(req, req.params.id);
+    if (scoped.error) return res.status(scoped.error).json(scoped.body);
+
+    const body = req.body ?? {};
+    const data: Record<string, unknown> = {};
+    const stringFields = ['secteur', 'criticite', 'climat', 'commentaire', 'action', 'enjeux', 'motifDetail'];
+    const boolFields = ['vip', 'actionFait', 'demarrageCloture'];
+    const dateFields = ['dernierContact', 'debutContrat', 'finContrat', 'actionEcheance', 'demarreLe', 'dernierCopil'];
+    for (const f of stringFields) if (body[f] !== undefined) data[f] = body[f];
+    for (const f of boolFields) if (body[f] !== undefined) data[f] = !!body[f];
+    for (const f of dateFields) if (body[f] !== undefined) data[f] = body[f] ? new Date(body[f]) : null;
+    if (body.chargeDeCompteId !== undefined) data.chargeDeCompteId = body.chargeDeCompteId || null;
+
+    const updated = await prisma.clientOperations.update({
+      where: { id: req.params.id },
+      data,
+      include: { client: { select: CLIENT_SELECT } },
+    });
+    res.json(updated);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* ---------- Relevé hebdomadaire ---------- */
+
+operationsRouter.post('/clients/:id/releve', async (req, res, next) => {
+  try {
+    const scoped = await loadScoped(req, req.params.id);
+    if (scoped.error) return res.status(scoped.error).json(scoped.body);
+    const co = scoped.co!;
+
+    const { dernierContact, climat, commentaire, action, actionEcheance, actionFait, problemesResolus, problemesNouveaux } = req.body ?? {};
+
+    await prisma.$transaction(async (tx) => {
+      if (Array.isArray(problemesResolus) && problemesResolus.length) {
+        await tx.problemeOperations.updateMany({
+          where: { id: { in: problemesResolus }, clientOperationsId: co.id },
+          data: { resoluLe: new Date() },
+        });
+      }
+      if (Array.isArray(problemesNouveaux)) {
+        for (const p of problemesNouveaux) {
+          if (!p?.texte || !p?.gravite) continue;
+          await tx.problemeOperations.create({
+            data: { clientOperationsId: co.id, texte: p.texte, gravite: p.gravite, ouvertLe: new Date() },
+          });
+        }
+      }
+      await tx.clientOperations.update({
+        where: { id: co.id },
+        data: {
+          dernierContact: dernierContact ? new Date(dernierContact) : co.dernierContact,
+          climat: climat ?? undefined,
+          commentaire: commentaire ?? undefined,
+          action: action !== undefined ? action : undefined,
+          actionEcheance: actionEcheance !== undefined ? (actionEcheance ? new Date(actionEcheance) : null) : undefined,
+          actionFait: actionFait !== undefined ? !!actionFait : undefined,
+          dernierReleve: new Date(),
+        },
+      });
+    });
+
+    const full = await prisma.clientOperations.findUniqueOrThrow({
+      where: { id: co.id },
+      include: { problemes: true, etapesDemarrage: true },
+    });
+    const config = await getConfig();
+    const etapesConfig = await getEtapesConfig(co.client.entite);
+    const scores = scoresClient(full, etapesConfig, full.etapesDemarrage, config);
+
+    const releve = await prisma.releveHebdo.upsert({
+      where: { clientOperationsId_semaineIso: { clientOperationsId: co.id, semaineIso: semaineIsoKey() } },
+      create: {
+        clientOperationsId: co.id,
+        semaineIso: semaineIsoKey(),
+        score: scores.global,
+        commentaire: commentaire ?? null,
+        action: action ?? null,
+      },
+      update: { score: scores.global, commentaire: commentaire ?? null, action: action ?? null, date: new Date() },
+    });
+
+    res.json({ releve, scores });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// File du relevé hebdo (cahier §6) : non relevés d'abord (cette semaine
+// ISO), puis VIP, puis criticité, puis score global croissant (le plus
+// fragile en premier).
+operationsRouter.get('/releve-file', async (req, res, next) => {
+  try {
+    const entiteFilter = resolveEntiteScopeOperations(req.user!, req.query.entite);
+    const rows = await prisma.clientOperations.findMany({
+      where: { client: entiteWhereClient(entiteFilter), resilie: false, ...chargeDeCompteWhere(req.user!) },
+      include: { client: { select: CLIENT_SELECT }, problemes: true, etapesDemarrage: true },
+    });
+    const config = await getConfig();
+    const etapesParEntite = new Map<string, EtapeDemarrageConfigLike[]>();
+    for (const entite of new Set(rows.map((r) => r.client.entite))) {
+      etapesParEntite.set(entite, await getEtapesConfig(entite));
+    }
+    const semaine = semaineIsoKey();
+    const rang: Record<'A' | 'B' | 'C', number> = { A: 0, B: 1, C: 2 };
+
+    const file = rows
+      .map((r) => {
+        const scores = scoresClient(r, etapesParEntite.get(r.client.entite) ?? [], r.etapesDemarrage, config);
+        return {
+          id: r.id,
+          client: r.client,
+          vip: r.vip,
+          criticite: r.criticite,
+          releveFait: !!r.dernierReleve && semaineIsoKey(r.dernierReleve) === semaine,
+          scores,
+        };
+      })
+      .sort(
+        (a, b) =>
+          (a.releveFait === b.releveFait ? 0 : a.releveFait ? 1 : -1) ||
+          (b.vip ? 1 : 0) - (a.vip ? 1 : 0) ||
+          rang[a.criticite] - rang[b.criticite] ||
+          a.scores.global - b.scores.global,
+      );
+
+    res.json(file);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* ---------- Problèmes ---------- */
+
+operationsRouter.post('/clients/:id/problemes', async (req, res, next) => {
+  try {
+    const scoped = await loadScoped(req, req.params.id);
+    if (scoped.error) return res.status(scoped.error).json(scoped.body);
+    const { texte, gravite } = req.body ?? {};
+    if (!texte || !['gene', 'bloquant'].includes(gravite)) return res.status(400).json({ error: 'Texte et gravité requis' });
+
+    const probleme = await prisma.problemeOperations.create({
+      data: { clientOperationsId: req.params.id, texte, gravite, ouvertLe: new Date() },
+    });
+    res.status(201).json(probleme);
+  } catch (err) {
+    next(err);
+  }
+});
+
+operationsRouter.patch('/clients/:id/problemes/:problemeId', async (req, res, next) => {
+  try {
+    const scoped = await loadScoped(req, req.params.id);
+    if (scoped.error) return res.status(scoped.error).json(scoped.body);
+    const probleme = await prisma.problemeOperations.update({
+      where: { id: req.params.problemeId },
+      data: { resoluLe: new Date() },
+    });
+    res.json(probleme);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* ---------- Démarrage de contrat ---------- */
+
+operationsRouter.post('/clients/:id/demarrage/:cle', async (req, res, next) => {
+  try {
+    const scoped = await loadScoped(req, req.params.id);
+    if (scoped.error) return res.status(scoped.error).json(scoped.body);
+    const fait = await prisma.etapeDemarrageFait.upsert({
+      where: { clientOperationsId_cle: { clientOperationsId: req.params.id, cle: req.params.cle } },
+      create: { clientOperationsId: req.params.id, cle: req.params.cle },
+      update: {},
+    });
+    res.status(201).json(fait);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* ---------- COPIL ---------- */
+
+operationsRouter.post('/clients/:id/copil', async (req, res, next) => {
+  try {
+    const scoped = await loadScoped(req, req.params.id);
+    if (scoped.error) return res.status(scoped.error).json(scoped.body);
+    const updated = await prisma.clientOperations.update({ where: { id: req.params.id }, data: { dernierCopil: new Date() } });
+    res.json(updated);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* ---------- Résiliation ---------- */
+
+operationsRouter.post('/clients/:id/resiliation', async (req, res, next) => {
+  try {
+    const scoped = await loadScoped(req, req.params.id);
+    if (scoped.error) return res.status(scoped.error).json(scoped.body);
+    const { motif, detail, date } = req.body ?? {};
+    if (!motif) return res.status(400).json({ error: 'Motif requis' });
+
+    const updated = await prisma.clientOperations.update({
+      where: { id: req.params.id },
+      data: {
+        resilie: true,
+        dateResiliation: date ? new Date(date) : new Date(),
+        motifResiliation: motif,
+        motifDetail: detail ?? null,
+      },
+    });
+    res.json(updated);
+  } catch (err) {
+    next(err);
+  }
+});
+
+operationsRouter.post('/clients/:id/reactiver', async (req, res, next) => {
+  try {
+    const scoped = await loadScoped(req, req.params.id);
+    if (scoped.error) return res.status(scoped.error).json(scoped.body);
+    const updated = await prisma.clientOperations.update({
+      where: { id: req.params.id },
+      data: { resilie: false, dateResiliation: null, motifResiliation: null, motifDetail: null },
+    });
+    res.json(updated);
+  } catch (err) {
+    next(err);
+  }
+});

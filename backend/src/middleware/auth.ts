@@ -3,12 +3,17 @@ import { prisma } from '../db';
 import { Entite, RoleUtilisateur, userCanAccessEntite } from '../lib/entites';
 import { extractEmailFromToken } from '../lib/verifyToken';
 
+export type RoleOperations = 'directrice_operations' | 'charge_compte' | 'direction_generale';
+
 export interface AuthedUser {
   id: string;
   nom: string;
   email: string;
   role: RoleUtilisateur;
   entite: Entite | null;
+  // Accès au module Opérations -- null = aucun accès, distinct et orthogonal
+  // du rôle recouvrement ci-dessus (cf. schema.prisma:RoleOperations).
+  roleOperations: RoleOperations | null;
 }
 
 declare global {
@@ -48,6 +53,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     email: utilisateur.email,
     role: utilisateur.role as RoleUtilisateur,
     entite: (utilisateur.entite as Entite | null) ?? null,
+    roleOperations: (utilisateur.roleOperations as RoleOperations | null) ?? null,
   };
   next();
 }
@@ -56,6 +62,22 @@ export function requireRole(...roles: RoleUtilisateur[]) {
   return (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return res.status(401).json({ error: 'Authentification requise' });
     if (!roles.includes(req.user.role)) {
+      return res.status(403).json({ error: 'Accès refusé pour ce rôle' });
+    }
+    next();
+  };
+}
+
+// Porte d'entrée du module Opérations -- roleOperations null = jamais
+// provisionné pour ce module, quel que soit le rôle recouvrement par
+// ailleurs (les deux sont orthogonaux, cf. AuthedUser.roleOperations).
+export function requireModuleOperations(...roles: RoleOperations[]) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (!req.user) return res.status(401).json({ error: 'Authentification requise' });
+    if (!req.user.roleOperations) {
+      return res.status(403).json({ error: "Accès refusé — pas d'accès au module Opérations" });
+    }
+    if (roles.length && !roles.includes(req.user.roleOperations)) {
       return res.status(403).json({ error: 'Accès refusé pour ce rôle' });
     }
     next();
