@@ -241,7 +241,7 @@ export function ReportingView({ entityFilter, role }: Props) {
                 </div>
                 <div className="kpi">
                   <div className="kpi-label">Montant encaissé</div>
-                  <div className="kpi-value">{fmtFCFA(summary.facturesPayees.montantTotal)}</div>
+                  <div className="kpi-value currency">{fmtFCFA(summary.facturesPayees.montantTotal)}</div>
                 </div>
                 <div className="kpi">
                   <div className="kpi-label">Délai moyen d'encaissement (pondéré)</div>

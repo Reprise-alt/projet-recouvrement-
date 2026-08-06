@@ -126,7 +126,7 @@ export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
       <div className="kpis">
         <div className="kpi">
           <div className="kpi-label"><Wallet size={13} /> Encours total</div>
-          <div className="kpi-value">{kpis.data ? fmtFCFA(kpis.data.totalEncours) : '—'}</div>
+          <div className="kpi-value currency">{kpis.data ? fmtFCFA(kpis.data.totalEncours) : '—'}</div>
         </div>
         <div className="kpi">
           <div className="kpi-label"><Users size={13} /> Clients en retard</div>
@@ -134,7 +134,7 @@ export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
         </div>
         <div className="kpi">
           <div className="kpi-label"><Gavel size={13} /> En contentieux (palier ≥ 6)</div>
-          <div className="kpi-value danger">{kpis.data ? fmtFCFA(kpis.data.contentieux) : '—'}</div>
+          <div className="kpi-value danger currency">{kpis.data ? fmtFCFA(kpis.data.contentieux) : '—'}</div>
         </div>
         <div className="kpi">
           <div className="kpi-label"><Mail size={13} /> Courriers formels à traiter</div>

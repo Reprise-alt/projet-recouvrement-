@@ -122,6 +122,7 @@ button.danger-btn:hover:not(:disabled){border-color:var(--danger);color:var(--da
 .kpi-value.danger{color:var(--danger);}
 .kpi-value.amber{color:var(--amber);}
 .kpi-value.success{color:var(--success);}
+.kpi-value.currency{font-size:18px;white-space:nowrap;}
 .kpi-sub{font-size:11px;color:var(--ink-soft);margin-top:4px;}
 
 .digest-banner{background:var(--amber-soft);border:1px solid var(--amber);color:var(--amber-dark);border-radius:var(--radius-md);padding:14px 20px;margin-bottom:20px;font-size:13px;font-weight:500;cursor:pointer;transition:box-shadow .15s var(--ease);display:flex;align-items:flex-start;gap:10px;}
