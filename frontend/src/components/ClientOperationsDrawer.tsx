@@ -194,6 +194,20 @@ export function ClientOperationsDrawer({ id, user, initialSection, onClose, onCh
     }
   }
 
+  async function initEtapesDefaut() {
+    if (!co) return;
+    setBusy(true);
+    try {
+      await api.post('/api/operations/etapes-demarrage/init-defaut', { entite: co.client.entite });
+      showToast('Étapes par défaut configurées');
+      afterMutation();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const problemesOuverts = co?.problemes.filter((p) => !p.resoluLe) ?? [];
   const problemesResolus = co?.problemes.filter((p) => p.resoluLe) ?? [];
 
@@ -399,9 +413,17 @@ export function ClientOperationsDrawer({ id, user, initialSection, onClose, onCh
                   <span>Démarrage de contrat</span>
                 </div>
                 {co.demarrage && co.etapesConfig.length === 0 ? (
-                  <p style={{ fontSize: 13, color: 'var(--ink-soft)' }}>
-                    Suivi démarré, mais aucune étape n'est configurée pour cette entité — contactez un administrateur.
-                  </p>
+                  <div className="demarrage-panel">
+                    <p style={{ fontSize: 13, color: 'var(--ink-soft)', margin: user.roleOperations === 'direction_generale' ? '0 0 10px' : 0 }}>
+                      Suivi démarré, mais aucune étape n'est configurée pour {co.client.entite}.
+                      {user.roleOperations !== 'direction_generale' && ' Contactez la direction générale.'}
+                    </p>
+                    {user.roleOperations === 'direction_generale' && (
+                      <button onClick={initEtapesDefaut} disabled={busy}>
+                        Configurer les étapes par défaut pour {co.client.entite}
+                      </button>
+                    )}
+                  </div>
                 ) : co.demarrage ? (
                   <div className="demarrage-panel">
                     <div className="demarrage-panel-head">

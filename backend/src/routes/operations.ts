@@ -6,6 +6,7 @@ import { Entite } from '../lib/entites';
 import { enLitigeSignal } from '../lib/paliers';
 import { parseOperationsImportWorkbook } from '../lib/parsers/operationsImport';
 import { getKnownEntitesForImport } from '../services/entrepriseService';
+import { ETAPES_DEMARRAGE_DEFAUT } from '../lib/operationsDefaults';
 import { chargeDeCompteWhere, resolveEntiteScopeOperations, userCanAccessEntiteOperations } from '../lib/operationsAuth';
 import { requireAuth, requireModuleOperations } from '../middleware/auth';
 import {
@@ -113,6 +114,32 @@ operationsRouter.patch('/etapes-demarrage/:id', requireModuleOperations('directi
     if (ordre != null && !isNaN(Number(ordre))) data.ordre = Number(ordre);
     const updated = await prisma.etapeDemarrageConfig.update({ where: { id: req.params.id }, data });
     res.json(updated);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Auto-provisioning à la demande : `prisma/seedOperations.ts` ne pose les
+// étapes de démarrage que pour SORAM et IRIS au provisioning initial, et
+// n'a jamais tourné sur certains environnements (ex: production) -- une
+// entité créée depuis l'admin des entreprises (SIS, ou une future entité)
+// n'a donc aucune ligne. Cette route les pose à la demande, uniquement si
+// l'entité n'a encore aucune étape configurée, pour ne jamais écraser un
+// réglage déjà personnalisé via PATCH /etapes-demarrage/:id.
+operationsRouter.post('/etapes-demarrage/init-defaut', requireModuleOperations('direction_generale'), async (req, res, next) => {
+  try {
+    const entite = typeof req.body?.entite === 'string' ? req.body.entite.trim() : '';
+    if (!entite) return res.status(400).json({ error: 'Entité requise' });
+
+    const existantes = await prisma.etapeDemarrageConfig.count({ where: { entite } });
+    if (existantes > 0) {
+      return res.json(await prisma.etapeDemarrageConfig.findMany({ where: { entite }, orderBy: { ordre: 'asc' } }));
+    }
+
+    await prisma.etapeDemarrageConfig.createMany({
+      data: ETAPES_DEMARRAGE_DEFAUT.map((e) => ({ entite, ...e })),
+    });
+    res.json(await prisma.etapeDemarrageConfig.findMany({ where: { entite }, orderBy: { ordre: 'asc' } }));
   } catch (err) {
     next(err);
   }

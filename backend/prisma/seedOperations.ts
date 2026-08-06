@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
+import { ETAPES_DEMARRAGE_DEFAUT } from '../src/lib/operationsDefaults';
 
 // Valeurs par défaut du module Opérations -- étapes de démarrage de contrat
 // (cahier §5.3) et fenêtres saisonnières par secteur (cahier §5.1). Toutes
@@ -13,13 +14,7 @@ import { PrismaClient } from '@prisma/client';
 const ETAPES_DEMARRAGE = [
   {
     entite: 'SORAM',
-    etapes: [
-      { cle: 'inst', libelle: 'Parc installé et opérationnel', description: null, delaiJours: 7, ordre: 1 },
-      { cle: 'contact', libelle: 'Contact effectué après installation', description: null, delaiJours: 14, ordre: 2 },
-      { cle: 'ope', libelle: 'Client opérationnel', description: 'Formation, paramétrage, dispatch des contacts internes', delaiJours: 21, ordre: 3 },
-      { cle: 'sat', libelle: 'Point de satisfaction à 30 jours tenu', description: null, delaiJours: 45, ordre: 4 },
-      { cle: 'val', libelle: 'Démarrage validé avec le client', description: null, delaiJours: 90, ordre: 5 },
-    ],
+    etapes: ETAPES_DEMARRAGE_DEFAUT,
   },
   {
     entite: 'IRIS',
