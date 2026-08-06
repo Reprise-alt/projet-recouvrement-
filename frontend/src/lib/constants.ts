@@ -81,6 +81,31 @@ export function tacheStatutAffiche(t: { statut: string; date: string; dateInitia
   return t.date.slice(0, 10) !== t.dateInitiale.slice(0, 10) ? 'reportee' : 'a_faire';
 }
 
+// Détecte les tâches d'un même coursier, le même jour, qui partagent le même
+// nom de client -- même quand ce sont des fiches client distinctes (une par
+// entité : SOGAFRIC chez SORAM et SOGAFRIC chez IRIS n'ont aucun lien en
+// base). Sans ça, un coursier peut se déplacer deux fois au même endroit
+// physique sans le savoir. Renvoie l'ensemble des id de tâches concernées,
+// pour un simple surlignage -- les tâches restent distinctes (chacune garde
+// ses propres actions), on ne fait que signaler le rapprochement possible.
+export function tachesDoublons<T extends { id: string; coursierId: string | null; client: { nom: string } | null }>(
+  taches: T[],
+): Set<string> {
+  const groupes = new Map<string, string[]>();
+  for (const t of taches) {
+    if (!t.client || !t.coursierId) continue;
+    const cle = `${t.coursierId}::${t.client.nom.trim().toLowerCase()}`;
+    const liste = groupes.get(cle) ?? [];
+    liste.push(t.id);
+    groupes.set(cle, liste);
+  }
+  const doublons = new Set<string>();
+  for (const ids of groupes.values()) {
+    if (ids.length > 1) ids.forEach((id) => doublons.add(id));
+  }
+  return doublons;
+}
+
 export function fmtFCFA(n: number): string {
   return n.toLocaleString('fr-FR') + ' FCFA';
 }

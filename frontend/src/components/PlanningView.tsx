@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError, buildQuery } from '../api/client';
 import { useResource } from '../hooks/useResource';
 import { ClientListItem, Coursier, Entite, Entreprise, RoleUtilisateur, TachesJourResponse, TypeTacheCoursier } from '../api/types';
-import { MODE_PAIEMENT_LABELS, MOTIF_REPORT_LABELS, TACHE_TYPE_LABELS, tacheStatutAffiche } from '../lib/constants';
+import { MODE_PAIEMENT_LABELS, MOTIF_REPORT_LABELS, TACHE_TYPE_LABELS, tacheStatutAffiche, tachesDoublons } from '../lib/constants';
 import { CoursiersPanel } from './CoursiersPanel';
 import { TacheModelesPanel } from './TacheModelesPanel';
 import { EntityLogo } from './EntityLogo';
@@ -68,6 +68,7 @@ export function PlanningView({ entityFilter, role }: Props) {
   );
 
   const coursiersActifs = (coursiers ?? []).filter((c) => c.actif);
+  const doublons = tachesDoublons(data?.taches ?? []);
 
   async function mutate(fn: () => Promise<unknown>) {
     setBusy(true);
@@ -236,13 +237,19 @@ export function PlanningView({ entityFilter, role }: Props) {
                 <tbody>
                   {data.taches.map((t) => {
                     const statut = tacheStatutAffiche(t);
+                    const doublon = doublons.has(t.id);
                     return (
-                      <tr key={t.id}>
+                      <tr key={t.id} style={doublon ? { background: 'var(--amber-soft)' } : undefined}>
                         <td>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             <EntityLogo entite={t.entite} size={14} />
                             {t.client ? t.client.nom : <span style={{ color: 'var(--ink-soft)' }}>— (tâche générique)</span>}
                           </div>
+                          {doublon && (
+                            <div style={{ fontSize: 11, color: 'var(--amber)', fontWeight: 600, marginTop: 3 }}>
+                              ↔ Même client, autre société — à combiner si possible
+                            </div>
+                          )}
                         </td>
                         <td>
                           {TACHE_TYPE_LABELS[t.type]}

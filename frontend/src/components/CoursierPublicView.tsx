@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { CheckCircle2 } from 'lucide-react';
 import { api, ApiError } from '../api/client';
 import { CoursierTachesPubliques, ModePaiementCollecte, MotifReport, TacheCoursierPublic } from '../api/types';
-import { MODE_PAIEMENT_LABELS, MOTIF_REPORT_LABELS, TACHE_TYPE_LABELS, tacheStatutAffiche } from '../lib/constants';
+import { MODE_PAIEMENT_LABELS, MOTIF_REPORT_LABELS, TACHE_TYPE_LABELS, tacheStatutAffiche, tachesDoublons } from '../lib/constants';
 import { EntityLogo, entityAccent } from './EntityLogo';
 
 function tomorrow(): string {
@@ -122,31 +122,39 @@ export function CoursierPublicView({ token }: { token: string }) {
                 </div>
               </div>
 
-              {data.taches.map((t) => {
-                const statut = tacheStatutAffiche(t);
-                const busy = busyId === t.id;
-                const accent = entityAccent(t.entite);
-                return (
-                  <div className={`cm-card${statut === 'faite' ? ' done' : ''}`} key={t.id} style={{ borderLeftColor: accent }}>
-                    <div className="cm-chip" style={{ background: `${accent}1f` }}>
-                      <EntityLogo entite={t.entite} size={17} />
-                      <span className="cm-chip-label" style={{ color: accent }}>
-                        {t.entite}
-                      </span>
-                    </div>
-                    <div className="cm-title">{TACHE_TYPE_LABELS[t.type]}</div>
-                    {t.client && (
-                      <div className="cm-client">
-                        {t.client.nom}
-                        {t.client.tel && (
-                          <>
-                            {' · '}
-                            <a href={`tel:${t.client.tel.replace(/\s+/g, '')}`}>{t.client.tel}</a>
-                          </>
-                        )}
+              {(() => {
+                const doublons = tachesDoublons(data.taches);
+                return data.taches.map((t) => {
+                  const statut = tacheStatutAffiche(t);
+                  const busy = busyId === t.id;
+                  const accent = entityAccent(t.entite);
+                  const doublon = doublons.has(t.id);
+                  return (
+                    <div
+                      className={`cm-card${statut === 'faite' ? ' done' : ''}${doublon ? ' doublon' : ''}`}
+                      key={t.id}
+                      style={{ borderLeftColor: accent }}
+                    >
+                      <div className="cm-chip" style={{ background: `${accent}1f` }}>
+                        <EntityLogo entite={t.entite} size={17} />
+                        <span className="cm-chip-label" style={{ color: accent }}>
+                          {t.entite}
+                        </span>
                       </div>
-                    )}
-                    {t.label && <div className="cm-note">{t.label}</div>}
+                      <div className="cm-title">{TACHE_TYPE_LABELS[t.type]}</div>
+                      {t.client && (
+                        <div className="cm-client">
+                          {t.client.nom}
+                          {t.client.tel && (
+                            <>
+                              {' · '}
+                              <a href={`tel:${t.client.tel.replace(/\s+/g, '')}`}>{t.client.tel}</a>
+                            </>
+                          )}
+                        </div>
+                      )}
+                      {doublon && <div className="cm-doublon-note">↔ Même client, autre société — à combiner si possible</div>}
+                      {t.label && <div className="cm-note">{t.label}</div>}
 
                     {statut === 'faite' ? (
                       <div className="cm-done-badge">
@@ -221,8 +229,9 @@ export function CoursierPublicView({ token }: { token: string }) {
                       </div>
                     )}
                   </div>
-                );
-              })}
+                  );
+                });
+              })()}
             </>
           )}
         </>
