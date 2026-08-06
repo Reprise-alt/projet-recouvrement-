@@ -1,5 +1,5 @@
-import { FormEvent, useState } from 'react';
-import { AlertTriangle, PlusCircle, Search, Settings, ShieldAlert, Users } from 'lucide-react';
+import { ChangeEvent, FormEvent, useRef, useState } from 'react';
+import { AlertTriangle, PlusCircle, Search, Settings, ShieldAlert, Upload, Users } from 'lucide-react';
 import { api, ApiError, buildQuery } from '../api/client';
 import { useResource } from '../hooks/useResource';
 import {
@@ -195,6 +195,7 @@ function PortefeuilleTab({ entityFilter, reloadKey, onSelect }: { entityFilter: 
   const [onlyVip, setOnlyVip] = useState(false);
   const [onlyResilie, setOnlyResilie] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
   const { data, loading, error, refetch } = useResource<ClientOperationsRow[]>(`/api/operations/portefeuille${buildQuery({ entite: entityFilter })}`, reloadKey);
 
   const filtered = (data ?? []).filter(
@@ -213,6 +214,9 @@ function PortefeuilleTab({ entityFilter, reloadKey, onSelect }: { entityFilter: 
             <input type="checkbox" checked={onlyResilie} onChange={(e) => setOnlyResilie(e.target.checked)} /> Résiliés
           </label>
           <input type="text" placeholder="Rechercher un client…" value={search} onChange={(e) => setSearch(e.target.value)} style={{ width: 200 }} />
+          <button onClick={() => setImporting(true)}>
+            <Upload size={13} /> Importer
+          </button>
           <button onClick={() => setCreating(true)}>
             <PlusCircle size={13} /> Nouveau compte
           </button>
@@ -300,6 +304,82 @@ function PortefeuilleTab({ entityFilter, reloadKey, onSelect }: { entityFilter: 
           }}
         />
       )}
+      {importing && (
+        <ImportPortefeuilleModal
+          onClose={() => setImporting(false)}
+          onImported={() => refetch()}
+        />
+      )}
+    </div>
+  );
+}
+
+interface ImportSummaryOperations {
+  total: number;
+  created: number;
+  dejaExistant: number;
+  horsPerimetre: number;
+}
+
+function ImportPortefeuilleModal({ onClose, onImported }: { onClose: () => void; onImported: () => void }) {
+  const { showToast } = useToast();
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<ImportSummaryOperations | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleFile(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('file', file);
+    setBusy(true);
+    setResult(null);
+    try {
+      const res = await api.upload<ImportSummaryOperations>('/api/operations/import', formData);
+      setResult(res);
+      onImported();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : "Échec de l'import");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="modal-overlay open" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal">
+        <h2 style={{ marginBottom: 4 }}>Importer un portefeuille</h2>
+        <div style={{ color: 'var(--ink-soft)', fontSize: 12.5, marginBottom: 16 }}>
+          Fichier de suivi de contrats (mêmes classeurs "Suivi Contrats" SORAM/IRIS que le recouvrement) — crée un compte
+          Opérations par client avec l'identité et les dates de contrat. Secteur et criticité ne sont pas dans ce type de
+          fichier : tous les comptes importés démarrent en secteur "Autre" / criticité C, à reclasser ensuite depuis le
+          Portefeuille. Un compte déjà suivi côté Opérations n'est jamais écrasé.
+        </div>
+
+        <button className="primary" onClick={() => fileInputRef.current?.click()} disabled={busy}>
+          {busy ? 'Import en cours…' : 'Choisir un fichier'}
+        </button>
+        <input type="file" ref={fileInputRef} accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleFile} />
+
+        {result && (
+          <div className="card-mini" style={{ marginTop: 14 }}>
+            <div style={{ fontSize: 13 }}>
+              {result.created} compte{result.created !== 1 ? 's' : ''} créé{result.created !== 1 ? 's' : ''} sur {result.total} client{result.total !== 1 ? 's' : ''} trouvé{result.total !== 1 ? 's' : ''} dans le fichier.
+            </div>
+            {result.dejaExistant > 0 && (
+              <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginTop: 4 }}>{result.dejaExistant} avaient déjà un compte Opérations, inchangés.</div>
+            )}
+            {result.horsPerimetre > 0 && (
+              <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginTop: 4 }}>{result.horsPerimetre} hors de votre périmètre d'entité, ignorés.</div>
+            )}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
+          <button onClick={onClose}>Fermer</button>
+        </div>
+      </div>
     </div>
   );
 }

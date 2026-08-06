@@ -1,7 +1,11 @@
 import { Router } from 'express';
+import multer from 'multer';
+import * as XLSX from 'xlsx';
 import { prisma } from '../db';
 import { Entite } from '../lib/entites';
 import { enLitigeSignal } from '../lib/paliers';
+import { parseOperationsImportWorkbook } from '../lib/parsers/operationsImport';
+import { getKnownEntitesForImport } from '../services/entrepriseService';
 import { chargeDeCompteWhere, resolveEntiteScopeOperations, userCanAccessEntiteOperations } from '../lib/operationsAuth';
 import { requireAuth, requireModuleOperations } from '../middleware/auth';
 import {
@@ -337,6 +341,67 @@ operationsRouter.get('/clients/:id/signal-recouvrement', async (req, res, next) 
     next(err);
   }
 });
+
+/* ---------- Import en masse (fichier "Suivi Contrats" SORAM/IRIS) ---------- */
+
+const uploadOperations = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+
+// Démarre le portefeuille à partir d'un fichier qui n'a jamais été pensé
+// pour Opérations (secteur, criticité, VIP en sont absents) -- on importe
+// quand même l'identité et l'étendue du contrat, secteur par défaut "autre"
+// et criticité "C", à charge pour la directrice de reclasser ensuite depuis
+// le Portefeuille. Mieux vaut un portefeuille peuplé à affiner qu'aucun
+// portefeuille tant que chaque compte n'a pas été ressaisi à la main.
+operationsRouter.post(
+  '/import',
+  requireModuleOperations('directrice_operations', 'direction_generale'),
+  uploadOperations.single('file'),
+  async (req, res, next) => {
+    try {
+      if (!req.file) return res.status(400).json({ error: 'Aucun fichier reçu' });
+
+      const knownEntites = await getKnownEntitesForImport();
+      const wb = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: true });
+      const rows = parseOperationsImportWorkbook(wb, knownEntites);
+      if (!rows.length) {
+        return res.status(422).json({ error: "Aucune donnée exploitable dans ce fichier -- format non reconnu (attendu : suivi de contrats avec colonnes raison sociale / début / fin)." });
+      }
+
+      let created = 0;
+      let dejaExistant = 0;
+      let horsPerimetre = 0;
+      for (const row of rows) {
+        if (!userCanAccessEntiteOperations(req.user!, row.entite)) {
+          horsPerimetre++;
+          continue;
+        }
+        let client = await prisma.client.findUnique({ where: { nom_entite: { nom: row.nom, entite: row.entite } } });
+        if (!client) {
+          client = await prisma.client.create({ data: { nom: row.nom, entite: row.entite } });
+        }
+        const existing = await prisma.clientOperations.findUnique({ where: { clientId: client.id } });
+        if (existing) {
+          dejaExistant++;
+          continue;
+        }
+        await prisma.clientOperations.create({
+          data: {
+            clientId: client.id,
+            secteur: 'autre',
+            criticite: 'C',
+            debutContrat: row.debutContrat ? new Date(row.debutContrat) : null,
+            finContrat: row.finContrat ? new Date(row.finContrat) : null,
+          },
+        });
+        created++;
+      }
+
+      res.json({ total: rows.length, created, dejaExistant, horsPerimetre });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
 
 // Création d'une fiche Opérations -- rattachée à un Client existant
 // (identifié par codeClient+entite ou nom+entite) ou à un Client créé à la
