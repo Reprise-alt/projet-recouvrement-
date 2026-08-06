@@ -15,7 +15,7 @@ import {
   Secteur,
 } from '../api/types';
 import { fmtDate } from '../lib/constants';
-import { CRITICITE_LABELS, MOTIF_RESILIATION_LABELS, SECTEUR_LABELS, toneBg, toneColor } from '../lib/operationsConstants';
+import { CLIMAT_DOT_COLOR, CRITICITE_LABELS, MOTIF_RESILIATION_LABELS, SECTEUR_LABELS, toneBg, toneColor } from '../lib/operationsConstants';
 import { useToast } from '../hooks/useToast';
 import { EntityLogo, entityAccent } from './EntityLogo';
 import { ScoreGauge } from './ScoreGauge';
@@ -234,7 +234,6 @@ function CockpitTab({ entityFilter, reloadKey, onSelect }: { entityFilter: Entit
   );
 }
 
-const CLIMAT_DOT_COLOR: Record<string, string> = { vert: 'var(--success)', orange: 'var(--amber)', rouge: 'var(--danger)' };
 const CRITICITE_TONE: Record<string, string> = { A: 'danger', B: 'amber', C: 'success' };
 
 type PortefeuilleFilter = 'probleme' | 'sansContact' | 'engagementRetard' | 'demarrage' | 'vip' | 'releveAFaire';

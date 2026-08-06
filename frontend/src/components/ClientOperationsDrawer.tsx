@@ -5,7 +5,7 @@ import { ClientOperationsDetail, Climat, CurrentUser, GraviteProbleme, MotifResi
 import { useResource } from '../hooks/useResource';
 import { useToast } from '../hooks/useToast';
 import { fmtDate } from '../lib/constants';
-import { CRITICITE_LABELS, MOTIF_RESILIATION_LABELS, SECTEUR_LABELS } from '../lib/operationsConstants';
+import { CLIMAT_DOT_COLOR, CLIMAT_LABELS, CRITICITE_LABELS, MOTIF_RESILIATION_LABELS, SECTEUR_LABELS } from '../lib/operationsConstants';
 import { Sparkline } from './Sparkline';
 
 interface Props {
@@ -173,6 +173,19 @@ export function ClientOperationsDrawer({ id, user, initialSection, onClose, onCh
     setBusy(true);
     try {
       await api.patch(`/api/operations/clients/${id}`, { vip: !co.vip });
+      afterMutation();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function demarrerSuivi() {
+    setBusy(true);
+    try {
+      await api.patch(`/api/operations/clients/${id}`, { demarreLe: new Date().toISOString() });
+      showToast('Suivi des 90 jours démarré');
       afterMutation();
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Erreur');
@@ -380,45 +393,64 @@ export function ClientOperationsDrawer({ id, user, initialSection, onClose, onCh
               </div>
             )}
 
-            {co.demarrage && (
+            {!co.resilie && (
               <>
                 <div className="section-title">
                   <span>Démarrage de contrat</span>
                 </div>
-                <div className="demarrage-panel">
-                  <div className="demarrage-panel-head">
-                    <div style={{ fontSize: 13, color: 'var(--ink-soft)' }}>
-                      J+{co.demarrage.age} sur 90 · {co.demarrage.nbFaits}/{co.demarrage.total} étapes
+                {co.demarrage && co.etapesConfig.length === 0 ? (
+                  <p style={{ fontSize: 13, color: 'var(--ink-soft)' }}>
+                    Suivi démarré, mais aucune étape n'est configurée pour cette entité — contactez un administrateur.
+                  </p>
+                ) : co.demarrage ? (
+                  <div className="demarrage-panel">
+                    <div className="demarrage-panel-head">
+                      <div style={{ fontSize: 13, color: 'var(--ink-soft)' }}>
+                        J+{co.demarrage.age} sur 90 · {co.demarrage.nbFaits}/{co.demarrage.total} étapes
+                      </div>
+                      <div className="demarrage-pct">{co.demarrage.pct}%</div>
                     </div>
-                    <div className="demarrage-pct">{co.demarrage.pct}%</div>
-                  </div>
-                  <div className="demarrage-progress">
-                    <div className="demarrage-progress-fill" style={{ width: `${co.demarrage.pct}%` }} />
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 14 }}>
-                    {co.etapesConfig.map((e) => {
-                      const fait = co.etapesDemarrage.find((f) => f.cle === e.cle);
-                      const enRetard = co.demarrage!.retard.some((r) => r.cle === e.cle);
-                      return (
-                        <div key={e.cle} className={`demarrage-etape${fait ? ' fait' : ''}${enRetard ? ' retard' : ''}`}>
-                          <button
-                            className="demarrage-etape-check"
-                            onClick={() => !fait && cocherEtape(e.cle)}
-                            disabled={busy || !canEdit || !!fait}
-                            aria-label={fait ? 'Étape faite' : 'Marquer faite'}
-                          >
-                            {fait ? <CheckCircle2 size={18} /> : <Circle size={18} />}
-                          </button>
-                          <div style={{ flex: 1 }}>
-                            <div className={fait ? 'demarrage-etape-libelle fait' : 'demarrage-etape-libelle'}>{e.libelle}</div>
-                            {e.description && !fait && <div className="demarrage-etape-desc">{e.description}</div>}
-                            <div className="demarrage-etape-meta">{fait ? `Fait le ${fmtDate(fait.date)}` : `Attendue à J+${e.delaiJours}${enRetard ? ' — en retard' : ''}`}</div>
+                    <div className="demarrage-progress">
+                      <div className="demarrage-progress-fill" style={{ width: `${co.demarrage.pct}%` }} />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 14 }}>
+                      {co.etapesConfig.map((e) => {
+                        const fait = co.etapesDemarrage.find((f) => f.cle === e.cle);
+                        const enRetard = co.demarrage!.retard.some((r) => r.cle === e.cle);
+                        return (
+                          <div key={e.cle} className={`demarrage-etape${fait ? ' fait' : ''}${enRetard ? ' retard' : ''}`}>
+                            <button
+                              className="demarrage-etape-check"
+                              onClick={() => !fait && cocherEtape(e.cle)}
+                              disabled={busy || !canEdit || !!fait}
+                              aria-label={fait ? 'Étape faite' : 'Marquer faite'}
+                            >
+                              {fait ? <CheckCircle2 size={18} /> : <Circle size={18} />}
+                            </button>
+                            <div style={{ flex: 1 }}>
+                              <div className={fait ? 'demarrage-etape-libelle fait' : 'demarrage-etape-libelle'}>{e.libelle}</div>
+                              {e.description && !fait && <div className="demarrage-etape-desc">{e.description}</div>}
+                              <div className="demarrage-etape-meta">{fait ? `Fait le ${fmtDate(fait.date)}` : `Attendue à J+${e.delaiJours}${enRetard ? ' — en retard' : ''}`}</div>
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
+                ) : co.demarrageCloture ? (
+                  <p style={{ fontSize: 13, color: 'var(--ink-soft)' }}>Suivi des 90 premiers jours clôturé.</p>
+                ) : (
+                  <div className="demarrage-panel">
+                    <p style={{ fontSize: 13, color: 'var(--ink-soft)', margin: canEdit ? '0 0 10px' : 0 }}>
+                      Le suivi des 90 premiers jours n'a pas été activé pour ce compte.
+                    </p>
+                    {canEdit && (
+                      <button onClick={demarrerSuivi} disabled={busy}>
+                        Démarrer le suivi des 90 jours
+                      </button>
+                    )}
+                  </div>
+                )}
               </>
             )}
 
@@ -514,6 +546,19 @@ export function ClientOperationsDrawer({ id, user, initialSection, onClose, onCh
                 </button>
               )}
             </div>
+            {!showReleve && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, marginBottom: 10 }}>
+                {co.climat ? (
+                  <>
+                    <span className="climat-dot" style={{ background: CLIMAT_DOT_COLOR[co.climat], display: 'inline-block' }} />
+                    Climat actuel : {CLIMAT_LABELS[co.climat]}
+                  </>
+                ) : (
+                  <span style={{ color: 'var(--ink-soft)' }}>Climat non renseigné — aucun relevé effectué pour l'instant.</span>
+                )}
+                {co.dernierReleve && <span style={{ color: 'var(--ink-soft)' }}>· dernier relevé le {fmtDate(co.dernierReleve)}</span>}
+              </div>
+            )}
             {showReleve ? (
               <form onSubmit={handleReleve} style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
                 <div>

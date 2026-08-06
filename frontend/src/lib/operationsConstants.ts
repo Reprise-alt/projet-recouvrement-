@@ -1,4 +1,4 @@
-import { Criticite, MotifResiliation, Secteur, Tone } from '../api/types';
+import { Climat, Criticite, MotifResiliation, Secteur, Tone } from '../api/types';
 
 // Miroir des nomenclatures fermées du cahier des charges OLU360 — Suivi des
 // opérations (§5) — le serveur ne renvoie que les identifiants, jamais le
@@ -55,6 +55,18 @@ export const MOTIF_RESILIATION_CAUSE: Record<MotifResiliation, 'maitrisable' | '
   internal: 'subie',
   cessation: 'subie',
   autre: 'subie',
+};
+
+export const CLIMAT_LABELS: Record<Climat, string> = {
+  vert: 'Ça roule',
+  orange: 'À surveiller',
+  rouge: 'Ça coince',
+};
+
+export const CLIMAT_DOT_COLOR: Record<Climat, string> = {
+  vert: 'var(--success)',
+  orange: 'var(--amber)',
+  rouge: 'var(--danger)',
 };
 
 export function toneColor(tone: Tone): string {
