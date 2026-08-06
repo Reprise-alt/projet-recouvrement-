@@ -1,10 +1,11 @@
-import { useState } from 'react';
-import { AlertTriangle, Search, ShieldAlert, Users } from 'lucide-react';
-import { buildQuery } from '../api/client';
+import { FormEvent, useState } from 'react';
+import { AlertTriangle, PlusCircle, Search, ShieldAlert, Users } from 'lucide-react';
+import { api, ApiError, buildQuery } from '../api/client';
 import { useResource } from '../hooks/useResource';
-import { CockpitResponse, ClientOperationsRow, CurrentUser, Entite, ReleveFileEntry } from '../api/types';
+import { CockpitResponse, ClientOperationsRow, CurrentUser, Entite, ReleveFileEntry, Secteur } from '../api/types';
 import { fmtDate } from '../lib/constants';
 import { CRITICITE_LABELS, SECTEUR_LABELS, toneBg, toneColor } from '../lib/operationsConstants';
+import { useToast } from '../hooks/useToast';
 import { EntityLogo, entityAccent } from './EntityLogo';
 import { ScoreGauge } from './ScoreGauge';
 import { ClientOperationsDrawer } from './ClientOperationsDrawer';
@@ -166,7 +167,8 @@ function PortefeuilleTab({ entityFilter, reloadKey, onSelect }: { entityFilter: 
   const [search, setSearch] = useState('');
   const [onlyVip, setOnlyVip] = useState(false);
   const [onlyResilie, setOnlyResilie] = useState(false);
-  const { data, loading, error } = useResource<ClientOperationsRow[]>(`/api/operations/portefeuille${buildQuery({ entite: entityFilter })}`, reloadKey);
+  const [creating, setCreating] = useState(false);
+  const { data, loading, error, refetch } = useResource<ClientOperationsRow[]>(`/api/operations/portefeuille${buildQuery({ entite: entityFilter })}`, reloadKey);
 
   const filtered = (data ?? []).filter(
     (r) => r.client.nom.toLowerCase().includes(search.trim().toLowerCase()) && (!onlyVip || r.vip) && (onlyResilie ? r.resilie : !r.resilie),
@@ -184,6 +186,9 @@ function PortefeuilleTab({ entityFilter, reloadKey, onSelect }: { entityFilter: 
             <input type="checkbox" checked={onlyResilie} onChange={(e) => setOnlyResilie(e.target.checked)} /> Résiliés
           </label>
           <input type="text" placeholder="Rechercher un client…" value={search} onChange={(e) => setSearch(e.target.value)} style={{ width: 200 }} />
+          <button onClick={() => setCreating(true)}>
+            <PlusCircle size={13} /> Nouveau compte
+          </button>
         </div>
       </div>
       {loading ? (
@@ -258,6 +263,110 @@ function PortefeuilleTab({ entityFilter, reloadKey, onSelect }: { entityFilter: 
           </tbody>
         </table>
       )}
+      {creating && (
+        <NouveauCompteModal
+          entityFilter={entityFilter}
+          onClose={() => setCreating(false)}
+          onCreated={() => {
+            setCreating(false);
+            refetch();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function NouveauCompteModal({ entityFilter, onClose, onCreated }: { entityFilter: Entite | 'ALL'; onClose: () => void; onCreated: () => void }) {
+  const { showToast } = useToast();
+  const [busy, setBusy] = useState(false);
+
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = new FormData(e.currentTarget);
+    setBusy(true);
+    try {
+      await api.post('/api/operations/clients', {
+        nom: form.get('nom'),
+        entite: form.get('entite'),
+        codeClient: form.get('codeClient') || undefined,
+        secteur: form.get('secteur'),
+        criticite: form.get('criticite'),
+        vip: form.get('vip') === 'on',
+        demarrerSuivi: form.get('demarrerSuivi') === 'on',
+      });
+      showToast('Compte créé');
+      onCreated();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="modal-overlay open" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal">
+        <h2 style={{ marginBottom: 4 }}>Nouveau compte Opérations</h2>
+        <div style={{ color: 'var(--ink-soft)', fontSize: 12.5, marginBottom: 16 }}>
+          Rattaché automatiquement à la fiche client existante si le nom et l'entité correspondent, sinon une nouvelle fiche est créée.
+        </div>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div>
+            <label>Nom du client</label>
+            <input type="text" name="nom" required />
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <div style={{ flex: 1 }}>
+              <label>Entité</label>
+              <select name="entite" defaultValue={entityFilter !== 'ALL' ? entityFilter : 'SORAM'} required>
+                <option value="SORAM">SORAM</option>
+                <option value="IRIS">IRIS</option>
+              </select>
+            </div>
+            <div style={{ flex: 1 }}>
+              <label>Code client (optionnel)</label>
+              <input type="text" name="codeClient" placeholder="Rapprochement recouvrement" />
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <div style={{ flex: 1 }}>
+              <label>Secteur</label>
+              <select name="secteur" required defaultValue="autre">
+                {(Object.keys(SECTEUR_LABELS) as Secteur[]).map((s) => (
+                  <option key={s} value={s}>
+                    {SECTEUR_LABELS[s]}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div style={{ flex: 1 }}>
+              <label>Criticité</label>
+              <select name="criticite" defaultValue="C">
+                {(['A', 'B', 'C'] as const).map((c) => (
+                  <option key={c} value={c}>
+                    {CRITICITE_LABELS[c]}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, textTransform: 'none', fontSize: 13 }}>
+            <input type="checkbox" name="vip" /> Grand compte (VIP)
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, textTransform: 'none', fontSize: 13 }}>
+            <input type="checkbox" name="demarrerSuivi" /> Nouveau contrat — démarrer le suivi des 90 premiers jours
+          </label>
+          <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+            <button className="primary" type="submit" disabled={busy}>
+              Créer le compte
+            </button>
+            <button type="button" onClick={onClose}>
+              Annuler
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
