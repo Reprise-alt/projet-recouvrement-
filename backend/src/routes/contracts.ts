@@ -3,10 +3,10 @@ import { prisma } from '../db';
 import { contractAlertLevel, contractEcheance, montantProjete, nextAnniversary } from '../lib/contracts';
 import { generateContractDoc } from '../lib/letters';
 import { Entite, resolveEntiteScope } from '../lib/entites';
-import { assertEntiteInScope, requireAuth, requireRole } from '../middleware/auth';
+import { assertEntiteInScope, requireAccesRecouvrement, requireAuth, requireRole } from '../middleware/auth';
 
 export const contractsRouter = Router();
-contractsRouter.use(requireAuth);
+contractsRouter.use(requireAuth, requireAccesRecouvrement);
 
 function entiteWhere(entiteFilter: Entite | 'ALL') {
   if (entiteFilter === 'ALL') return {};

@@ -4,7 +4,7 @@ import ExcelJS from 'exceljs';
 import fs from 'fs';
 import path from 'path';
 import { prisma } from '../db';
-import { requireAuth, requireRole } from '../middleware/auth';
+import { requireAccesRecouvrement, requireAuth, requireRole } from '../middleware/auth';
 import { Entite, resolveEntiteScope } from '../lib/entites';
 import { fmtDate, fmtFCFA } from '../lib/dates';
 import {
@@ -40,7 +40,7 @@ function logosForScope(entiteFilter: Entite | 'ALL'): string[] {
 }
 
 export const reportingRouter = Router();
-reportingRouter.use(requireAuth);
+reportingRouter.use(requireAuth, requireAccesRecouvrement);
 
 function entiteWhere(entiteFilter: Entite | 'ALL') {
   if (entiteFilter === 'ALL') return {};

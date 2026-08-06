@@ -1,12 +1,12 @@
 import crypto from 'crypto';
 import { Router } from 'express';
 import { prisma } from '../db';
-import { requireAuth, requireRole } from '../middleware/auth';
+import { requireAccesRecouvrement, requireAuth, requireRole } from '../middleware/auth';
 import { Entite, resolveEntiteScope } from '../lib/entites';
 import { buildPlanningRapport, modeleDuLe, resumeJournee, TACHE_TYPE_LABELS, TacheRapportEntree } from '../lib/taches';
 
 export const tachesRouter = Router();
-tachesRouter.use(requireAuth);
+tachesRouter.use(requireAuth, requireAccesRecouvrement);
 
 // Même équipe que celle qui peut déjà enregistrer une action de
 // recouvrement (cf. clients.ts) -- l'ADV au sens large, pas seulement les

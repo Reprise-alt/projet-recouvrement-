@@ -1,11 +1,11 @@
 import { Router } from 'express';
 import { prisma } from '../db';
 import { Entite } from '../lib/entites';
-import { assertEntiteInScope, requireAuth, requireRole } from '../middleware/auth';
+import { assertEntiteInScope, requireAccesRecouvrement, requireAuth, requireRole } from '../middleware/auth';
 import { fmtDate, fmtFCFA } from '../lib/dates';
 
 export const facturesRouter = Router();
-facturesRouter.use(requireAuth);
+facturesRouter.use(requireAuth, requireAccesRecouvrement);
 
 facturesRouter.patch(
   '/:factureId/toggle-paid',

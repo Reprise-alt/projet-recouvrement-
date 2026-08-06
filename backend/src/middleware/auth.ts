@@ -11,8 +11,10 @@ export interface AuthedUser {
   email: string;
   role: RoleUtilisateur;
   entite: Entite | null;
-  // Accès au module Opérations -- null = aucun accès, distinct et orthogonal
-  // du rôle recouvrement ci-dessus (cf. schema.prisma:RoleOperations).
+  // Accès aux deux modules -- indépendants l'un de l'autre. accesRecouvrement
+  // vrai par défaut (comptes existants) ; roleOperations null par défaut
+  // (nouveau module, jamais d'accès implicite).
+  accesRecouvrement: boolean;
   roleOperations: RoleOperations | null;
 }
 
@@ -53,6 +55,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     email: utilisateur.email,
     role: utilisateur.role as RoleUtilisateur,
     entite: (utilisateur.entite as Entite | null) ?? null,
+    accesRecouvrement: utilisateur.accesRecouvrement,
     roleOperations: (utilisateur.roleOperations as RoleOperations | null) ?? null,
   };
   next();
@@ -66,6 +69,19 @@ export function requireRole(...roles: RoleUtilisateur[]) {
     }
     next();
   };
+}
+
+// Porte d'entrée du recouvrement (montants, factures, contrats, relances) --
+// à appliquer sur les routers qui exposent des données financières, pour
+// qu'un utilisateur provisionné uniquement côté Opérations (accesRecouvrement
+// = false) ne puisse jamais les atteindre, même par un appel API direct et
+// pas seulement parce que l'onglet est masqué côté interface (cahier §7).
+export function requireAccesRecouvrement(req: Request, res: Response, next: NextFunction) {
+  if (!req.user) return res.status(401).json({ error: 'Authentification requise' });
+  if (!req.user.accesRecouvrement) {
+    return res.status(403).json({ error: 'Accès refusé — pas d\'accès au module Recouvrement' });
+  }
+  next();
 }
 
 // Porte d'entrée du module Opérations -- roleOperations null = jamais

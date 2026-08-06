@@ -1,10 +1,10 @@
 import { Router } from 'express';
 import { getConfig, updateConfig } from '../services/configService';
-import { requireAuth, requireRole } from '../middleware/auth';
+import { requireAccesRecouvrement, requireAuth, requireRole } from '../middleware/auth';
 
 export const configRouter = Router();
 // Config des paliers = config globale du groupe — admin uniquement (§4).
-configRouter.use(requireAuth, requireRole('admin'));
+configRouter.use(requireAuth, requireAccesRecouvrement, requireRole('admin'));
 
 configRouter.get('/', async (_req, res, next) => {
   try {

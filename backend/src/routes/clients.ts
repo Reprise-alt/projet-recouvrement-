@@ -12,11 +12,11 @@ import {
 } from '../lib/paliers';
 import { generateLetter } from '../lib/letters';
 import { Entite, resolveEntiteScope } from '../lib/entites';
-import { assertEntiteInScope, requireAuth, requireRole } from '../middleware/auth';
+import { assertEntiteInScope, requireAccesRecouvrement, requireAuth, requireRole } from '../middleware/auth';
 import { fmtDate, fmtFCFA } from '../lib/dates';
 
 export const clientsRouter = Router();
-clientsRouter.use(requireAuth);
+clientsRouter.use(requireAuth, requireAccesRecouvrement);
 
 function entiteWhere(entiteFilter: Entite | 'ALL') {
   if (entiteFilter === 'ALL') return {};

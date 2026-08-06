@@ -250,6 +250,15 @@ model Utilisateur {
   // pour le choix par défaut : true sauf pour les admins existants).
   estAgentRecouvrement Boolean @default(true)
 
+  // Accès au module recouvrement lui-même (onglets Recouvrement/Contrats/
+  // Planning) -- vrai par défaut pour ne rien changer aux comptes existants,
+  // qui étaient tous des utilisateurs recouvrement avant l'ajout du module
+  // Opérations. À mettre à false pour une directrice des opérations ou un
+  // chargé de compte qui ne doit voir aucune donnée financière (cahier §7) :
+  // sans ce booléen, RoleUtilisateur (obligatoire) donnerait de fait accès
+  // au recouvrement à tout le monde, y compris ces profils.
+  accesRecouvrement Boolean @default(true)
+
   // Accès au module Opérations -- absent (null) par défaut pour tous les
   // comptes existants : le module est nouveau, personne n'y a accès tant
   // qu'un admin ne l'attribue pas explicitement (cf. RoleOperations).
