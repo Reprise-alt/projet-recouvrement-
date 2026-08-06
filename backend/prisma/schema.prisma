@@ -18,6 +18,23 @@ enum RoleUtilisateur {
   comptable
 }
 
+// Rôle propre au module Opérations -- orthogonal à RoleUtilisateur (qui régit
+// le recouvrement) : un utilisateur peut avoir l'un, l'autre, les deux, ou
+// aucun. Nullable sur Utilisateur = pas d'accès au module Opérations.
+// - directrice_operations : lecture/écriture complète, scopée à son entité
+//   (via Utilisateur.entite, déjà utilisé côté recouvrement pour le même rôle
+//   de portée).
+// - charge_compte : relevé/problèmes/engagements, mais uniquement sur les
+//   comptes dont il est le charge de compte (ClientOperations.chargeDeCompte).
+// - direction_generale : lecture des deux entités + arbitrage VIP +
+//   administration des seuils/nomenclatures. Utilisateur.entite = null,
+//   comme pour le rôle admin côté recouvrement.
+enum RoleOperations {
+  directrice_operations
+  charge_compte
+  direction_generale
+}
+
 enum ServiceIntegration {
   artis
   mapon
@@ -67,6 +84,16 @@ model Client {
   createdAt            DateTime             @default(now())
   updatedAt            DateTime             @updatedAt
 
+  // Identifiant groupe partagé avec le module Opérations -- permet de
+  // rapprocher la fiche recouvrement d'une entité et la fiche opérations de
+  // la même société physique sans jamais comparer des noms ("SEN'EAU" vs
+  // "Sen Eau SA" ne se rejoindraient jamais). Volontairement pas @unique
+  // seul : une même société peut porter le même codeClient sur sa ligne
+  // SORAM et sa ligne IRIS -- l'unicité se vérifie par entité (voir index
+  // ci-dessous). Nullable : tous les clients recouvrement existants n'ont
+  // pas vocation à exister côté Opérations.
+  codeClient String?
+
   factures              Facture[]
   contrats              Contrat[]
   actions               ActionRecouvrement[]
@@ -74,10 +101,12 @@ model Client {
   echeanciers           EcheancierPaiement[]
   tachesCoursier        TacheCoursier[]
   tachesCoursierModeles TacheCoursierModele[]
+  operations            ClientOperations?
 
   // Clé de rapprochement à l'import (Excel manuel aujourd'hui, sync ARTIS/MAPON demain) :
   // un même client ne doit jamais être dupliqué d'un import à l'autre.
   @@unique([nom, entite])
+  @@unique([codeClient, entite])
 }
 
 // Accord de règlement échelonné négocié avec un client en difficulté —
@@ -221,7 +250,13 @@ model Utilisateur {
   // pour le choix par défaut : true sauf pour les admins existants).
   estAgentRecouvrement Boolean @default(true)
 
-  actions ActionRecouvrement[]
+  // Accès au module Opérations -- absent (null) par défaut pour tous les
+  // comptes existants : le module est nouveau, personne n'y a accès tant
+  // qu'un admin ne l'attribue pas explicitement (cf. RoleOperations).
+  roleOperations RoleOperations?
+
+  actions          ActionRecouvrement[]
+  comptesOperation ClientOperations[]   @relation("ChargeDeCompte")
 }
 
 // Seuils de paliers de recouvrement (jours de retard), config unique du groupe.
@@ -398,4 +433,258 @@ model TacheCoursier {
   // Empêche de générer deux fois l'instance du jour pour un même modèle
   // récurrent (génération idempotente, cf. lib/taches.ts).
   @@unique([modeleId, dateInitiale])
+}
+
+// ============================================================================
+// Module Opérations -- suivi relationnel du portefeuille par les directrices
+// des opérations de SORAM et IRIS. Domaine volontairement étanche du
+// recouvrement : ne connaît ni montant ni facture (cf. cahier des charges
+// OLU360 — Suivi des opérations, §1 et §7). Le seul point de jonction avec
+// le recouvrement est Client.codeClient (identité partagée) et les deux
+// signaux minces décrits en §8 -- jamais une jointure métier profonde, pour
+// que chaque module reste isolable indépendamment de l'autre.
+// ============================================================================
+
+// Nomenclature fermée (cahier §5.1) -- 18 valeurs, 7 porteuses d'une fenêtre
+// saisonnière (voir FenetreSaisonniere). Fermée par conception : ajouter un
+// secteur est une migration, pas une saisie admin.
+enum Secteur {
+  education
+  administration
+  sante
+  hotellerie
+  distribution
+  agro
+  btp
+  banque
+  telecom
+  industrie
+  logistique
+  maritime
+  utilities
+  mines
+  ong
+  it
+  services
+  autre
+}
+
+enum Criticite {
+  A
+  B
+  C
+}
+
+// Ce que la directrice observe de la relation au moment du relevé -- alimente
+// l'axe "Climat" (cf. cahier §4.3). Nommé Climat plutôt que Temperature (le
+// champ du modèle JSON du prototype) pour matcher le vocabulaire du cahier
+// des charges partout où l'axe est mentionné.
+enum Climat {
+  vert
+  orange
+  rouge
+}
+
+enum GraviteProbleme {
+  gene
+  bloquant
+}
+
+// Nomenclature fermée (cahier §5.2, annexe B) -- la distinction maîtrisable
+// / subie est l'indicateur de pilotage du churn, jamais dérivée à l'affichage.
+enum MotifResiliation {
+  prix
+  qualite
+  suivi
+  litige
+  ao
+  perimetre
+  internal
+  cessation
+  autre
+}
+
+// Extension 1:1 optionnelle de Client pour tout ce qui relève du pilotage
+// opérationnel (cahier §3.1) -- volontairement une table à part plutôt que
+// des colonnes sur Client lui-même : isoler le recouvrement un jour signifie
+// ne pas emporter cette table (et les tables qui en dépendent), sans toucher
+// une seule colonne du modèle Client existant.
+model ClientOperations {
+  id       String @id @default(cuid())
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId String @unique
+
+  secteur   Secteur
+  criticite Criticite @default(C)
+  vip       Boolean   @default(false)
+
+  // Chargé de compte -- référence un Utilisateur (RoleOperations =
+  // charge_compte) plutôt qu'un texte libre comme dans le prototype : c'est
+  // ce qui permet d'appliquer réellement la portée "ses comptes uniquement"
+  // du §7 sans dépendre d'une correspondance de nom saisie à la main.
+  chargeDeCompte   Utilisateur? @relation("ChargeDeCompte", fields: [chargeDeCompteId], references: [id], onDelete: SetNull)
+  chargeDeCompteId String?
+
+  debutContrat DateTime?
+  finContrat   DateTime?
+
+  dernierContact DateTime?
+  climat         Climat?
+  commentaire    String?
+
+  // Engagement courant -- un seul à la fois par conception (cahier §4).
+  // Une fois coché fait, il rejoint l'historique au prochain relevé plutôt
+  // que d'être conservé ici.
+  action         String?
+  actionEcheance DateTime?
+  actionFait     Boolean   @default(false)
+
+  // Démarrage de contrat -- se déclenche à la création du compte (cahier §5.3).
+  demarreLe        DateTime?
+  demarrageCloture Boolean   @default(false)
+
+  dernierCopil DateTime?
+  enjeux       String?
+
+  // Dénormalisé depuis ReleveHebdo.date (MAX) -- alimente le tri de la file
+  // de relevé hebdo ("non relevés d'abord") sans recalculer un MAX() à
+  // chaque affichage du portefeuille.
+  dernierReleve DateTime?
+
+  resilie          Boolean           @default(false)
+  dateResiliation  DateTime?
+  motifResiliation MotifResiliation?
+  motifDetail      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  problemes       ProblemeOperations[]
+  releves         ReleveHebdo[]
+  etapesDemarrage EtapeDemarrageFait[]
+  campagneFaits   CampagneFait[]
+}
+
+// Un problème est un objet suivi dans le temps, pas une phrase dans un
+// commentaire (cahier §3, "Pourquoi l'ancienneté compte plus que le
+// nombre") -- c'est ouvertLe qui porte le poids du calcul de score, pas le
+// simple fait d'exister.
+model ProblemeOperations {
+  id                 String           @id @default(cuid())
+  clientOperations   ClientOperations @relation(fields: [clientOperationsId], references: [id], onDelete: Cascade)
+  clientOperationsId String
+  texte              String
+  gravite            GraviteProbleme
+  ouvertLe           DateTime
+  resoluLe           DateTime?
+}
+
+// Une entrée par semaine ISO (cahier §3.1) -- @@unique garantit l'écrasement
+// si un second relevé est validé la même semaine plutôt que d'empiler deux
+// lignes. La fenêtre glissante de 52 entrées est une politique de
+// consultation/purge, pas une contrainte de schéma : voir lib/operations.ts.
+model ReleveHebdo {
+  id                 String           @id @default(cuid())
+  clientOperations   ClientOperations @relation(fields: [clientOperationsId], references: [id], onDelete: Cascade)
+  clientOperationsId String
+  semaineIso         String
+  date               DateTime         @default(now())
+  score              Int
+  commentaire        String?
+  action             String?
+
+  @@unique([clientOperationsId, semaineIso])
+}
+
+// Progression du démarrage de contrat -- une ligne par étape cochée (cahier
+// §5.3). Les étapes elles-mêmes (libellé, délai, ordre) sont configurables
+// par entité, voir EtapeDemarrageConfig : cette table ne stocke que "cochée
+// le", jamais le libellé ni le délai, pour ne pas devoir migrer les faits
+// passés si une échéance est ajustée en administration.
+model EtapeDemarrageFait {
+  id                 String           @id @default(cuid())
+  clientOperations   ClientOperations @relation(fields: [clientOperationsId], references: [id], onDelete: Cascade)
+  clientOperationsId String
+  cle                String
+  date               DateTime         @default(now())
+
+  @@unique([clientOperationsId, cle])
+}
+
+// Étapes de démarrage paramétrables par entité (cahier §5.3 + §10 : "délais
+// paramétrables"). SORAM et IRIS ont les mêmes clés d'étape mais des
+// libellés et délais distincts -- seedées à la migration avec les valeurs du
+// cahier, ajustables ensuite depuis l'administration.
+model EtapeDemarrageConfig {
+  id         String @id @default(cuid())
+  entite     String
+  cle        String
+  libelle    String
+  delaiJours Int
+  ordre      Int
+
+  @@unique([entite, cle])
+}
+
+// Fenêtre saisonnière par secteur (cahier §5.1) -- seuls les 7 secteurs qui
+// en portent une ont une ligne ici ; les autres en sont simplement absents.
+// mois/jour plutôt qu'une date absolue : la fenêtre se reproduit chaque
+// année à date fixe (calendrier sénégalais), pas une échéance ponctuelle.
+model FenetreSaisonniere {
+  secteur           Secteur @id
+  label             String
+  mois              Int
+  jour              Int
+  anticipationJours Int
+}
+
+// Traiter plusieurs comptes d'un même secteur en une opération (cahier §7).
+// Les cibles ne sont jamais stockées : recalculées à l'affichage depuis
+// secteurs + entite sur les clients actifs, pour qu'un nouveau client du
+// secteur rejoigne automatiquement une campagne en cours -- voir
+// lib/operations.ts.
+model Campagne {
+  id       String    @id @default(cuid())
+  nom      String
+  objectif String?
+  secteurs Secteur[]
+  entite   String
+  echeance DateTime
+  creeLe   DateTime  @default(now())
+  cloturee Boolean   @default(false)
+
+  faits CampagneFait[]
+}
+
+model CampagneFait {
+  id                 String           @id @default(cuid())
+  campagne           Campagne         @relation(fields: [campagneId], references: [id], onDelete: Cascade)
+  campagneId         String
+  clientOperations   ClientOperations @relation(fields: [clientOperationsId], references: [id], onDelete: Cascade)
+  clientOperationsId String
+  date               DateTime         @default(now())
+  note               String?
+
+  @@unique([campagneId, clientOperationsId])
+}
+
+// Seuils du module Opérations (cahier §4.2 et annexe des seuils) -- config
+// unique du groupe, même convention que le modèle Config du recouvrement
+// (id=1 fixe, une seule ligne).
+model ConfigOperations {
+  id Int @id @default(1)
+
+  contactStdVigilance Int @default(45)
+  contactStdRisque    Int @default(60)
+  contactVipVigilance Int @default(25)
+  contactVipRisque    Int @default(35)
+
+  problemeVigilanceJours      Int @default(14)
+  problemeRisqueJours         Int @default(30)
+  problemeBloquantRisqueJours Int @default(7)
+
+  demarrageRisqueRetardJours Int @default(15)
+
+  finContratVigilanceJours Int @default(90)
+  finContratRisqueJours    Int @default(30)
 }
