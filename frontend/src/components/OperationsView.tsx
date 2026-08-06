@@ -33,6 +33,7 @@ type OpsTab = 'cockpit' | 'portefeuille' | 'releve' | 'campagnes' | 'copil' | 'r
 
 export function OperationsView({ entityFilter, user, reloadKey }: Props) {
   const [tab, setTab] = useState<OpsTab>('cockpit');
+  const [pendingFilters, setPendingFilters] = useState<PortefeuilleFilter[] | undefined>(undefined);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedSection, setSelectedSection] = useState<'resiliation' | undefined>(undefined);
   const [adminOpen, setAdminOpen] = useState(false);
@@ -45,26 +46,31 @@ export function OperationsView({ entityFilter, user, reloadKey }: Props) {
     setSelectedSection(section);
   }
 
+  function goToTab(target: OpsTab, filters?: PortefeuilleFilter[]) {
+    setPendingFilters(filters);
+    setTab(target);
+  }
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 22 }}>
         <div className="entity-toggle" style={{ display: 'inline-flex' }}>
-          <button className={tab === 'cockpit' ? 'active' : ''} onClick={() => setTab('cockpit')}>
+          <button className={tab === 'cockpit' ? 'active' : ''} onClick={() => goToTab('cockpit')}>
             Cockpit
           </button>
-          <button className={tab === 'portefeuille' ? 'active' : ''} onClick={() => setTab('portefeuille')}>
+          <button className={tab === 'portefeuille' ? 'active' : ''} onClick={() => goToTab('portefeuille')}>
             Portefeuille
           </button>
-          <button className={tab === 'releve' ? 'active' : ''} onClick={() => setTab('releve')}>
+          <button className={tab === 'releve' ? 'active' : ''} onClick={() => goToTab('releve')}>
             Relevé hebdo
           </button>
-          <button className={tab === 'campagnes' ? 'active' : ''} onClick={() => setTab('campagnes')}>
+          <button className={tab === 'campagnes' ? 'active' : ''} onClick={() => goToTab('campagnes')}>
             Campagnes
           </button>
-          <button className={tab === 'copil' ? 'active' : ''} onClick={() => setTab('copil')}>
+          <button className={tab === 'copil' ? 'active' : ''} onClick={() => goToTab('copil')}>
             COPIL grands comptes
           </button>
-          <button className={tab === 'resiliations' ? 'active' : ''} onClick={() => setTab('resiliations')}>
+          <button className={tab === 'resiliations' ? 'active' : ''} onClick={() => goToTab('resiliations')}>
             Résiliations
           </button>
         </div>
@@ -75,8 +81,8 @@ export function OperationsView({ entityFilter, user, reloadKey }: Props) {
         )}
       </div>
 
-      {tab === 'cockpit' && <CockpitTab entityFilter={entityFilter} reloadKey={combinedReload} onSelect={handleSelect} />}
-      {tab === 'portefeuille' && <PortefeuilleTab entityFilter={entityFilter} reloadKey={combinedReload} onSelect={handleSelect} />}
+      {tab === 'cockpit' && <CockpitTab entityFilter={entityFilter} reloadKey={combinedReload} onSelect={handleSelect} onGoTo={goToTab} />}
+      {tab === 'portefeuille' && <PortefeuilleTab entityFilter={entityFilter} reloadKey={combinedReload} onSelect={handleSelect} initialFilters={pendingFilters} />}
       {tab === 'releve' && <ReleveTab entityFilter={entityFilter} reloadKey={combinedReload} onSelect={handleSelect} />}
       {tab === 'campagnes' && <CampagnesTab entityFilter={entityFilter} reloadKey={combinedReload} user={user} onSelect={handleSelect} onChanged={bump} />}
       {tab === 'copil' && <CopilTab entityFilter={entityFilter} reloadKey={combinedReload} onSelect={handleSelect} />}
@@ -99,85 +105,72 @@ export function OperationsView({ entityFilter, user, reloadKey }: Props) {
   );
 }
 
-function CockpitTab({ entityFilter, reloadKey, onSelect }: { entityFilter: Entite | 'ALL'; reloadKey: unknown; onSelect: (id: string) => void }) {
+function CockpitTab({
+  entityFilter,
+  reloadKey,
+  onSelect,
+  onGoTo,
+}: {
+  entityFilter: Entite | 'ALL';
+  reloadKey: unknown;
+  onSelect: (id: string) => void;
+  onGoTo: (tab: OpsTab, filters?: PortefeuilleFilter[]) => void;
+}) {
   const { data, loading, error } = useResource<CockpitResponse>(`/api/operations/cockpit${buildQuery({ entite: entityFilter })}`, reloadKey);
 
   if (loading) return <div className="empty-state">Chargement…</div>;
   if (error || !data) return <div className="empty-state"><h3>Erreur</h3><p>{error}</p></div>;
 
   const c = data.compteurs;
+  const demarrageEnRetard = data.demarragesEnCours.filter((d) => d.etat.retard.length > 0).length;
+  const demarrageDansLesTemps = data.demarragesEnCours.length - demarrageEnRetard;
+
   return (
     <div>
       <div className="kpis">
-        <div className="kpi">
+        <div className="kpi" style={{ cursor: 'pointer' }} onClick={() => onGoTo('portefeuille', ['probleme'])}>
           <div className="kpi-label">
             <AlertTriangle size={13} /> Problèmes ouverts
           </div>
           <div className="kpi-value">{c.problemesOuverts}</div>
         </div>
-        <div className="kpi">
+        <div className="kpi" style={{ cursor: 'pointer' }} onClick={() => onGoTo('portefeuille', ['sansContact'])}>
           <div className="kpi-label">
             <Users size={13} /> Hors règle de contact
           </div>
           <div className="kpi-value">{c.horsRegleContact}</div>
         </div>
-        <div className="kpi">
+        <div className="kpi" style={{ cursor: 'pointer' }} onClick={() => onGoTo('copil')}>
           <div className="kpi-label">
             <ShieldAlert size={13} /> COPIL du mois tenus
           </div>
           <div className="kpi-value">{c.copilDuMois}</div>
         </div>
-        <div className="kpi">
+        <div className="kpi" style={{ cursor: 'pointer' }} onClick={() => onGoTo('portefeuille', ['engagementRetard'])}>
           <div className="kpi-label">Engagements en retard</div>
           <div className="kpi-value">{c.engagementsEnRetard}</div>
         </div>
-        <div className="kpi">
+        <div className="kpi" style={{ cursor: 'pointer' }} onClick={() => onGoTo('releve')}>
           <div className="kpi-label">Relevés de la semaine</div>
           <div className="kpi-value">
             {c.releveDeLaSemaine}/{c.totalPortefeuille}
           </div>
         </div>
-        <div className="kpi">
+        <div className="kpi" style={{ cursor: 'pointer' }} onClick={() => onGoTo('portefeuille', ['demarrage'])}>
+          <div className="kpi-label">Démarrages en cours</div>
+          <div className="kpi-value">{data.demarragesEnCours.length}</div>
+          {data.demarragesEnCours.length > 0 && (
+            <div className="kpi-sub">{demarrageEnRetard > 0 ? `${demarrageEnRetard} en retard` : `${demarrageDansLesTemps} dans les temps`}</div>
+          )}
+        </div>
+        <div className="kpi" style={{ cursor: 'pointer' }} onClick={() => onGoTo('portefeuille')}>
           <div className="kpi-label">Portefeuille actif</div>
           <div className="kpi-value">{c.totalPortefeuille}</div>
         </div>
       </div>
 
-      <div className="table-card">
-        <div className="table-head">
-          <div style={{ fontWeight: 600, fontSize: 14 }}>Alertes</div>
-        </div>
-        {data.alertes.length === 0 ? (
-          <div className="empty-state">
-            <h3>Aucune alerte</h3>
-            <p>Le portefeuille est à jour sur tous les fronts suivis.</p>
-          </div>
-        ) : (
-          <div>
-            {data.alertes.map((a, i) => (
-              <div
-                key={i}
-                className="row-hover"
-                onClick={() => onSelect(a.clientId)}
-                style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '12px 20px', borderBottom: '1px solid var(--line-soft)', cursor: 'pointer' }}
-              >
-                <span className="badge" data-tone={a.niveau === 'risque' ? 'danger' : 'amber'} style={{ flexShrink: 0 }}>
-                  {a.niveau === 'risque' ? 'Risque' : 'Vigilance'}
-                </span>
-                <div style={{ flex: 1 }}>
-                  <strong>{a.titre}</strong>
-                  <div style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>
-                    {a.clientNom} {a.vip && '· VIP'} · {a.detail}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
       {data.demarragesEnCours.length > 0 && (
-        <div className="table-card" style={{ marginTop: 20 }}>
+        <div className="table-card">
           <div className="table-head">
             <div style={{ fontWeight: 600, fontSize: 14 }}>Démarrages en cours</div>
           </div>
@@ -230,6 +223,39 @@ function CockpitTab({ entityFilter, reloadKey, onSelect }: { entityFilter: Entit
           </div>
         </div>
       )}
+
+      <div className="table-card" style={{ marginTop: data.demarragesEnCours.length > 0 ? 20 : 0 }}>
+        <div className="table-head">
+          <div style={{ fontWeight: 600, fontSize: 14 }}>Alertes</div>
+        </div>
+        {data.alertes.length === 0 ? (
+          <div className="empty-state">
+            <h3>Aucune alerte</h3>
+            <p>Le portefeuille est à jour sur tous les fronts suivis.</p>
+          </div>
+        ) : (
+          <div>
+            {data.alertes.map((a, i) => (
+              <div
+                key={i}
+                className="row-hover"
+                onClick={() => onSelect(a.clientId)}
+                style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '12px 20px', borderBottom: '1px solid var(--line-soft)', cursor: 'pointer' }}
+              >
+                <span className="badge" data-tone={a.niveau === 'risque' ? 'danger' : 'amber'} style={{ flexShrink: 0 }}>
+                  {a.niveau === 'risque' ? 'Risque' : 'Vigilance'}
+                </span>
+                <div style={{ flex: 1 }}>
+                  <strong>{a.titre}</strong>
+                  <div style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>
+                    {a.clientNom} {a.vip && '· VIP'} · {a.detail}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -238,12 +264,22 @@ const CRITICITE_TONE: Record<string, string> = { A: 'danger', B: 'amber', C: 'su
 
 type PortefeuilleFilter = 'probleme' | 'sansContact' | 'engagementRetard' | 'demarrage' | 'vip' | 'releveAFaire';
 
-function PortefeuilleTab({ entityFilter, reloadKey, onSelect }: { entityFilter: Entite | 'ALL'; reloadKey: unknown; onSelect: (id: string, section?: 'resiliation') => void }) {
+function PortefeuilleTab({
+  entityFilter,
+  reloadKey,
+  onSelect,
+  initialFilters,
+}: {
+  entityFilter: Entite | 'ALL';
+  reloadKey: unknown;
+  onSelect: (id: string, section?: 'resiliation') => void;
+  initialFilters?: PortefeuilleFilter[];
+}) {
   const { showToast } = useToast();
   const [search, setSearch] = useState('');
   const [statut, setStatut] = useState<'actifs' | 'resilies'>('actifs');
   const [secteurFilter, setSecteurFilter] = useState<Secteur | ''>('');
-  const [activeFilters, setActiveFilters] = useState<Set<PortefeuilleFilter>>(new Set());
+  const [activeFilters, setActiveFilters] = useState<Set<PortefeuilleFilter>>(new Set(initialFilters ?? []));
   const [creating, setCreating] = useState(false);
   const [importing, setImporting] = useState(false);
   const [busyRow, setBusyRow] = useState<string | null>(null);
