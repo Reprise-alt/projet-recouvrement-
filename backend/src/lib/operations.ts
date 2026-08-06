@@ -78,6 +78,7 @@ export function problemesBloquants<T extends ProblemeLike>(problemes: T[]): T[] 
 export interface EtapeDemarrageConfigLike {
   cle: string;
   libelle: string;
+  description?: string | null;
   delaiJours: number;
   ordre: number;
 }

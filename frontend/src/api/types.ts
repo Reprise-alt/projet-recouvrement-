@@ -481,6 +481,7 @@ export interface EtapeDemarrageConfig {
   entite: Entite;
   cle: string;
   libelle: string;
+  description: string | null;
   delaiJours: number;
   ordre: number;
 }
@@ -547,6 +548,7 @@ export interface ClientOperationsDetail {
   problemes: ProblemeOperations[];
   releves: ReleveHebdo[];
   etapesDemarrage: EtapeDemarrageFait[];
+  etapesConfig: EtapeDemarrageConfig[];
   scores: ScoresAxes;
   tone: Tone;
   demarrage: DemarrageEtat | null;
@@ -574,7 +576,13 @@ export interface CockpitCompteurs {
 export interface CockpitResponse {
   compteurs: CockpitCompteurs;
   alertes: AlerteClient[];
-  demarragesEnCours: { id: string; client: ClientOperationsIdentite; etat: DemarrageEtat }[];
+  demarragesEnCours: {
+    id: string;
+    client: ClientOperationsIdentite;
+    demarreLe: string | null;
+    chargeDeCompte: { id: string; nom: string } | null;
+    etat: DemarrageEtat;
+  }[];
 }
 
 export interface ReleveFileEntry {

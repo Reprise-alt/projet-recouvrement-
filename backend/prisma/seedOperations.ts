@@ -14,21 +14,21 @@ const ETAPES_DEMARRAGE = [
   {
     entite: 'SORAM',
     etapes: [
-      { cle: 'inst', libelle: 'Parc installé et opérationnel', delaiJours: 7, ordre: 1 },
-      { cle: 'contact', libelle: 'Contact effectué après installation', delaiJours: 14, ordre: 2 },
-      { cle: 'ope', libelle: 'Client opérationnel (formation, paramétrage, dispatch des contacts internes)', delaiJours: 21, ordre: 3 },
-      { cle: 'sat', libelle: 'Point de satisfaction à 30 jours tenu', delaiJours: 45, ordre: 4 },
-      { cle: 'val', libelle: 'Démarrage validé avec le client', delaiJours: 90, ordre: 5 },
+      { cle: 'inst', libelle: 'Parc installé et opérationnel', description: null, delaiJours: 7, ordre: 1 },
+      { cle: 'contact', libelle: 'Contact effectué après installation', description: null, delaiJours: 14, ordre: 2 },
+      { cle: 'ope', libelle: 'Client opérationnel', description: 'Formation, paramétrage, dispatch des contacts internes', delaiJours: 21, ordre: 3 },
+      { cle: 'sat', libelle: 'Point de satisfaction à 30 jours tenu', description: null, delaiJours: 45, ordre: 4 },
+      { cle: 'val', libelle: 'Démarrage validé avec le client', description: null, delaiJours: 90, ordre: 5 },
     ],
   },
   {
     entite: 'IRIS',
     etapes: [
-      { cle: 'inst', libelle: 'Boîtiers installés sur toute la flotte', delaiJours: 10, ordre: 1 },
-      { cle: 'contact', libelle: 'Contact effectué après installation', delaiJours: 17, ordre: 2 },
-      { cle: 'ope', libelle: 'Client opérationnel (formation, paramétrage des alertes et rapports, dispatch des contacts internes)', delaiJours: 25, ordre: 3 },
-      { cle: 'sat', libelle: 'Point de satisfaction à 30 jours tenu', delaiJours: 45, ordre: 4 },
-      { cle: 'val', libelle: 'Démarrage validé avec le client', delaiJours: 90, ordre: 5 },
+      { cle: 'inst', libelle: 'Boîtiers installés sur toute la flotte', description: null, delaiJours: 10, ordre: 1 },
+      { cle: 'contact', libelle: 'Contact effectué après installation', description: null, delaiJours: 17, ordre: 2 },
+      { cle: 'ope', libelle: 'Client opérationnel', description: 'Formation, paramétrage des alertes et rapports, dispatch des contacts internes', delaiJours: 25, ordre: 3 },
+      { cle: 'sat', libelle: 'Point de satisfaction à 30 jours tenu', description: null, delaiJours: 45, ordre: 4 },
+      { cle: 'val', libelle: 'Démarrage validé avec le client', description: null, delaiJours: 90, ordre: 5 },
     ],
   },
 ];
@@ -50,7 +50,7 @@ async function main() {
     for (const etape of etapes) {
       await prisma.etapeDemarrageConfig.upsert({
         where: { entite_cle: { entite, cle: etape.cle } },
-        update: { libelle: etape.libelle, delaiJours: etape.delaiJours, ordre: etape.ordre },
+        update: { libelle: etape.libelle, description: etape.description, delaiJours: etape.delaiJours, ordre: etape.ordre },
         create: { entite, ...etape },
       });
     }

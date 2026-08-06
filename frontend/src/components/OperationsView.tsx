@@ -163,26 +163,52 @@ function CockpitTab({ entityFilter, reloadKey, onSelect }: { entityFilter: Entit
           <div className="table-head">
             <div style={{ fontWeight: 600, fontSize: 14 }}>Démarrages en cours</div>
           </div>
-          <div>
-            {data.demarragesEnCours.map(({ id, client, etat }) => (
-              <div
-                key={id}
-                className="row-hover"
-                onClick={() => onSelect(id)}
-                style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '12px 20px', borderBottom: '1px solid var(--line-soft)', cursor: 'pointer' }}
-              >
-                <EntityLogo entite={client.entite} size={14} />
-                <div style={{ flex: 1 }}>
-                  <strong>{client.nom}</strong>
-                  <div style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>
-                    {etat.nbFaits}/{etat.total} étapes bouclées — J+{etat.age} sur 90 {etat.retard.length > 0 && `· ${etat.retard.length} en retard`}
+          <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {data.demarragesEnCours.map(({ id, client, demarreLe, chargeDeCompte, etat }) => {
+              const enRetard = etat.retard.length > 0;
+              return (
+                <div
+                  key={id}
+                  className="row-hover demarrage-card"
+                  onClick={() => onSelect(id)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 20,
+                    padding: '16px 20px',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'var(--paper)',
+                    border: '1px solid var(--line)',
+                    borderLeftWidth: 4,
+                    borderLeftStyle: 'solid',
+                    borderLeftColor: enRetard ? 'var(--danger)' : 'var(--success)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <div style={{ flex: 1 }}>
+                    <strong>{client.nom}</strong>
+                    <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginTop: 2 }}>
+                      {client.entite} {chargeDeCompte && `· ${chargeDeCompte.nom}`} {demarreLe && `· démarré le ${fmtDate(demarreLe)}`}
+                    </div>
                   </div>
+                  <div style={{ width: 160 }}>
+                    <div style={{ height: 6, background: 'var(--line-soft)', borderRadius: 3, overflow: 'hidden' }}>
+                      <div style={{ width: `${etat.pct}%`, height: '100%', background: 'var(--accent)' }} />
+                    </div>
+                    <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 4 }}>
+                      {etat.nbFaits} / {etat.total} étapes
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: 20, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>J+{etat.age}</div>
+                    <div style={{ fontSize: 11, color: 'var(--ink-soft)' }}>sur 90</div>
+                  </div>
+                  <span className="badge" data-tone={enRetard ? 'danger' : 'success'} style={{ fontSize: 10.5 }}>
+                    {enRetard ? 'EN RETARD' : 'DANS LES TEMPS'}
+                  </span>
                 </div>
-                <div style={{ width: 100, height: 6, background: 'var(--line-soft)', borderRadius: 3, overflow: 'hidden' }}>
-                  <div style={{ width: `${etat.pct}%`, height: '100%', background: 'var(--accent)' }} />
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

@@ -211,7 +211,7 @@ operationsRouter.get('/cockpit', async (req, res, next) => {
     const entiteFilter = resolveEntiteScopeOperations(req.user!, req.query.entite);
     const rows = await prisma.clientOperations.findMany({
       where: { client: entiteWhereClient(entiteFilter), resilie: false, ...chargeDeCompteWhere(req.user!) },
-      include: { client: { select: CLIENT_SELECT }, problemes: true },
+      include: { client: { select: CLIENT_SELECT }, problemes: true, etapesDemarrage: true, chargeDeCompte: { select: { id: true, nom: true } } },
     });
 
     const config = await getConfig();
@@ -244,7 +244,7 @@ operationsRouter.get('/cockpit', async (req, res, next) => {
           problemes,
         },
         etapesParEntite.get(r.client.entite) ?? [],
-        [],
+        r.etapesDemarrage,
         fenetreParSecteur.get(r.secteur) ?? null,
         config,
       );
@@ -265,7 +265,9 @@ operationsRouter.get('/cockpit', async (req, res, next) => {
       .map((r) => ({
         id: r.id,
         client: r.client,
-        etat: etatDemarrage(r, etapesParEntite.get(r.client.entite) ?? [], []),
+        demarreLe: r.demarreLe,
+        chargeDeCompte: r.chargeDeCompte,
+        etat: etatDemarrage(r, etapesParEntite.get(r.client.entite) ?? [], r.etapesDemarrage),
       }))
       .filter((d) => d.etat != null);
 
@@ -314,7 +316,7 @@ operationsRouter.get('/clients/:id', async (req, res, next) => {
     const scores = scoresClient(co, etapesConfig, co.etapesDemarrage, config);
     const demarrage = etatDemarrage(co, etapesConfig, co.etapesDemarrage);
 
-    res.json({ ...co, scores, tone: couleurScore(scores.global), demarrage });
+    res.json({ ...co, scores, tone: couleurScore(scores.global), demarrage, etapesConfig });
   } catch (err) {
     next(err);
   }

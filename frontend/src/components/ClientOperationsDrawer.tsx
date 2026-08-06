@@ -25,6 +25,7 @@ export function ClientOperationsDrawer({ id, user, onClose, onChanged }: Props) 
   const [editingIdentite, setEditingIdentite] = useState(false);
   const [addingProbleme, setAddingProbleme] = useState(false);
   const [showReleve, setShowReleve] = useState(false);
+  const [climatChoice, setClimatChoice] = useState<Climat | ''>('');
   const [showResiliation, setShowResiliation] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -118,7 +119,7 @@ export function ClientOperationsDrawer({ id, user, onClose, onChanged }: Props) 
     try {
       await api.post(`/api/operations/clients/${id}/releve`, {
         dernierContact: form.get('dernierContact') || undefined,
-        climat: form.get('climat') || undefined,
+        climat: climatChoice || undefined,
         commentaire: form.get('commentaire') || '',
         action: form.get('action') ?? '',
         actionEcheance: form.get('actionEcheance') || null,
@@ -295,32 +296,41 @@ export function ClientOperationsDrawer({ id, user, onClose, onChanged }: Props) 
             {co.demarrage && (
               <>
                 <div className="section-title">
-                  <span>
-                    Démarrage — J+{co.demarrage.age} sur 90 ({co.demarrage.nbFaits}/{co.demarrage.total})
-                  </span>
+                  <span>Démarrage de contrat</span>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
-                  {co.demarrage.restantes.length === 0 ? (
-                    <div style={{ fontSize: 13, color: 'var(--success)' }}>Toutes les étapes sont bouclées.</div>
-                  ) : (
-                    co.demarrage.restantes.map((e) => {
+                <div className="demarrage-panel">
+                  <div className="demarrage-panel-head">
+                    <div style={{ fontSize: 13, color: 'var(--ink-soft)' }}>
+                      J+{co.demarrage.age} sur 90 · {co.demarrage.nbFaits}/{co.demarrage.total} étapes
+                    </div>
+                    <div className="demarrage-pct">{co.demarrage.pct}%</div>
+                  </div>
+                  <div className="demarrage-progress">
+                    <div className="demarrage-progress-fill" style={{ width: `${co.demarrage.pct}%` }} />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 14 }}>
+                    {co.etapesConfig.map((e) => {
+                      const fait = co.etapesDemarrage.find((f) => f.cle === e.cle);
                       const enRetard = co.demarrage!.retard.some((r) => r.cle === e.cle);
                       return (
-                        <button
-                          key={e.cle}
-                          onClick={() => cocherEtape(e.cle)}
-                          disabled={busy || !canEdit}
-                          style={{ display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left', background: 'none', border: 'none', padding: '4px 0', color: enRetard ? 'var(--danger)' : 'var(--ink)' }}
-                        >
-                          <Circle size={15} />
-                          <span style={{ fontSize: 13 }}>
-                            {e.libelle} — J+{e.delaiJours}
-                            {enRetard && ' (en retard)'}
-                          </span>
-                        </button>
+                        <div key={e.cle} className={`demarrage-etape${fait ? ' fait' : ''}${enRetard ? ' retard' : ''}`}>
+                          <button
+                            className="demarrage-etape-check"
+                            onClick={() => !fait && cocherEtape(e.cle)}
+                            disabled={busy || !canEdit || !!fait}
+                            aria-label={fait ? 'Étape faite' : 'Marquer faite'}
+                          >
+                            {fait ? <CheckCircle2 size={18} /> : <Circle size={18} />}
+                          </button>
+                          <div style={{ flex: 1 }}>
+                            <div className={fait ? 'demarrage-etape-libelle fait' : 'demarrage-etape-libelle'}>{e.libelle}</div>
+                            {e.description && !fait && <div className="demarrage-etape-desc">{e.description}</div>}
+                            <div className="demarrage-etape-meta">{fait ? `Fait le ${fmtDate(fait.date)}` : `Attendue à J+${e.delaiJours}${enRetard ? ' — en retard' : ''}`}</div>
+                          </div>
+                        </div>
                       );
-                    })
-                  )}
+                    })}
+                  </div>
                 </div>
               </>
             )}
@@ -406,22 +416,36 @@ export function ClientOperationsDrawer({ id, user, onClose, onChanged }: Props) 
 
             <div className="section-title">
               <span>Relevé hebdomadaire</span>
-              {canEdit && !showReleve && <button onClick={() => setShowReleve(true)}>Faire le relevé</button>}
+              {canEdit && !showReleve && (
+                <button
+                  onClick={() => {
+                    setClimatChoice(co.climat ?? '');
+                    setShowReleve(true);
+                  }}
+                >
+                  Faire le relevé
+                </button>
+              )}
             </div>
             {showReleve ? (
               <form onSubmit={handleReleve} style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
                 <div>
-                  <label>Dernier contact</label>
-                  <input type="date" name="dernierContact" defaultValue={co.dernierContact?.slice(0, 10) ?? new Date().toISOString().slice(0, 10)} />
+                  <label>Climat</label>
+                  <div className="climat-picker">
+                    <button type="button" className={`climat-option${climatChoice === 'vert' ? ' active' : ''}`} data-climat="vert" onClick={() => setClimatChoice('vert')}>
+                      <span className="climat-dot" /> Ça roule
+                    </button>
+                    <button type="button" className={`climat-option${climatChoice === 'orange' ? ' active' : ''}`} data-climat="orange" onClick={() => setClimatChoice('orange')}>
+                      <span className="climat-dot" /> À surveiller
+                    </button>
+                    <button type="button" className={`climat-option${climatChoice === 'rouge' ? ' active' : ''}`} data-climat="rouge" onClick={() => setClimatChoice('rouge')}>
+                      <span className="climat-dot" /> Ça coince
+                    </button>
+                  </div>
                 </div>
                 <div>
-                  <label>Climat</label>
-                  <select name="climat" defaultValue={co.climat ?? ''}>
-                    <option value="">—</option>
-                    <option value="vert">Vert</option>
-                    <option value="orange">Orange</option>
-                    <option value="rouge">Rouge</option>
-                  </select>
+                  <label>Dernier contact</label>
+                  <input type="date" name="dernierContact" defaultValue={co.dernierContact?.slice(0, 10) ?? new Date().toISOString().slice(0, 10)} />
                 </div>
                 <div>
                   <label>Note de la semaine</label>

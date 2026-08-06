@@ -625,12 +625,17 @@ model EtapeDemarrageFait {
 // libellés et délais distincts -- seedées à la migration avec les valeurs du
 // cahier, ajustables ensuite depuis l'administration.
 model EtapeDemarrageConfig {
-  id         String @id @default(cuid())
-  entite     String
-  cle        String
-  libelle    String
-  delaiJours Int
-  ordre      Int
+  id          String  @id @default(cuid())
+  entite      String
+  cle         String
+  libelle     String
+  // Précision affichée sous le libellé (ex. "Formation, paramétrage,
+  // dispatch des contacts internes" sous "Client opérationnel") -- distincte
+  // du libellé lui-même pour matcher la fiche compte du cahier des charges,
+  // qui affiche les deux sur des lignes séparées plutôt que concaténées.
+  description String?
+  delaiJours  Int
+  ordre       Int
 
   @@unique([entite, cle])
 }
