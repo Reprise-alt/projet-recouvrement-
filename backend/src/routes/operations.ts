@@ -606,3 +606,198 @@ operationsRouter.post('/clients/:id/reactiver', async (req, res, next) => {
     next(err);
   }
 });
+
+/* ---------- Campagnes sectorielles ---------- */
+
+// Une campagne visible pour un utilisateur borné à une entité est soit
+// spécifique à celle-ci, soit "GROUPE" (transverse) -- jamais une campagne
+// de l'autre entité (cahier §7 : portée toujours respectée, même pour un
+// objet qui n'est pas lui-même une donnée financière).
+function campagneVisible(userEntite: string | null, campagneEntite: string): boolean {
+  if (!userEntite) return true;
+  return campagneEntite === userEntite || campagneEntite === 'GROUPE';
+}
+
+async function ciblesCampagne(campagne: { secteurs: string[]; entite: string }) {
+  return prisma.clientOperations.findMany({
+    where: {
+      resilie: false,
+      secteur: { in: campagne.secteurs as any },
+      client: campagne.entite === 'GROUPE' ? {} : { entite: campagne.entite },
+    },
+    include: { client: { select: CLIENT_SELECT } },
+  });
+}
+
+operationsRouter.get('/campagnes', async (req, res, next) => {
+  try {
+    const all = await prisma.campagne.findMany({ orderBy: { creeLe: 'desc' }, include: { faits: true } });
+    const visibles = all.filter((c) => campagneVisible(req.user!.entite, c.entite));
+    const withCibles = await Promise.all(
+      visibles.map(async (c) => {
+        const cibles = await ciblesCampagne(c);
+        return { ...c, ciblesCount: cibles.length, traitesCount: c.faits.length };
+      }),
+    );
+    res.json(withCibles);
+  } catch (err) {
+    next(err);
+  }
+});
+
+operationsRouter.post('/campagnes', requireModuleOperations('directrice_operations', 'direction_generale'), async (req, res, next) => {
+  try {
+    const { nom, objectif, secteurs, entite, echeance } = req.body ?? {};
+    if (!nom || !Array.isArray(secteurs) || !secteurs.length || !entite || !echeance) {
+      return res.status(400).json({ error: 'nom, secteurs, entite et echeance sont requis' });
+    }
+    if (entite !== 'GROUPE' && !userCanAccessEntiteOperations(req.user!, entite)) {
+      return res.status(403).json({ error: 'Accès refusé — hors du périmètre de votre compte' });
+    }
+    const campagne = await prisma.campagne.create({
+      data: { nom, objectif: objectif || null, secteurs, entite, echeance: new Date(echeance) },
+    });
+    res.status(201).json(campagne);
+  } catch (err) {
+    next(err);
+  }
+});
+
+operationsRouter.get('/campagnes/:id', async (req, res, next) => {
+  try {
+    const campagne = await prisma.campagne.findUnique({ where: { id: req.params.id }, include: { faits: true } });
+    if (!campagne) return res.status(404).json({ error: 'Campagne introuvable' });
+    if (!campagneVisible(req.user!.entite, campagne.entite)) {
+      return res.status(403).json({ error: 'Accès refusé — hors du périmètre de votre compte' });
+    }
+    const cibles = await ciblesCampagne(campagne);
+    const faitsParClient = new Map(campagne.faits.map((f) => [f.clientOperationsId, f]));
+    const cellesAvecStatut = cibles.map((c) => ({
+      clientOperationsId: c.id,
+      client: c.client,
+      traite: faitsParClient.has(c.id),
+      fait: faitsParClient.get(c.id) ?? null,
+    }));
+    res.json({ ...campagne, cibles: cellesAvecStatut });
+  } catch (err) {
+    next(err);
+  }
+});
+
+operationsRouter.post('/campagnes/:id/faits', async (req, res, next) => {
+  try {
+    const campagne = await prisma.campagne.findUnique({ where: { id: req.params.id } });
+    if (!campagne) return res.status(404).json({ error: 'Campagne introuvable' });
+    if (!campagneVisible(req.user!.entite, campagne.entite)) {
+      return res.status(403).json({ error: 'Accès refusé — hors du périmètre de votre compte' });
+    }
+    const { clientOperationsId, note } = req.body ?? {};
+    if (!clientOperationsId) return res.status(400).json({ error: 'clientOperationsId requis' });
+
+    // Cocher un compte enregistre le contact du jour sur sa fiche (cahier §7) :
+    // une campagne fait donc progresser la règle des deux mois comme un
+    // relevé hebdo le ferait.
+    await prisma.$transaction([
+      prisma.campagneFait.upsert({
+        where: { campagneId_clientOperationsId: { campagneId: campagne.id, clientOperationsId } },
+        create: { campagneId: campagne.id, clientOperationsId, note: note || null },
+        update: { note: note || null, date: new Date() },
+      }),
+      prisma.clientOperations.update({ where: { id: clientOperationsId }, data: { dernierContact: new Date() } }),
+    ]);
+    res.status(201).json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+operationsRouter.post('/campagnes/:id/cloturer', requireModuleOperations('directrice_operations', 'direction_generale'), async (req, res, next) => {
+  try {
+    const campagne = await prisma.campagne.findUnique({ where: { id: req.params.id } });
+    if (!campagne) return res.status(404).json({ error: 'Campagne introuvable' });
+    if (!campagneVisible(req.user!.entite, campagne.entite)) {
+      return res.status(403).json({ error: 'Accès refusé — hors du périmètre de votre compte' });
+    }
+    const updated = await prisma.campagne.update({ where: { id: req.params.id }, data: { cloturee: true } });
+    res.json(updated);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* ---------- COPIL grands comptes ---------- */
+
+operationsRouter.get('/copil', async (req, res, next) => {
+  try {
+    const entiteFilter = resolveEntiteScopeOperations(req.user!, req.query.entite);
+    const rows = await prisma.clientOperations.findMany({
+      where: { client: entiteWhereClient(entiteFilter), vip: true, resilie: false, ...chargeDeCompteWhere(req.user!) },
+      include: { client: { select: CLIENT_SELECT }, problemes: true },
+      orderBy: { dernierCopil: 'asc' },
+    });
+    const now = new Date();
+    const config = await getConfig();
+    const etapesParEntite = new Map<string, EtapeDemarrageConfigLike[]>();
+    for (const entite of new Set(rows.map((r) => r.client.entite))) {
+      etapesParEntite.set(entite, await getEtapesConfig(entite));
+    }
+
+    const copil = rows.map((r) => {
+      const problemes = r.problemes.map(toProblemeLike);
+      const scores = scoresClient(r, etapesParEntite.get(r.client.entite) ?? [], [], config);
+      const copilFaitCeMois = !!r.dernierCopil && new Date(r.dernierCopil).getMonth() === now.getMonth() && new Date(r.dernierCopil).getFullYear() === now.getFullYear();
+      return {
+        id: r.id,
+        client: r.client,
+        enjeux: r.enjeux,
+        dernierCopil: r.dernierCopil,
+        copilFaitCeMois,
+        problemesOuverts: problemes.filter((p) => !p.resoluLe).length,
+        scores,
+        tone: couleurScore(scores.global),
+      };
+    });
+    res.json(copil);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* ---------- Résiliations ---------- */
+
+operationsRouter.get('/resiliations', async (req, res, next) => {
+  try {
+    const entiteFilter = resolveEntiteScopeOperations(req.user!, req.query.entite);
+    const rows = await prisma.clientOperations.findMany({
+      where: { client: entiteWhereClient(entiteFilter), resilie: true, ...chargeDeCompteWhere(req.user!) },
+      include: { client: { select: CLIENT_SELECT } },
+      orderBy: { dateResiliation: 'desc' },
+    });
+
+    const now = new Date();
+    const moisCourant = rows.filter((r) => r.dateResiliation && new Date(r.dateResiliation).getMonth() === now.getMonth() && new Date(r.dateResiliation).getFullYear() === now.getFullYear()).length;
+
+    const histogramme12Mois: { mois: string; nombre: number }[] = [];
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const cle = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const nombre = rows.filter((r) => r.dateResiliation && `${new Date(r.dateResiliation).getFullYear()}-${String(new Date(r.dateResiliation).getMonth() + 1).padStart(2, '0')}` === cle).length;
+      histogramme12Mois.push({ mois: cle, nombre });
+    }
+
+    const parMotifMap = new Map<string, number>();
+    for (const r of rows) {
+      if (!r.motifResiliation) continue;
+      parMotifMap.set(r.motifResiliation, (parMotifMap.get(r.motifResiliation) ?? 0) + 1);
+    }
+
+    res.json({
+      compteurs: { total: rows.length, moisCourant },
+      histogramme12Mois,
+      parMotif: Array.from(parMotifMap.entries()).map(([motif, nombre]) => ({ motif, nombre })),
+      liste: rows,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
