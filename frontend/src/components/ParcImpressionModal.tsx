@@ -1,5 +1,5 @@
 import { ChangeEvent, FormEvent, useRef, useState } from 'react';
-import { FileDown, Upload, X } from 'lucide-react';
+import { FileDown, RotateCcw, Upload, X } from 'lucide-react';
 import { api, ApiError, downloadFile } from '../api/client';
 import {
   ActionCopil,
@@ -60,6 +60,7 @@ export function ParcImpressionModal({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importBusy, setImportBusy] = useState(false);
   const [rapportBusy, setRapportBusy] = useState(false);
+  const [reinitBusy, setReinitBusy] = useState(false);
   const [moisRapport, setMoisRapport] = useState(''); // format "AAAA-MM", vide = toute la période
 
   async function handleImportFile(e: ChangeEvent<HTMLInputElement>) {
@@ -82,6 +83,29 @@ export function ParcImpressionModal({
       showToast(err instanceof ApiError ? err.message : "Échec de l'import ARTIS");
     } finally {
       setImportBusy(false);
+    }
+  }
+
+  async function handleReinitialiser() {
+    if (
+      !confirm(
+        `Réinitialiser toutes les données importées de ${clientNom} (équipements, interventions, volumétrie, consommables) ? Le plan d'action est conservé. Cette action sert à repartir d'une base propre avant un ré-import — elle est irréversible sans réimporter les fichiers ARTIS.`
+      )
+    )
+      return;
+    setReinitBusy(true);
+    try {
+      const result = await api.post<{ equipementsSupprimes: number; interventionsSupprimees: number; volumetrieSupprimee: number; consommablesSupprimes: number }>(
+        `/api/parc/clients/${clientOperationsId}/reinitialiser`
+      );
+      showToast(
+        `Données réinitialisées — ${result.equipementsSupprimes} équipement(s), ${result.interventionsSupprimees} intervention(s), ${result.volumetrieSupprimee} relevé(s), ${result.consommablesSupprimes} consommable(s) supprimés.`
+      );
+      bump();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Échec de la réinitialisation');
+    } finally {
+      setReinitBusy(false);
     }
   }
 
@@ -144,6 +168,17 @@ export function ParcImpressionModal({
                 >
                   <Upload size={14} />
                   {importBusy ? 'Import…' : 'Importer depuis ARTIS'}
+                </button>
+                <button
+                  type="button"
+                  className="danger-btn"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5 }}
+                  disabled={reinitBusy}
+                  onClick={handleReinitialiser}
+                  title="Vider les données importées (équipements, interventions, volumétrie, consommables) pour repartir d'une base propre"
+                >
+                  <RotateCcw size={14} />
+                  {reinitBusy ? 'Réinitialisation…' : 'Réinitialiser les données'}
                 </button>
               </>
             )}

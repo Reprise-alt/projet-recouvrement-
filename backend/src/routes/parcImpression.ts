@@ -158,6 +158,38 @@ parcImpressionRouter.post('/clients/:id/import', uploadParc.single('fichier'), a
   }
 });
 
+// Un import ARTIS ne fait qu'ajouter/mettre à jour (createMany skipDuplicates,
+// upsert) -- si un fichier a été importé avec un bug déjà corrigé depuis
+// (cf. le tri consommables/volumétrie sur la famille d'article plutôt que
+// sur Origine), les lignes erronées restent en base et un ré-import ne les
+// retire pas puisque les lignes correctes existent déjà sous la même
+// référence. Ce endpoint vide les données importées du compte pour repartir
+// d'une base propre avant un ré-import complet -- jamais le plan d'action,
+// saisi à la main, pas dérivé d'un import.
+parcImpressionRouter.post('/clients/:id/reinitialiser', async (req, res, next) => {
+  try {
+    const scoped = await loadScoped(req, req.params.id);
+    if (scoped.error) return res.status(scoped.error).json(scoped.body);
+    const clientOperationsId = req.params.id;
+
+    const [interventions, consommables, volumetrie, equipements] = await Promise.all([
+      prisma.intervention.deleteMany({ where: { clientOperationsId } }),
+      prisma.livraisonConsommable.deleteMany({ where: { clientOperationsId } }),
+      prisma.releveVolumetrie.deleteMany({ where: { clientOperationsId } }),
+      prisma.equipementParc.deleteMany({ where: { clientOperationsId } }), // supprime aussi VolumetrieEquipement en cascade
+    ]);
+
+    res.json({
+      equipementsSupprimes: equipements.count,
+      interventionsSupprimees: interventions.count,
+      volumetrieSupprimee: volumetrie.count,
+      consommablesSupprimes: consommables.count,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 /* ---------- Synthèse (diapo "vue d'ensemble" du COPIL) ---------- */
 
 parcImpressionRouter.get('/clients/:id/synthese', async (req, res, next) => {
