@@ -17,6 +17,8 @@ export interface SlaStats {
   tauxCloture: number; // 0-100, arrondi
   delaiMoyenUrgenteHeures: number | null;
   delaiMoyenStandardHeures: number | null;
+  delaiMedianUrgenteHeures: number | null;
+  delaiMedianStandardHeures: number | null;
   priseEnChargeMesuree: number; // interventions avec datePriseEnCharge renseigné (déclaration -> prise en charge mesurable)
 }
 
@@ -29,6 +31,18 @@ function heuresEntre(a: Date | string, b: Date | string): number {
 function moyenne(valeurs: number[]): number | null {
   if (!valeurs.length) return null;
   return valeurs.reduce((s, v) => s + v, 0) / valeurs.length;
+}
+
+// La moyenne seule masque le cas d'un petit nombre de tickets très en
+// retard qui tirent le délai moyen vers le haut (ex. délai moyen urgent
+// supérieur au standard alors que la plupart des urgents sont traités
+// vite) -- la médiane, moins sensible aux valeurs extrêmes, sert à
+// distinguer "quelques cas isolés" d'un vrai problème systémique.
+function mediane(valeurs: number[]): number | null {
+  if (!valeurs.length) return null;
+  const triees = [...valeurs].sort((a, b) => a - b);
+  const milieu = Math.floor(triees.length / 2);
+  return triees.length % 2 === 0 ? (triees[milieu - 1] + triees[milieu]) / 2 : triees[milieu];
 }
 
 // Le délai SLA mesuré est déclaration -> prise en charge (délai de
@@ -53,8 +67,31 @@ export function computeSlaStats(interventions: InterventionLike[]): SlaStats {
     tauxCloture: total ? Math.round((100 * clotures) / total) : 0,
     delaiMoyenUrgenteHeures: moyenne(delaisUrgente),
     delaiMoyenStandardHeures: moyenne(delaisStandard),
+    delaiMedianUrgenteHeures: mediane(delaisUrgente),
+    delaiMedianStandardHeures: mediane(delaisStandard),
     priseEnChargeMesuree: interventions.filter((i) => i.datePriseEnCharge != null).length,
   };
+}
+
+export interface InterventionLenteLike extends InterventionLike {
+  site: string;
+}
+
+export interface TicketLent {
+  site: string;
+  dateDeclaration: Date | string;
+  delaiHeures: number;
+}
+
+// Les N tickets les plus lents à être pris en charge pour une urgence
+// donnée -- sert à vérifier si un délai moyen élevé vient de quelques cas
+// isolés (visibles ici) ou d'un problème plus large.
+export function ticketsLesPlusLents(interventions: InterventionLenteLike[], urgence: 'urgente' | 'standard', topN = 5): TicketLent[] {
+  return interventions
+    .filter((i) => i.urgence === urgence && i.datePriseEnCharge != null)
+    .map((i) => ({ site: i.site, dateDeclaration: i.dateDeclaration, delaiHeures: heuresEntre(i.dateDeclaration, i.datePriseEnCharge!) }))
+    .sort((a, b) => b.delaiHeures - a.delaiHeures)
+    .slice(0, topN);
 }
 
 export interface LivraisonLike {

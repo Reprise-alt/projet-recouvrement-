@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeParcSynthese, computeSlaStats } from '../src/lib/parcImpression';
+import { computeParcSynthese, computeSlaStats, ticketsLesPlusLents } from '../src/lib/parcImpression';
 
 describe('computeSlaStats', () => {
   it('returns zeroed stats for an empty list', () => {
@@ -11,6 +11,8 @@ describe('computeSlaStats', () => {
       tauxCloture: 0,
       delaiMoyenUrgenteHeures: null,
       delaiMoyenStandardHeures: null,
+      delaiMedianUrgenteHeures: null,
+      delaiMedianStandardHeures: null,
       priseEnChargeMesuree: 0,
     });
   });
@@ -43,6 +45,58 @@ describe('computeSlaStats', () => {
       { urgence: 'urgente', dateDeclaration: '2026-06-01T08:00:00Z', datePriseEnCharge: null, dateCloture: null },
     ]);
     expect(stats.delaiMoyenUrgenteHeures).toBeNull();
+  });
+
+  it('computes the median alongside the mean, odd and even counts', () => {
+    const stats = computeSlaStats([
+      { urgence: 'urgente', dateDeclaration: '2026-06-01T00:00:00Z', datePriseEnCharge: '2026-06-01T02:00:00Z', dateCloture: null }, // 2h
+      { urgence: 'urgente', dateDeclaration: '2026-06-01T00:00:00Z', datePriseEnCharge: '2026-06-01T04:00:00Z', dateCloture: null }, // 4h
+      { urgence: 'urgente', dateDeclaration: '2026-06-01T00:00:00Z', datePriseEnCharge: '2026-06-01T06:00:00Z', dateCloture: null }, // 6h
+      { urgence: 'standard', dateDeclaration: '2026-06-01T00:00:00Z', datePriseEnCharge: '2026-06-01T10:00:00Z', dateCloture: null }, // 10h
+      { urgence: 'standard', dateDeclaration: '2026-06-01T00:00:00Z', datePriseEnCharge: '2026-06-01T20:00:00Z', dateCloture: null }, // 20h
+    ]);
+    expect(stats.delaiMedianUrgenteHeures).toBe(4); // 3 valeurs (2,4,6) -> milieu
+    expect(stats.delaiMedianStandardHeures).toBe(15); // 2 valeurs (10,20) -> moyenne des deux
+  });
+
+  // Reproduit le signal remonté par l'utilisateur : le délai moyen des
+  // urgents dépassait celui des standards. Avec une majorité d'urgents
+  // traités très vite et un seul cas très en retard, la moyenne grimpe
+  // au-dessus du standard alors que la médiane, elle, reste basse -- ce qui
+  // confirme qu'il s'agit de quelques cas isolés, pas d'un problème général.
+  it('shows the median staying low when the mean is dragged up by a single slow outlier', () => {
+    const stats = computeSlaStats([
+      { urgence: 'urgente', dateDeclaration: '2026-06-01T00:00:00Z', datePriseEnCharge: '2026-06-01T01:00:00Z', dateCloture: null }, // 1h
+      { urgence: 'urgente', dateDeclaration: '2026-06-02T00:00:00Z', datePriseEnCharge: '2026-06-02T01:00:00Z', dateCloture: null }, // 1h
+      { urgence: 'urgente', dateDeclaration: '2026-06-03T00:00:00Z', datePriseEnCharge: '2026-06-03T02:00:00Z', dateCloture: null }, // 2h
+      { urgence: 'urgente', dateDeclaration: '2026-06-04T00:00:00Z', datePriseEnCharge: '2026-06-08T00:00:00Z', dateCloture: null }, // 96h -- outlier
+      { urgence: 'standard', dateDeclaration: '2026-06-01T00:00:00Z', datePriseEnCharge: '2026-06-01T05:00:00Z', dateCloture: null }, // 5h
+    ]);
+    expect(stats.delaiMoyenUrgenteHeures).toBe(25); // (1+1+2+96)/4 -- au-dessus du standard
+    expect(stats.delaiMoyenUrgenteHeures! > stats.delaiMoyenStandardHeures!).toBe(true);
+    expect(stats.delaiMedianUrgenteHeures).toBe(1.5); // reste bas malgré l'outlier
+    expect(stats.delaiMedianUrgenteHeures! < stats.delaiMedianStandardHeures!).toBe(true);
+  });
+});
+
+describe('ticketsLesPlusLents', () => {
+  it('returns the slowest tickets for the given urgence, sorted descending, capped at topN', () => {
+    const interventions = [
+      { site: 'Dakar', urgence: 'urgente' as const, dateDeclaration: '2026-06-01T00:00:00Z', datePriseEnCharge: '2026-06-01T01:00:00Z', dateCloture: null }, // 1h
+      { site: 'Thies', urgence: 'urgente' as const, dateDeclaration: '2026-06-02T00:00:00Z', datePriseEnCharge: '2026-06-06T00:00:00Z', dateCloture: null }, // 96h
+      { site: 'Mbour', urgence: 'urgente' as const, dateDeclaration: '2026-06-03T00:00:00Z', datePriseEnCharge: '2026-06-03T10:00:00Z', dateCloture: null }, // 10h
+      { site: 'Rufisque', urgence: 'standard' as const, dateDeclaration: '2026-06-01T00:00:00Z', datePriseEnCharge: '2026-06-10T00:00:00Z', dateCloture: null }, // 216h mais standard -- ignoré
+      { site: 'Kaolack', urgence: 'urgente' as const, dateDeclaration: '2026-06-04T00:00:00Z', datePriseEnCharge: null, dateCloture: null }, // pas mesurable
+    ];
+    const result = ticketsLesPlusLents(interventions, 'urgente', 2);
+    expect(result).toEqual([
+      { site: 'Thies', dateDeclaration: '2026-06-02T00:00:00Z', delaiHeures: 96 },
+      { site: 'Mbour', dateDeclaration: '2026-06-03T00:00:00Z', delaiHeures: 10 },
+    ]);
+  });
+
+  it('returns an empty list when no ticket of that urgence has a measurable delay', () => {
+    expect(ticketsLesPlusLents([], 'urgente')).toEqual([]);
   });
 });
 

@@ -4,7 +4,7 @@ import * as XLSX from 'xlsx';
 import { prisma } from '../db';
 import { requireAuth, requireModuleOperations } from '../middleware/auth';
 import { loadScoped } from './operations';
-import { computeParcSynthese, computeSlaStats } from '../lib/parcImpression';
+import { computeParcSynthese, computeSlaStats, ticketsLesPlusLents } from '../lib/parcImpression';
 import { detectArtisFileType, parseBiensArtis, parseEtatVenteArtis, parseInterventionsArtis } from '../lib/parsers/parcArtisImport';
 import {
   calculerAlertesParc,
@@ -251,6 +251,7 @@ parcImpressionRouter.get('/clients/:id/rapport-copil.pptx', async (req, res, nex
 
     const synthese = computeParcSynthese(equipements, interventions, volumetrieFiltree, livraisons);
     const sla = computeSlaStats(interventions);
+    const ticketsUrgentsLents = ticketsLesPlusLents(interventions, 'urgente', 5);
     const volTriee = volumetrieTriee(volumetrieFiltree);
     // Compteur total (2e argument) volontairement non filtré -- cumul de vie
     // de la machine, jamais limité au mois/à la plage choisie pour le rapport.
@@ -282,6 +283,7 @@ parcImpressionRouter.get('/clients/:id/rapport-copil.pptx', async (req, res, nex
       interventionsTotal: synthese.interventionsTotal,
       interventionsPreventives: synthese.interventionsPreventives,
       sla,
+      ticketsUrgentsLents: ticketsUrgentsLents.map((t) => ({ site: t.site, dateDeclaration: fmtDate(t.dateDeclaration), delaiHeures: Math.round(t.delaiHeures) })),
       parSite: capParSiteAvecAutres(parSiteBrut),
       parMoisInterventions: interventionsParMois(interventions),
       parType: interventionsParType(interventions),

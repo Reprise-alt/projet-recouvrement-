@@ -44,6 +44,7 @@ export interface CopilRapportData {
   interventionsTotal: number;
   interventionsPreventives: number;
   sla: SlaStats;
+  ticketsUrgentsLents: { site: string; dateDeclaration: string; delaiHeures: number }[];
   parSite: { site: string; clotures: number; enCours: number; total: number }[];
   parMoisInterventions: { mois: string; total: number }[];
   parType: { type: string; total: number }[];
@@ -536,21 +537,45 @@ export async function generateCopilRapportPptx(data: CopilRapportData): Promise<
     // Volontairement limité aux deux dates contractuelles du SLA (D :
     // déclaration, DF : prise en charge) -- ni le taux de clôture ni les
     // tickets ouverts n'entrent ici, ce sont des indicateurs de clôture
-    // (déjà sur la diapo Synthèse), pas de délai de réponse.
+    // (déjà sur la diapo Synthèse), pas de délai de réponse. La médiane est
+    // affichée à côté de la moyenne : un délai moyen urgent supérieur au
+    // standard vient souvent de quelques tickets isolés très en retard
+    // (la moyenne les absorbe, la médiane beaucoup moins) -- la liste des
+    // tickets les plus lents ci-dessous permet de vérifier lesquels.
     kpiTileRow(
       slide,
       [
         { label: 'Délai moyen — urgentes', value: heures(data.sla.delaiMoyenUrgenteHeures) },
+        { label: 'Délai médian — urgentes', value: heures(data.sla.delaiMedianUrgenteHeures) },
         { label: 'Délai moyen — standard', value: heures(data.sla.delaiMoyenStandardHeures) },
-        { label: 'Prise en charge mesurée', value: `${data.sla.priseEnChargeMesuree}/${data.sla.total}` },
+        { label: 'Délai médian — standard', value: heures(data.sla.delaiMedianStandardHeures) },
       ],
       1.3,
-      1.15
+      1.0
     );
     slide.addText(
-      'Délai mesuré : déclaration du ticket (D) → prise en charge (DF) — délai de réponse uniquement, pas de résolution. Objectifs contractuels : 4h Dakar/Grand Dakar, 24 à 48h Régions.',
-      { x: MARGIN, y: 2.75, w: SLIDE_W - MARGIN * 2, h: 0.6, fontFace: FONT_BODY, fontSize: 9.5, italic: true, color: SLATE }
+      `Délai mesuré : déclaration du ticket (D) → prise en charge (DF). Objectifs contractuels : 4h Dakar/Grand Dakar, 24 à 48h Régions. Prise en charge mesurée sur ${data.sla.priseEnChargeMesuree}/${data.sla.total} intervention(s).`,
+      { x: MARGIN, y: 2.45, w: SLIDE_W - MARGIN * 2, h: 0.5, fontFace: FONT_BODY, fontSize: 9, italic: true, color: SLATE }
     );
+
+    if (data.ticketsUrgentsLents.length > 0) {
+      slide.addText("Tickets urgents les plus lents à être pris en charge", {
+        x: MARGIN,
+        y: 3.0,
+        w: SLIDE_W - MARGIN * 2,
+        h: 0.25,
+        fontFace: FONT_BODY,
+        fontSize: 9.5,
+        bold: true,
+        color: SLATE,
+      });
+      dataTable(
+        slide,
+        ['Site', 'Déclaré le', 'Délai'],
+        data.ticketsUrgentsLents.map((t) => [tronquer(t.site, 40), t.dateDeclaration, `${t.delaiHeures} h`]),
+        { x: MARGIN, y: 3.3, w: SLIDE_W - MARGIN * 2, h: 1.6, colW: [5.4, 1.8, 1.2], align: ['left', 'left', 'right'] }
+      );
+    }
     footer(slide, data, ++page);
   }
 

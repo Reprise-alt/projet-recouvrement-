@@ -764,6 +764,9 @@ export interface SlaStats {
   tauxCloture: number;
   delaiMoyenUrgenteHeures: number | null;
   delaiMoyenStandardHeures: number | null;
+  delaiMedianUrgenteHeures: number | null;
+  delaiMedianStandardHeures: number | null;
+  priseEnChargeMesuree: number;
 }
 
 export interface ParcSynthese {

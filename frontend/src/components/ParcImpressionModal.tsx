@@ -151,7 +151,8 @@ export function ParcImpressionModal({
               type="button"
               className="primary"
               style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5 }}
-              disabled={rapportBusy}
+              disabled={rapportBusy || importBusy || reinitBusy}
+              title={importBusy ? "Import en cours — patientez avant de générer le rapport" : undefined}
               onClick={handleGenererRapport}
             >
               <FileDown size={14} />
@@ -163,7 +164,7 @@ export function ParcImpressionModal({
                 <button
                   type="button"
                   style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5 }}
-                  disabled={importBusy}
+                  disabled={importBusy || reinitBusy}
                   onClick={() => fileInputRef.current?.click()}
                 >
                   <Upload size={14} />
@@ -173,7 +174,7 @@ export function ParcImpressionModal({
                   type="button"
                   className="danger-btn"
                   style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5 }}
-                  disabled={reinitBusy}
+                  disabled={reinitBusy || importBusy}
                   onClick={handleReinitialiser}
                   title="Vider les données importées (équipements, interventions, volumétrie, consommables) pour repartir d'une base propre"
                 >
