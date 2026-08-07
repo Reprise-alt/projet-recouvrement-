@@ -3,6 +3,7 @@ import {
   alertesCompteurTotal,
   alertesInterventionsFrequentes,
   alertesVolumetrieMensuelle,
+  calculerAlertesParc,
   calculerPeriodeReelle,
   capParModeleAvecAutres,
   capParSiteAvecAutres,
@@ -194,5 +195,44 @@ describe('sitesTopInterventions', () => {
 
   it('returns an empty list when there is no data', () => {
     expect(sitesTopInterventions([])).toEqual([]);
+  });
+});
+
+describe('calculerAlertesParc', () => {
+  const equipements = [
+    { id: 'eq1', numeroSerie: 'SN1', modele: 'BH227', site: 'Dakar' },
+    { id: 'eq2', numeroSerie: 'SN2', modele: 'BH287', site: 'Thies' },
+  ];
+
+  it('joins volumétrie and interventions to their équipement to compute all four alert categories', () => {
+    const interventions = [
+      { equipementId: 'eq1', site: 'Dakar', dateCloture: null },
+      { equipementId: 'eq1', site: 'Dakar', dateCloture: null },
+      { equipementId: 'eq1', site: 'Dakar', dateCloture: null },
+      { equipementId: 'eq1', site: 'Dakar', dateCloture: null },
+      { equipementId: 'eq1', site: 'Dakar', dateCloture: null },
+      { equipementId: null, site: 'Thies', dateCloture: null }, // machine non rattachée -- ignorée pour les alertes machine
+    ];
+    const volumetrieEquipement = [
+      { equipementId: 'eq1', periode: '2026-04', copiesNB: 12000, copiesCouleur: 0 },
+      { equipementId: 'eq1', periode: '2026-05', copiesNB: 400000, copiesCouleur: 0 },
+      { equipementId: 'eq2', periode: '2026-04', copiesNB: 350000, copiesCouleur: 0 },
+    ];
+
+    const result = calculerAlertesParc(equipements, interventions, volumetrieEquipement);
+
+    expect(result.volumetrieMensuelle).toEqual([
+      { numeroSerie: 'SN1', modele: 'BH227', site: 'Dakar', periodeLabel: expect.stringMatching(/mai 2026/i), total: 400000 },
+      { numeroSerie: 'SN2', modele: 'BH287', site: 'Thies', periodeLabel: expect.stringMatching(/avril 2026/i), total: 350000 },
+      { numeroSerie: 'SN1', modele: 'BH227', site: 'Dakar', periodeLabel: expect.stringMatching(/avril 2026/i), total: 12000 },
+    ]);
+    expect(result.compteurTotal).toEqual([]); // SN1: 412000, SN2: 350000 -- aucun ne dépasse 700 000
+    expect(result.interventionsFrequentes).toEqual([{ numeroSerie: 'SN1', modele: 'BH227', site: 'Dakar', total: 5 }]);
+    expect(result.sitesTop).toEqual([{ site: 'Dakar', clotures: 0, enCours: 5, total: 5 }]);
+  });
+
+  it('returns all-empty results when there is no data at all', () => {
+    const result = calculerAlertesParc([], [], []);
+    expect(result).toEqual({ volumetrieMensuelle: [], compteurTotal: [], interventionsFrequentes: [], sitesTop: [] });
   });
 });

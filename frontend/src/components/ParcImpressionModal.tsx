@@ -3,6 +3,7 @@ import { FileDown, Upload, X } from 'lucide-react';
 import { api, ApiError, downloadFile } from '../api/client';
 import {
   ActionCopil,
+  AlertesParcResponse,
   ArtisImportResult,
   EquipementParc,
   InterventionParc,
@@ -18,7 +19,7 @@ import { useResource } from '../hooks/useResource';
 import { useToast } from '../hooks/useToast';
 import { fmtDate } from '../lib/constants';
 
-type ParcTab = 'synthese' | 'equipements' | 'interventions' | 'volumetrie' | 'consommables' | 'actions';
+type ParcTab = 'synthese' | 'equipements' | 'interventions' | 'volumetrie' | 'consommables' | 'actions' | 'alertes';
 
 const TAB_LABELS: Record<ParcTab, string> = {
   synthese: 'Synthèse',
@@ -27,6 +28,7 @@ const TAB_LABELS: Record<ParcTab, string> = {
   volumetrie: 'Volumétrie',
   consommables: 'Consommables',
   actions: "Plan d'action",
+  alertes: 'Alertes',
 };
 
 const PRIORITE_LABELS: Record<PrioriteActionCopil, string> = { p1: 'P1', p2: 'P2', p3: 'P3' };
@@ -148,6 +150,7 @@ export function ParcImpressionModal({
           {tab === 'volumetrie' && <VolumetrieTab clientOperationsId={clientOperationsId} canEdit={canEdit} reloadKey={reloadKey} onChanged={bump} />}
           {tab === 'consommables' && <ConsommablesTab clientOperationsId={clientOperationsId} canEdit={canEdit} reloadKey={reloadKey} onChanged={bump} />}
           {tab === 'actions' && <ActionsTab clientOperationsId={clientOperationsId} canEdit={canEdit} reloadKey={reloadKey} onChanged={bump} />}
+          {tab === 'alertes' && <AlertesTab clientOperationsId={clientOperationsId} reloadKey={reloadKey} />}
         </div>
       </div>
     </div>
@@ -197,6 +200,97 @@ function SyntheseTab({ clientOperationsId, reloadKey }: { clientOperationsId: st
         <div className="kpi-label">Copies couleur</div>
         <div className="kpi-value">{data.copiesCouleurTotal.toLocaleString('fr-FR')}</div>
       </div>
+    </div>
+  );
+}
+
+function AlertesTab({ clientOperationsId, reloadKey }: { clientOperationsId: string; reloadKey: unknown }) {
+  const { data, loading } = useResource<AlertesParcResponse>(`/api/parc/clients/${clientOperationsId}/alertes`, reloadKey);
+  if (loading || !data) return <div>Chargement…</div>;
+
+  const siteTopLabel =
+    data.sitesTop.length === 0 ? 'Aucune donnée' : data.sitesTop.map((s) => `${s.site} (${s.total})`).join(' · ');
+
+  return (
+    <div>
+      <div
+        style={{
+          background: 'var(--panel-soft, #f1f8e9)',
+          border: '1px solid var(--line, #dee2e6)',
+          borderRadius: 8,
+          padding: '10px 14px',
+          marginBottom: 16,
+          fontSize: 13,
+        }}
+      >
+        <strong>Site(s) avec le plus d'interventions</strong> — {siteTopLabel}
+      </div>
+
+      <AlerteSection
+        titre="Machines > 10 000 pages / mois"
+        vide="Aucune machine au-dessus du seuil."
+        rows={data.volumetrieMensuelle.map((a) => ({
+          key: `${a.numeroSerie}-${a.periodeLabel}`,
+          modele: a.modele,
+          site: a.site,
+          detail: a.periodeLabel,
+          valeur: `${a.total.toLocaleString('fr-FR')} p.`,
+        }))}
+      />
+      <AlerteSection
+        titre="Machines > 700 000 pages (compteur total)"
+        vide="Aucune machine au-dessus du seuil."
+        rows={data.compteurTotal.map((a) => ({ key: a.numeroSerie, modele: a.modele, site: a.site, valeur: `${a.total.toLocaleString('fr-FR')} p.` }))}
+      />
+      <AlerteSection
+        titre="Machines > 4 interventions / période"
+        vide="Aucune machine au-dessus du seuil."
+        rows={data.interventionsFrequentes.map((a) => ({ key: a.numeroSerie, modele: a.modele, site: a.site, valeur: `${a.total} intervention(s)` }))}
+      />
+    </div>
+  );
+}
+
+function AlerteSection({
+  titre,
+  vide,
+  rows,
+}: {
+  titre: string;
+  vide: string;
+  rows: { key: string; modele: string; site: string; detail?: string; valeur: string }[];
+}) {
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <h4 style={{ marginBottom: 8 }}>{titre}</h4>
+      {rows.length === 0 ? (
+        <p style={{ fontSize: 13, color: 'var(--ink-soft)' }}>{vide}</p>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>Modèle</th>
+              <th>Site</th>
+              {rows[0].detail !== undefined && <th>Période</th>}
+              <th className="num">Valeur</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.key}>
+                <td>{r.modele}</td>
+                <td>{r.site}</td>
+                {r.detail !== undefined && <td>{r.detail}</td>}
+                <td className="num">
+                  <span className="badge" data-tone="amber">
+                    {r.valeur}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }

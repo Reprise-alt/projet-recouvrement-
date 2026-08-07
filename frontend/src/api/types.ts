@@ -789,3 +789,25 @@ export interface ArtisImportResult {
   periodesVolumetrie?: number;
   machinesTraitees?: number;
 }
+
+export interface AlerteVolumetrieMachine {
+  numeroSerie: string;
+  modele: string;
+  site: string;
+  periodeLabel: string;
+  total: number;
+}
+
+export interface AlerteMachine {
+  numeroSerie: string;
+  modele: string;
+  site: string;
+  total: number;
+}
+
+export interface AlertesParcResponse {
+  volumetrieMensuelle: AlerteVolumetrieMachine[];
+  compteurTotal: AlerteMachine[];
+  interventionsFrequentes: AlerteMachine[];
+  sitesTop: { site: string; total: number }[];
+}

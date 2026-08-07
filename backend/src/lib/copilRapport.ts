@@ -237,3 +237,74 @@ export function sitesTopInterventions(parSite: { site: string; total: number }[]
   if (max === 0) return [];
   return parSite.filter((s) => s.total === max);
 }
+
+export interface EquipementInfoLike {
+  id: string;
+  numeroSerie: string;
+  modele: string;
+  site: string;
+}
+
+export interface InterventionEquipementLike {
+  equipementId: string | null;
+  site: string;
+  dateCloture: Date | string | null;
+}
+
+export interface VolumetrieEquipementBruteLike {
+  equipementId: string;
+  periode: string;
+  copiesNB: number;
+  copiesCouleur: number;
+}
+
+export interface AlerteVolumetrieAvecLabel {
+  numeroSerie: string;
+  modele: string;
+  site: string;
+  periodeLabel: string;
+  total: number;
+}
+
+export interface AlertesParc {
+  volumetrieMensuelle: AlerteVolumetrieAvecLabel[];
+  compteurTotal: AlerteCompteur[];
+  interventionsFrequentes: AlerteCompteur[];
+  sitesTop: { site: string; total: number }[];
+}
+
+// Point d'entrée unique des alertes du parc -- réutilisé tel quel par le
+// rapport COPIL (PPTX) et par l'onglet "Alertes" de la modale, pour ne
+// jamais avoir deux implémentations du même calcul qui divergent.
+export function calculerAlertesParc(
+  equipements: EquipementInfoLike[],
+  interventions: InterventionEquipementLike[],
+  volumetrieEquipement: VolumetrieEquipementBruteLike[]
+): AlertesParc {
+  const equipementInfoParId = new Map(equipements.map((e) => [e.id, { numeroSerie: e.numeroSerie, modele: e.modele, site: e.site }]));
+
+  const volumetrieAvecInfo = volumetrieEquipement.map((v) => {
+    const info = equipementInfoParId.get(v.equipementId);
+    return { numeroSerie: info?.numeroSerie ?? '?', modele: info?.modele ?? '?', site: info?.site ?? '?', periode: v.periode, copiesNB: v.copiesNB, copiesCouleur: v.copiesCouleur };
+  });
+
+  const interventionsAvecMachine = interventions
+    .filter((i) => i.equipementId != null)
+    .map((i) => {
+      const info = equipementInfoParId.get(i.equipementId as string);
+      return { numeroSerie: info?.numeroSerie ?? '?', modele: info?.modele ?? '?', site: info?.site ?? '?' };
+    });
+
+  return {
+    volumetrieMensuelle: alertesVolumetrieMensuelle(volumetrieAvecInfo).map((a) => ({
+      numeroSerie: a.numeroSerie,
+      modele: a.modele,
+      site: a.site,
+      periodeLabel: periodeLabel(a.periode),
+      total: a.total,
+    })),
+    compteurTotal: alertesCompteurTotal(volumetrieAvecInfo),
+    interventionsFrequentes: alertesInterventionsFrequentes(interventionsAvecMachine),
+    sitesTop: sitesTopInterventions(interventionsParSite(interventions)),
+  };
+}

@@ -7,9 +7,7 @@ import { loadScoped } from './operations';
 import { computeParcSynthese, computeSlaStats } from '../lib/parcImpression';
 import { detectArtisFileType, parseBiensArtis, parseEtatVenteArtis, parseInterventionsArtis } from '../lib/parsers/parcArtisImport';
 import {
-  alertesCompteurTotal,
-  alertesInterventionsFrequentes,
-  alertesVolumetrieMensuelle,
+  calculerAlertesParc,
   calculerPeriodeReelle,
   capParModeleAvecAutres,
   capParSiteAvecAutres,
@@ -20,7 +18,6 @@ import {
   interventionsParSite,
   interventionsParType,
   periodeLabel,
-  sitesTopInterventions,
   volumetrieTriee,
 } from '../lib/copilRapport';
 import { CopilRapportData, generateCopilRapportPptx } from '../lib/copilRapportPptx';
@@ -209,19 +206,7 @@ parcImpressionRouter.get('/clients/:id/rapport-copil.pptx', async (req, res, nex
     const synthese = computeParcSynthese(equipements, interventions, volumetrie, livraisons);
     const sla = computeSlaStats(interventions);
     const volTriee = volumetrieTriee(volumetrie);
-
-    const equipementInfoParId = new Map(equipements.map((e) => [e.id, { numeroSerie: e.numeroSerie, modele: e.modele, site: e.site }]));
-    const volumetrieEquipementAvecInfo = volumetrieEquipement.map((v) => {
-      const info = equipementInfoParId.get(v.equipementId);
-      return { numeroSerie: info?.numeroSerie ?? '?', modele: info?.modele ?? '?', site: info?.site ?? '?', periode: v.periode, copiesNB: v.copiesNB, copiesCouleur: v.copiesCouleur };
-    });
-    const interventionsAvecMachine = interventions
-      .filter((i) => i.equipementId != null)
-      .map((i) => {
-        const info = equipementInfoParId.get(i.equipementId!);
-        return { numeroSerie: info?.numeroSerie ?? '?', modele: info?.modele ?? '?', site: info?.site ?? '?' };
-      });
-
+    const alertes = calculerAlertesParc(equipements, interventions, volumetrieEquipement);
     const parSiteBrut = interventionsParSite(interventions);
 
     const periodeReelle = calculerPeriodeReelle(
@@ -265,16 +250,10 @@ parcImpressionRouter.get('/clients/:id/rapport-copil.pptx', async (req, res, nex
         statut: STATUT_ACTION_LABELS_FR[a.statut] ?? a.statut,
       })),
 
-      alertesVolumetrieMensuelle: alertesVolumetrieMensuelle(volumetrieEquipementAvecInfo).map((a) => ({
-        numeroSerie: a.numeroSerie,
-        modele: a.modele,
-        site: a.site,
-        periodeLabel: periodeLabel(a.periode),
-        total: a.total,
-      })),
-      alertesCompteurTotal: alertesCompteurTotal(volumetrieEquipementAvecInfo),
-      alertesInterventionsFrequentes: alertesInterventionsFrequentes(interventionsAvecMachine),
-      sitesTopInterventions: sitesTopInterventions(parSiteBrut),
+      alertesVolumetrieMensuelle: alertes.volumetrieMensuelle,
+      alertesCompteurTotal: alertes.compteurTotal,
+      alertesInterventionsFrequentes: alertes.interventionsFrequentes,
+      sitesTopInterventions: alertes.sitesTop,
     };
 
     const buffer = await generateCopilRapportPptx(data);
@@ -282,6 +261,26 @@ parcImpressionRouter.get('/clients/:id/rapport-copil.pptx', async (req, res, nex
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
     res.setHeader('Content-Disposition', `attachment; filename="${nomFichier}"`);
     res.send(buffer);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* ---------- Alertes (onglet dédié dans la modale, même calcul que le rapport) ---------- */
+
+parcImpressionRouter.get('/clients/:id/alertes', async (req, res, next) => {
+  try {
+    const scoped = await loadScoped(req, req.params.id);
+    if (scoped.error) return res.status(scoped.error).json(scoped.body);
+    const clientOperationsId = req.params.id;
+
+    const [equipements, interventions, volumetrieEquipement] = await Promise.all([
+      prisma.equipementParc.findMany({ where: { clientOperationsId } }),
+      prisma.intervention.findMany({ where: { clientOperationsId } }),
+      prisma.volumetrieEquipement.findMany({ where: { equipement: { clientOperationsId } } }),
+    ]);
+
+    res.json(calculerAlertesParc(equipements, interventions, volumetrieEquipement));
   } catch (err) {
     next(err);
   }
