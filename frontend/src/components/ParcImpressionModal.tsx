@@ -1,8 +1,9 @@
-import { FormEvent, useState } from 'react';
-import { X } from 'lucide-react';
+import { ChangeEvent, FormEvent, useRef, useState } from 'react';
+import { Upload, X } from 'lucide-react';
 import { api, ApiError } from '../api/client';
 import {
   ActionCopil,
+  ArtisImportResult,
   EquipementParc,
   InterventionParc,
   InterventionsResponse,
@@ -53,6 +54,29 @@ export function ParcImpressionModal({
   const [tab, setTab] = useState<ParcTab>('synthese');
   const [reloadKey, setReloadKey] = useState(0);
   const bump = () => setReloadKey((v) => v + 1);
+  const { showToast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importBusy, setImportBusy] = useState(false);
+
+  async function handleImportFile(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('fichier', file);
+    setImportBusy(true);
+    try {
+      const result = await api.upload<ArtisImportResult>(`/api/parc/clients/${clientOperationsId}/import`, formData);
+      if (result.type === 'biens') showToast(`Import ARTIS — ${result.traites ?? 0} équipement(s) traité(s).`);
+      else if (result.type === 'interventions') showToast(`Import ARTIS — ${result.traites ?? 0} intervention(s) traitée(s).`);
+      else showToast(`Import ARTIS — ${result.consommablesTraites ?? 0} consommable(s), ${result.periodesVolumetrie ?? 0} période(s) de volumétrie.`);
+      bump();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : "Échec de l'import ARTIS");
+    } finally {
+      setImportBusy(false);
+    }
+  }
 
   return (
     <div className="modal-overlay open" onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -62,9 +86,25 @@ export function ParcImpressionModal({
             <h2 style={{ marginBottom: 2 }}>Parc d'impression</h2>
             <div style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>{clientNom}</div>
           </div>
-          <button onClick={onClose} aria-label="Fermer" style={{ background: 'none', border: 'none' }}>
-            <X size={16} />
-          </button>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            {canEdit && (
+              <>
+                <input ref={fileInputRef} type="file" accept=".xlsx,.xls" hidden onChange={handleImportFile} />
+                <button
+                  type="button"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5 }}
+                  disabled={importBusy}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Upload size={14} />
+                  {importBusy ? 'Import…' : 'Importer depuis ARTIS'}
+                </button>
+              </>
+            )}
+            <button onClick={onClose} aria-label="Fermer" style={{ background: 'none', border: 'none' }}>
+              <X size={16} />
+            </button>
+          </div>
         </div>
 
         <div className="entity-toggle" style={{ display: 'inline-flex', margin: '14px 0', flexWrap: 'wrap' }}>

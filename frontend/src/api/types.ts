@@ -781,3 +781,10 @@ export interface InterventionsResponse {
   interventions: InterventionParc[];
   sla: SlaStats;
 }
+
+export interface ArtisImportResult {
+  type: 'biens' | 'interventions' | 'etatvente';
+  traites?: number;
+  consommablesTraites?: number;
+  periodesVolumetrie?: number;
+}

@@ -1,8 +1,11 @@
 import { Router } from 'express';
+import multer from 'multer';
+import * as XLSX from 'xlsx';
 import { prisma } from '../db';
 import { requireAuth, requireModuleOperations } from '../middleware/auth';
 import { loadScoped } from './operations';
 import { computeParcSynthese, computeSlaStats } from '../lib/parcImpression';
+import { detectArtisFileType, parseBiensArtis, parseEtatVenteArtis, parseInterventionsArtis } from '../lib/parsers/parcArtisImport';
 
 // Parc d'impression (gestion de flotte pour les comptes suivis en COPIL) --
 // même portée d'accès que le reste d'Opérations (loadScoped applique déjà
@@ -16,6 +19,101 @@ function parsePeriodeRange(query: Record<string, unknown>): { debut: Date | null
   const fin = typeof query.fin === 'string' && query.fin ? new Date(query.fin) : null;
   return { debut: debut && !isNaN(debut.getTime()) ? debut : null, fin: fin && !isNaN(fin.getTime()) ? fin : null };
 }
+
+/* ---------- Import ARTIS ----------
+ * Un seul bouton "Importer depuis ARTIS" côté client : le type de fichier
+ * (biensDsSol / ResultatRequete / ResultatEtatVente) est détecté depuis les
+ * en-têtes, jamais depuis le nom du fichier. Les colonnes montant des
+ * exports ARTIS (Total HT/TTC, PU, Coût MO/Dépl/Pièce/Conso...) ne sont
+ * jamais lues par les parsers -- rien à filtrer ici. */
+
+const uploadParc = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
+
+parcImpressionRouter.post('/clients/:id/import', uploadParc.single('fichier'), async (req, res, next) => {
+  try {
+    const scoped = await loadScoped(req, req.params.id);
+    if (scoped.error) return res.status(scoped.error).json(scoped.body);
+    if (!req.file) return res.status(400).json({ error: 'Fichier requis' });
+
+    const clientOperationsId = req.params.id;
+    const wb = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: true });
+    const type = detectArtisFileType(wb);
+
+    if (type === 'biens') {
+      const rows = parseBiensArtis(wb, scoped.co.client.nom);
+      for (const r of rows) {
+        await prisma.equipementParc.upsert({
+          where: { clientOperationsId_numeroSerie: { clientOperationsId, numeroSerie: r.numeroSerie } },
+          create: { clientOperationsId, site: r.site, modele: r.modele, numeroSerie: r.numeroSerie },
+          update: { site: r.site, modele: r.modele },
+        });
+      }
+      return res.json({ type, traites: rows.length });
+    }
+
+    if (type === 'interventions') {
+      const rows = parseInterventionsArtis(wb);
+      const equipements = await prisma.equipementParc.findMany({
+        where: { clientOperationsId },
+        select: { id: true, numeroSerie: true },
+      });
+      const equipementIdParNumeroSerie = new Map(equipements.map((e) => [e.numeroSerie, e.id]));
+      for (const r of rows) {
+        const equipementId = r.numeroSerieEquipement ? equipementIdParNumeroSerie.get(r.numeroSerieEquipement) ?? null : null;
+        await prisma.intervention.upsert({
+          where: { clientOperationsId_referenceExterne: { clientOperationsId, referenceExterne: r.referenceExterne } },
+          create: {
+            clientOperationsId,
+            referenceExterne: r.referenceExterne,
+            site: r.site,
+            type: r.type,
+            urgence: r.urgence,
+            equipementId,
+            dateDeclaration: r.dateDeclaration,
+            datePriseEnCharge: r.datePriseEnCharge,
+            dateCloture: r.dateCloture,
+          },
+          update: {
+            site: r.site,
+            type: r.type,
+            urgence: r.urgence,
+            equipementId,
+            datePriseEnCharge: r.datePriseEnCharge,
+            dateCloture: r.dateCloture,
+          },
+        });
+      }
+      return res.json({ type, traites: rows.length });
+    }
+
+    if (type === 'etatvente') {
+      const { consommables, volumetrie } = parseEtatVenteArtis(wb);
+      let consommablesCrees = 0;
+      for (const r of consommables) {
+        const existant = await prisma.livraisonConsommable.findUnique({
+          where: { clientOperationsId_referenceExterne: { clientOperationsId, referenceExterne: r.referenceExterne } },
+        });
+        if (existant) continue;
+        await prisma.livraisonConsommable.create({
+          data: { clientOperationsId, referenceExterne: r.referenceExterne, date: r.date, reference: r.reference, quantite: r.quantite },
+        });
+        consommablesCrees++;
+      }
+      for (const v of volumetrie) {
+        await prisma.releveVolumetrie.upsert({
+          where: { clientOperationsId_periode: { clientOperationsId, periode: v.periode } },
+          create: { clientOperationsId, periode: v.periode, copiesNB: v.copiesNB, copiesCouleur: v.copiesCouleur },
+          update: { copiesNB: v.copiesNB, copiesCouleur: v.copiesCouleur },
+        });
+      }
+      return res.json({ type, consommablesTraites: consommablesCrees, periodesVolumetrie: volumetrie.length });
+    }
+
+    return res.status(400).json({ error: 'Format de fichier ARTIS non reconnu' });
+  } catch (err) {
+    next(err);
+  }
+});
 
 /* ---------- Synthèse (diapo "vue d'ensemble" du COPIL) ---------- */
 

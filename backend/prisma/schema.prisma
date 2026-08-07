@@ -684,8 +684,11 @@ model Intervention {
   dateDeclaration    DateTime
   datePriseEnCharge  DateTime?
   dateCloture        DateTime?
+  referenceExterne   String?
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
+
+  @@unique([clientOperationsId, referenceExterne])
 }
 
 // Une ligne par période (mois) plutôt qu'un relevé de compteur brut -- les
@@ -711,7 +714,10 @@ model LivraisonConsommable {
   date               DateTime
   reference          String
   quantite           Int              @default(1)
+  referenceExterne   String?
   createdAt          DateTime         @default(now())
+
+  @@unique([clientOperationsId, referenceExterne])
 }
 
 // Plan d'action du COPIL (P1/P2/P3, plusieurs lignes en parallèle) --
