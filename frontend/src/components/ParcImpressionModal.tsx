@@ -1,6 +1,6 @@
 import { ChangeEvent, FormEvent, useRef, useState } from 'react';
-import { Upload, X } from 'lucide-react';
-import { api, ApiError } from '../api/client';
+import { FileDown, Upload, X } from 'lucide-react';
+import { api, ApiError, downloadFile } from '../api/client';
 import {
   ActionCopil,
   ArtisImportResult,
@@ -57,6 +57,7 @@ export function ParcImpressionModal({
   const { showToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importBusy, setImportBusy] = useState(false);
+  const [rapportBusy, setRapportBusy] = useState(false);
 
   async function handleImportFile(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -78,6 +79,18 @@ export function ParcImpressionModal({
     }
   }
 
+  async function handleGenererRapport() {
+    setRapportBusy(true);
+    try {
+      const nomFichier = `COPIL_${clientNom.replace(/[^a-zA-Z0-9]+/g, '_')}.pptx`;
+      await downloadFile(`/api/parc/clients/${clientOperationsId}/rapport-copil.pptx`, nomFichier);
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Échec de la génération du rapport');
+    } finally {
+      setRapportBusy(false);
+    }
+  }
+
   return (
     <div className="modal-overlay open" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal" style={{ width: 'min(880px, 95%)', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
@@ -87,6 +100,16 @@ export function ParcImpressionModal({
             <div style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>{clientNom}</div>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button
+              type="button"
+              className="primary"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5 }}
+              disabled={rapportBusy}
+              onClick={handleGenererRapport}
+            >
+              <FileDown size={14} />
+              {rapportBusy ? 'Génération…' : 'Générer le rapport COPIL'}
+            </button>
             {canEdit && (
               <>
                 <input ref={fileInputRef} type="file" accept=".xlsx,.xls" hidden onChange={handleImportFile} />

@@ -6,6 +6,18 @@ import { requireAuth, requireModuleOperations } from '../middleware/auth';
 import { loadScoped } from './operations';
 import { computeParcSynthese, computeSlaStats } from '../lib/parcImpression';
 import { detectArtisFileType, parseBiensArtis, parseEtatVenteArtis, parseInterventionsArtis } from '../lib/parsers/parcArtisImport';
+import {
+  consommablesParMois,
+  consommablesParReference,
+  equipementsParModele,
+  interventionsParMois,
+  interventionsParSite,
+  interventionsParType,
+  periodeLabel,
+  volumetrieTriee,
+} from '../lib/copilRapport';
+import { CopilRapportData, generateCopilRapportPptx } from '../lib/copilRapportPptx';
+import { fmtDate, fmtDateLong } from '../lib/dates';
 
 // Parc d'impression (gestion de flotte pour les comptes suivis en COPIL) --
 // même portée d'accès que le reste d'Opérations (loadScoped applique déjà
@@ -132,6 +144,83 @@ parcImpressionRouter.get('/clients/:id/synthese', async (req, res, next) => {
     ]);
 
     res.json(computeParcSynthese(equipements, interventions, volumetrie, livraisons));
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* ---------- Rapport COPIL (PPTX) ----------
+ * Repeuple le gabarit visuel COPIL SORAM (déjà présenté et validé par les
+ * clients) avec les données réelles du compte -- aucun champ montant n'entre
+ * dans CopilRapportData, structurellement impossible puisque le schéma
+ * source n'en a pas. */
+
+const STATUT_ACTION_LABELS_FR: Record<string, string> = { planifie: 'Planifié', en_cours: 'En cours', fait: 'Fait', bloque: 'Bloqué' };
+
+parcImpressionRouter.get('/clients/:id/rapport-copil.pptx', async (req, res, next) => {
+  try {
+    const scoped = await loadScoped(req, req.params.id);
+    if (scoped.error) return res.status(scoped.error).json(scoped.body);
+    const clientOperationsId = req.params.id;
+    const { debut, fin } = parsePeriodeRange(req.query as Record<string, unknown>);
+    const dateFilter = debut || fin ? { gte: debut ?? undefined, lte: fin ?? undefined } : undefined;
+
+    const [equipements, interventions, volumetrie, livraisons, actions, entreprise, chargeDeCompte] = await Promise.all([
+      prisma.equipementParc.findMany({ where: { clientOperationsId } }),
+      prisma.intervention.findMany({ where: { clientOperationsId, ...(dateFilter ? { dateDeclaration: dateFilter } : {}) } }),
+      prisma.releveVolumetrie.findMany({ where: { clientOperationsId } }),
+      prisma.livraisonConsommable.findMany({ where: { clientOperationsId, ...(dateFilter ? { date: dateFilter } : {}) } }),
+      prisma.actionCopil.findMany({ where: { clientOperationsId }, orderBy: [{ priorite: 'asc' }, { createdAt: 'asc' }] }),
+      prisma.entreprise.findUnique({ where: { code: scoped.co.client.entite } }),
+      scoped.co.chargeDeCompteId ? prisma.utilisateur.findUnique({ where: { id: scoped.co.chargeDeCompteId } }) : Promise.resolve(null),
+    ]);
+
+    const synthese = computeParcSynthese(equipements, interventions, volumetrie, livraisons);
+    const sla = computeSlaStats(interventions);
+    const volTriee = volumetrieTriee(volumetrie);
+
+    const data: CopilRapportData = {
+      clientNom: scoped.co.client.nom,
+      entiteLabel: entreprise?.nom ?? scoped.co.client.entite,
+      periodeLabel: debut && fin ? `${fmtDateLong(debut)} au ${fmtDateLong(fin)}` : 'Depuis le début du suivi',
+      dateGenerationLabel: fmtDateLong(new Date()),
+      prochainCopilLabel: null,
+      contact: { nom: chargeDeCompte?.nom ?? null, email: chargeDeCompte?.email ?? null, tel: null },
+
+      equipementsActifs: synthese.equipementsActifs,
+      equipementsIntrouvables: synthese.equipementsIntrouvables,
+      parModele: equipementsParModele(equipements),
+
+      interventionsTotal: synthese.interventionsTotal,
+      interventionsPreventives: synthese.interventionsPreventives,
+      sla,
+      parSite: interventionsParSite(interventions),
+      parMoisInterventions: interventionsParMois(interventions),
+      parType: interventionsParType(interventions),
+
+      volumetriePeriodes: volTriee.map((v) => ({ periodeLabel: periodeLabel(v.periode), copiesNB: v.copiesNB, copiesCouleur: v.copiesCouleur })),
+      copiesNBTotal: synthese.copiesNBTotal,
+      copiesCouleurTotal: synthese.copiesCouleurTotal,
+
+      consommablesLivres: synthese.consommablesLivres,
+      referencesDifferentes: new Set(livraisons.map((l) => l.reference)).size,
+      parReference: consommablesParReference(livraisons),
+      parMoisConsommables: consommablesParMois(livraisons),
+
+      actions: actions.map((a) => ({
+        priorite: a.priorite,
+        action: a.action,
+        responsable: a.responsable,
+        echeance: a.echeance ? fmtDate(a.echeance) : null,
+        statut: STATUT_ACTION_LABELS_FR[a.statut] ?? a.statut,
+      })),
+    };
+
+    const buffer = await generateCopilRapportPptx(data);
+    const nomFichier = `COPIL_${scoped.co.client.nom.replace(/[^a-zA-Z0-9]+/g, '_')}.pptx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
+    res.setHeader('Content-Disposition', `attachment; filename="${nomFichier}"`);
+    res.send(buffer);
   } catch (err) {
     next(err);
   }
