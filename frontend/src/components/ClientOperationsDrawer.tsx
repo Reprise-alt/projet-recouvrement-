@@ -7,6 +7,7 @@ import { useToast } from '../hooks/useToast';
 import { fmtDate } from '../lib/constants';
 import { CLIMAT_DOT_COLOR, CLIMAT_LABELS, CRITICITE_LABELS, MOTIF_RESILIATION_LABELS, SECTEUR_LABELS } from '../lib/operationsConstants';
 import { Sparkline } from './Sparkline';
+import { ParcImpressionModal } from './ParcImpressionModal';
 
 interface Props {
   id: string;
@@ -28,6 +29,7 @@ export function ClientOperationsDrawer({ id, user, initialSection, onClose, onCh
   const [showReleve, setShowReleve] = useState(false);
   const [climatChoice, setClimatChoice] = useState<Climat | ''>('');
   const [showResiliation, setShowResiliation] = useState(initialSection === 'resiliation');
+  const [showParc, setShowParc] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const canEdit = user.roleOperations === 'directrice_operations' || user.roleOperations === 'direction_generale';
@@ -547,11 +549,14 @@ export function ClientOperationsDrawer({ id, user, initialSection, onClose, onCh
                     {fmtDate(co.dernierCopil)}
                   </div>
                 </div>
-                {canEdit && (
-                  <button onClick={marquerCopil} disabled={busy} style={{ marginBottom: 10 }}>
-                    Marquer le COPIL du mois tenu
-                  </button>
-                )}
+                <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                  {canEdit && (
+                    <button onClick={marquerCopil} disabled={busy}>
+                      Marquer le COPIL du mois tenu
+                    </button>
+                  )}
+                  <button onClick={() => setShowParc(true)}>Parc d'impression</button>
+                </div>
               </>
             )}
 
@@ -665,6 +670,9 @@ export function ClientOperationsDrawer({ id, user, initialSection, onClose, onCh
           </>
         )}
       </div>
+      {showParc && co && (
+        <ParcImpressionModal clientOperationsId={id} clientNom={co.client.nom} canEdit={canEdit} onClose={() => setShowParc(false)} />
+      )}
     </div>
   );
 }

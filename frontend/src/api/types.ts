@@ -699,3 +699,85 @@ export interface ImportSummary {
   };
   clientsCount: number;
 }
+
+/* ---------- Parc d'impression (suivi COPIL) ---------- */
+
+export type StatutEquipement = 'actif' | 'retire' | 'introuvable';
+export type TypeIntervention = 'preventive' | 'curative';
+export type UrgenceIntervention = 'urgente' | 'standard';
+export type PrioriteActionCopil = 'p1' | 'p2' | 'p3';
+export type StatutActionCopil = 'planifie' | 'en_cours' | 'fait' | 'bloque';
+
+export interface EquipementParc {
+  id: string;
+  clientOperationsId: string;
+  site: string;
+  modele: string;
+  numeroSerie: string;
+  statut: StatutEquipement;
+  dateInstallation: string | null;
+}
+
+export interface InterventionParc {
+  id: string;
+  clientOperationsId: string;
+  equipementId: string | null;
+  site: string;
+  type: TypeIntervention;
+  urgence: UrgenceIntervention;
+  panne: string | null;
+  dateDeclaration: string;
+  datePriseEnCharge: string | null;
+  dateCloture: string | null;
+}
+
+export interface ReleveVolumetrie {
+  id: string;
+  clientOperationsId: string;
+  periode: string;
+  copiesNB: number;
+  copiesCouleur: number;
+}
+
+export interface LivraisonConsommable {
+  id: string;
+  clientOperationsId: string;
+  date: string;
+  reference: string;
+  quantite: number;
+}
+
+export interface ActionCopil {
+  id: string;
+  clientOperationsId: string;
+  priorite: PrioriteActionCopil;
+  action: string;
+  responsable: string | null;
+  echeance: string | null;
+  statut: StatutActionCopil;
+}
+
+export interface SlaStats {
+  total: number;
+  clotures: number;
+  ouverts: number;
+  tauxCloture: number;
+  delaiMoyenUrgenteHeures: number | null;
+  delaiMoyenStandardHeures: number | null;
+}
+
+export interface ParcSynthese {
+  equipementsActifs: number;
+  equipementsIntrouvables: number;
+  interventionsTotal: number;
+  interventionsPreventives: number;
+  sla: SlaStats;
+  consommablesLivres: number;
+  copiesNBTotal: number;
+  copiesCouleurTotal: number;
+}
+
+export interface InterventionsResponse {
+  interventions: InterventionParc[];
+  sla: SlaStats;
+}

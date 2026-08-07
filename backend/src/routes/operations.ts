@@ -34,7 +34,7 @@ operationsRouter.use(requireAuth, requireModuleOperations());
 // dans l'interface des directrices des opérations"). Appliqué une fois ici
 // plutôt que recopié dans chaque route, pour qu'un oubli futur ne puisse pas
 // réintroduire un champ montant par erreur.
-const CLIENT_SELECT = { id: true, nom: true, entite: true, codeClient: true, contact: true, email: true, tel: true } as const;
+export const CLIENT_SELECT = { id: true, nom: true, entite: true, codeClient: true, contact: true, email: true, tel: true } as const;
 
 function entiteWhereClient(entiteFilter: Entite | 'ALL') {
   if (entiteFilter === 'ALL') return {};
@@ -533,7 +533,7 @@ operationsRouter.post('/clients', requireModuleOperations('directrice_operations
   }
 });
 
-async function loadScoped(req: { user?: any }, id: string) {
+export async function loadScoped(req: { user?: any }, id: string) {
   const co = await prisma.clientOperations.findUnique({ where: { id }, include: { client: { select: CLIENT_SELECT } } });
   if (!co) return { error: 404 as const, body: { error: 'Compte introuvable' } };
   if (!userCanAccessEntiteOperations(req.user!, co.client.entite)) {

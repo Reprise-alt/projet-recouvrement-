@@ -520,6 +520,45 @@ enum MotifResiliation {
   autre
 }
 
+// Parc d'impression (gestion de flotte pour les clients suivis en COPIL,
+// ex: SEN'EAU) -- domaine de données distinct du suivi de la relation
+// (climat/contact/problèmes) : ici on capture l'activité opérationnelle
+// réelle (machines, tickets, volumes, livraisons) qui alimente le rapport
+// COPIL trimestriel. Saisie manuelle pour l'instant -- l'import depuis
+// l'ERP (ARTIS) viendra une fois qu'un export réel est disponible pour en
+// écrire le parseur, cf. lib/parsers.
+enum StatutEquipement {
+  actif
+  retire
+  introuvable
+}
+
+enum TypeIntervention {
+  preventive
+  curative
+}
+
+// Urgente/standard porte l'engagement contractuel de délai (cf. compte
+// rendu COPIL : "< 4h" pour les urgentes, "< 24h" pour les standards) --
+// séparé du statut ouvert/clos, qui ne dit rien du respect du délai.
+enum UrgenceIntervention {
+  urgente
+  standard
+}
+
+enum PrioriteActionCopil {
+  p1
+  p2
+  p3
+}
+
+enum StatutActionCopil {
+  planifie
+  en_cours
+  fait
+  bloque
+}
+
 // Extension 1:1 optionnelle de Client pour tout ce qui relève du pilotage
 // opérationnel (cahier §3.1) -- volontairement une table à part plutôt que
 // des colonnes sur Client lui-même : isoler le recouvrement un jour signifie
@@ -588,6 +627,12 @@ model ClientOperations {
   releves         ReleveHebdo[]
   etapesDemarrage EtapeDemarrageFait[]
   campagneFaits   CampagneFait[]
+
+  equipementsParc   EquipementParc[]
+  interventions     Intervention[]
+  relevesVolumetrie ReleveVolumetrie[]
+  livraisons        LivraisonConsommable[]
+  actionsCopil      ActionCopil[]
 }
 
 // Un problème est un objet suivi dans le temps, pas une phrase dans un
@@ -602,6 +647,87 @@ model ProblemeOperations {
   gravite            GraviteProbleme
   ouvertLe           DateTime
   resoluLe           DateTime?
+}
+
+model EquipementParc {
+  id                 String           @id @default(cuid())
+  clientOperations   ClientOperations @relation(fields: [clientOperationsId], references: [id], onDelete: Cascade)
+  clientOperationsId String
+  site               String
+  modele             String
+  numeroSerie        String
+  statut             StatutEquipement @default(actif)
+  dateInstallation   DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  interventions Intervention[]
+
+  @@unique([clientOperationsId, numeroSerie])
+}
+
+// datePriseEnCharge et dateCloture nullables à dessein : un ticket qui
+// vient d'être déclaré n'a ni l'un ni l'autre pour l'instant -- c'est cet
+// écart qui manquait au COPIL T2 SEN'EAU (cf. compte rendu : "un rapport de
+// suivi des SLA faisant apparaître... l'heure de déclaration... et l'heure
+// de début de prise en charge").
+model Intervention {
+  id                 String              @id @default(cuid())
+  clientOperations   ClientOperations    @relation(fields: [clientOperationsId], references: [id], onDelete: Cascade)
+  clientOperationsId String
+  equipement         EquipementParc?     @relation(fields: [equipementId], references: [id], onDelete: SetNull)
+  equipementId       String?
+  site               String
+  type               TypeIntervention    @default(curative)
+  urgence            UrgenceIntervention @default(standard)
+  panne              String?
+  dateDeclaration    DateTime
+  datePriseEnCharge  DateTime?
+  dateCloture        DateTime?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+}
+
+// Une ligne par période (mois) plutôt qu'un relevé de compteur brut -- les
+// COPIL raisonnent en volumes mensuels agrégés (cahier du COPIL T2 : "avril
+// / mai"), pas en relevé compteur instantané comme le suivi de démarrage.
+model ReleveVolumetrie {
+  id                 String           @id @default(cuid())
+  clientOperations   ClientOperations @relation(fields: [clientOperationsId], references: [id], onDelete: Cascade)
+  clientOperationsId String
+  periode            String // "2026-04"
+  copiesNB           Int              @default(0)
+  copiesCouleur      Int              @default(0)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  @@unique([clientOperationsId, periode])
+}
+
+model LivraisonConsommable {
+  id                 String           @id @default(cuid())
+  clientOperations   ClientOperations @relation(fields: [clientOperationsId], references: [id], onDelete: Cascade)
+  clientOperationsId String
+  date               DateTime
+  reference          String
+  quantite           Int              @default(1)
+  createdAt          DateTime         @default(now())
+}
+
+// Plan d'action du COPIL (P1/P2/P3, plusieurs lignes en parallèle) --
+// distinct du champ "action" unique de ClientOperations, qui sert le rythme
+// hebdomadaire du relevé, pas le plan trimestriel du COPIL.
+model ActionCopil {
+  id                 String              @id @default(cuid())
+  clientOperations   ClientOperations    @relation(fields: [clientOperationsId], references: [id], onDelete: Cascade)
+  clientOperationsId String
+  priorite           PrioriteActionCopil @default(p2)
+  action             String
+  responsable        String?
+  echeance           DateTime?
+  statut             StatutActionCopil   @default(en_cours)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
 }
 
 // Une entrée par semaine ISO (cahier §3.1) -- @@unique garantit l'écrasement
