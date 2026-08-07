@@ -104,16 +104,17 @@ parcImpressionRouter.post('/clients/:id/import', uploadParc.single('fichier'), a
 
     if (type === 'etatvente') {
       const { consommables, volumetrie, volumetrieParMachine } = parseEtatVenteArtis(wb);
+      // createMany + skipDuplicates plutôt qu'une boucle findUnique/create :
+      // un vrai export ARTIS peut dépasser 2000 lignes de livraison (constaté
+      // sur un export réel), et la boucle séquentielle mettait plus de 10s à
+      // s'exécuter -- un aller-retour DB au lieu de deux par ligne.
       let consommablesCrees = 0;
-      for (const r of consommables) {
-        const existant = await prisma.livraisonConsommable.findUnique({
-          where: { clientOperationsId_referenceExterne: { clientOperationsId, referenceExterne: r.referenceExterne } },
+      if (consommables.length > 0) {
+        const resultat = await prisma.livraisonConsommable.createMany({
+          data: consommables.map((r) => ({ clientOperationsId, referenceExterne: r.referenceExterne, date: r.date, reference: r.reference, quantite: r.quantite })),
+          skipDuplicates: true,
         });
-        if (existant) continue;
-        await prisma.livraisonConsommable.create({
-          data: { clientOperationsId, referenceExterne: r.referenceExterne, date: r.date, reference: r.reference, quantite: r.quantite },
-        });
-        consommablesCrees++;
+        consommablesCrees = resultat.count;
       }
       for (const v of volumetrie) {
         await prisma.releveVolumetrie.upsert({

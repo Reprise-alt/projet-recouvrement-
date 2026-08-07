@@ -184,17 +184,24 @@ export interface ArtisEtatVenteResult {
   volumetrieParMachine: ArtisVolumetrieMachine[];
 }
 
-// Les deux exports "ResultatEtatVente" partagent la même entête -- ils ne se
-// distinguent que par le contenu de la colonne Origine (Livraison vs SSC).
-// On les traite donc de façon unifiée en filtrant ligne à ligne sur cette
-// colonne plutôt que sur le fichier d'origine, ce qui rend l'import robuste
-// même si un futur export mélange les deux.
+// Les deux exports "ResultatEtatVente" partagent la même entête. On avait
+// initialement routé les lignes sur la colonne Origine (Livraison vs SSC),
+// mais un export réel (BAOBAB) prouve que cette colonne n'est pas fiable :
+// toutes ses lignes valent "Livraison", y compris les compteurs RCN/RCC et
+// des lignes qui n'ont rien à voir avec un consommable (ventes de machines,
+// impression de cartes de visite, main d'oeuvre, logiciels...) -- semer ces
+// lignes dans "consommables" avait gonflé le total à plus de 130 000 unités.
+// On route donc désormais sur des signaux propres à la ligne elle-même :
+// - Code art. = RCN/RCC -> toujours de la volumétrie, quelle que soit Origine.
+// - "Libellé famille Art. vendu" contient "CONSOMMABLE" -> un vrai
+//   consommable (toner, cartouche...), quelle que soit Origine.
+// - tout le reste (machines, prestations, accessoires, logiciels...) est
+//   ignoré.
 export function parseEtatVenteArtis(wb: XLSX.WorkBook): ArtisEtatVenteResult {
   const rows = firstSheetRows(wb);
   if (rows.length < 2) return { consommables: [], volumetrie: [], volumetrieParMachine: [] };
   const headers = (rows[0] ?? []).map((h) => normaliserTexte(h));
   const idx = headerIndex(headers);
-  const iOrigine = idx('Origine');
   const iDateLivraison = idx('Date livraison');
   const iBL = idx('N° BL');
   const iMoisFacture = idx('Mois-année facture');
@@ -203,7 +210,8 @@ export function parseEtatVenteArtis(wb: XLSX.WorkBook): ArtisEtatVenteResult {
   const iQteLivree = idx('Qté livrée');
   const iQteFacturee = idx('Qté facturée');
   const iBienFacture = idx('Bien facturé');
-  if (iOrigine < 0 || iCodeArt < 0) return { consommables: [], volumetrie: [], volumetrieParMachine: [] };
+  const iFamilleArt = idx('Libellé famille Art. vendu');
+  if (iCodeArt < 0) return { consommables: [], volumetrie: [], volumetrieParMachine: [] };
 
   // Une même paire (N° BL, Code art.) peut apparaître deux fois sur le même
   // bordereau (deux machines de destination différentes livrées par la même
@@ -215,28 +223,9 @@ export function parseEtatVenteArtis(wb: XLSX.WorkBook): ArtisEtatVenteResult {
   const volumetrieParMachine = new Map<string, { numeroSerie: string; periode: string; copiesNB: number; copiesCouleur: number }>();
 
   for (const row of rows.slice(1)) {
-    const origine = normaliserTexte(row[iOrigine]);
     const codeArt = normaliserTexte(row[iCodeArt]);
 
-    if (origine === 'Livraison') {
-      const date = row[iDateLivraison];
-      if (!(date instanceof Date)) continue;
-      const quantite = Number(row[iQteLivree]) || 0;
-      if (quantite <= 0) continue;
-      const bl = normaliserTexte(row[iBL]);
-      const referenceExterne = `${bl}|${codeArt}`;
-      const existante = consommablesParReference.get(referenceExterne);
-      if (existante) existante.quantite += quantite;
-      else {
-        consommablesParReference.set(referenceExterne, {
-          referenceExterne,
-          date,
-          reference: normaliserTexte(row[iDesignation]) || codeArt,
-          quantite,
-        });
-      }
-    } else if (origine === 'SSC') {
-      if (codeArt !== 'RCN' && codeArt !== 'RCC') continue; // LOCI = location interne, ignoré
+    if (codeArt === 'RCN' || codeArt === 'RCC') {
       const moisDate = row[iMoisFacture];
       if (!(moisDate instanceof Date)) continue;
       const periode = `${moisDate.getUTCFullYear()}-${String(moisDate.getUTCMonth() + 1).padStart(2, '0')}`;
@@ -254,6 +243,27 @@ export function parseEtatVenteArtis(wb: XLSX.WorkBook): ArtisEtatVenteResult {
         else accMachine.copiesCouleur += quantite;
         volumetrieParMachine.set(cleMachine, accMachine);
       }
+      continue;
+    }
+
+    const famille = normaliserTexte(row[iFamilleArt]).toUpperCase();
+    if (!famille.includes('CONSOMMABLE')) continue;
+
+    const date = row[iDateLivraison];
+    if (!(date instanceof Date)) continue;
+    const quantite = Number(row[iQteLivree]) || 0;
+    if (quantite <= 0) continue;
+    const bl = normaliserTexte(row[iBL]);
+    const referenceExterne = `${bl}|${codeArt}`;
+    const existante = consommablesParReference.get(referenceExterne);
+    if (existante) existante.quantite += quantite;
+    else {
+      consommablesParReference.set(referenceExterne, {
+        referenceExterne,
+        date,
+        reference: normaliserTexte(row[iDesignation]) || codeArt,
+        quantite,
+      });
     }
   }
 

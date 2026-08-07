@@ -171,6 +171,7 @@ describe('parseEtatVenteArtis', () => {
     h[24] = 'Désignation';
     h[28] = 'Qté livrée';
     h[29] = 'Qté facturée';
+    h[174] = 'Libellé famille Art. vendu';
     h[215] = 'Bien facturé';
     return h;
   }
@@ -180,10 +181,10 @@ describe('parseEtatVenteArtis', () => {
     return arr;
   }
 
-  it('routes Livraison rows to consommables with a BL+article referenceExterne', () => {
+  it('routes rows to consommables with a BL+article referenceExterne when the article family is a consommable', () => {
     const wb = workbook([
       head(),
-      row({ 0: 'Livraison', 2: new Date('2026-01-05'), 3: '0022139', 23: 'TN323', 24: 'TONER NOIR BH227', 28: 1 }),
+      row({ 0: 'Livraison', 2: new Date('2026-01-05'), 3: '0022139', 23: 'TN323', 24: 'TONER NOIR BH227', 28: 1, 174: 'CONSOMMABLES MULTIFONCTIONS' }),
     ]);
     const { consommables, volumetrie } = parseEtatVenteArtis(wb);
     expect(consommables).toEqual([
@@ -192,11 +193,27 @@ describe('parseEtatVenteArtis', () => {
     expect(volumetrie).toEqual([]);
   });
 
+  // Régression réelle (export BAOBAB) : Origine="Livraison" ET Qté livrée
+  // renseignée n'implique PAS un consommable -- une vente de machine, une
+  // prestation d'impression ou du matériel divers passent par la même
+  // colonne Origine mais n'ont rien à faire dans les consommables (avaient
+  // gonflé le total à plus de 130 000 unités avant ce correctif).
+  it('ignores rows whose article family is not a consommable, even under Origine=Livraison with a quantity', () => {
+    const wb = workbook([
+      head(),
+      row({ 0: 'Livraison', 2: new Date('2026-07-20'), 3: 'BL1', 23: 'V DIVERS', 24: 'VENTE MATERIEL DIVERS', 28: 20000, 174: 'DIVERS MATERIELS' }),
+      row({ 0: 'Livraison', 2: new Date('2026-07-20'), 3: 'BL2', 23: 'M3540idn', 24: 'M3540idn', 28: 1, 174: 'Seg 2 Matériel 21 à 50 PMN' }),
+      row({ 0: 'Livraison', 2: new Date('2026-07-20'), 3: 'BL3', 23: 'CARTEV', 24: 'IMPRESSION CARTE DE VISITE', 28: 200, 174: 'IMPRESSIONS' }),
+    ]);
+    const { consommables } = parseEtatVenteArtis(wb);
+    expect(consommables).toEqual([]);
+  });
+
   it('sums quantite when the same BL+article appears twice (two destination machines on one line)', () => {
     const wb = workbook([
       head(),
-      row({ 0: 'Livraison', 2: new Date('2026-02-10'), 3: '0022633', 23: '000728', 24: 'PIECE X', 28: 1 }),
-      row({ 0: 'Livraison', 2: new Date('2026-02-10'), 3: '0022633', 23: '000728', 24: 'PIECE X', 28: 1 }),
+      row({ 0: 'Livraison', 2: new Date('2026-02-10'), 3: '0022633', 23: '000728', 24: 'PIECE X', 28: 1, 174: 'CONSOMMABLES MULTIFONCTIONS' }),
+      row({ 0: 'Livraison', 2: new Date('2026-02-10'), 3: '0022633', 23: '000728', 24: 'PIECE X', 28: 1, 174: 'CONSOMMABLES MULTIFONCTIONS' }),
     ]);
     const { consommables } = parseEtatVenteArtis(wb);
     expect(consommables).toEqual([
@@ -204,14 +221,14 @@ describe('parseEtatVenteArtis', () => {
     ]);
   });
 
-  it('aggregates SSC RCN/RCC rows into monthly volumétrie and ignores LOCI', () => {
+  it('aggregates RCN/RCC rows into monthly volumétrie regardless of Origine or article family', () => {
     const wb = workbook([
       head(),
-      row({ 0: 'SSC', 7: new Date('2026-07-30'), 23: 'LOCI', 29: 1 }),
-      row({ 0: 'SSC', 7: new Date('2026-07-30'), 23: 'RCN', 29: 2231 }),
-      row({ 0: 'SSC', 7: new Date('2026-07-15'), 23: 'RCN', 29: 343 }),
-      row({ 0: 'SSC', 7: new Date('2026-07-30'), 23: 'RCC', 29: 462 }),
-      row({ 0: 'SSC', 7: new Date('2026-08-02'), 23: 'RCC', 29: 100 }),
+      row({ 0: 'SSC', 7: new Date('2026-07-30'), 23: 'LOCI', 29: 1, 174: 'LOCATION INTERNE' }),
+      row({ 0: 'SSC', 7: new Date('2026-07-30'), 23: 'RCN', 29: 2231, 174: 'PRESTATION APRES VENTE' }),
+      row({ 0: 'Livraison', 7: new Date('2026-07-15'), 23: 'RCN', 29: 343, 174: 'PRESTATION APRES VENTE' }),
+      row({ 0: 'Livraison', 7: new Date('2026-07-30'), 23: 'RCC', 29: 462, 174: 'PRESTATION APRES VENTE' }),
+      row({ 0: 'SSC', 7: new Date('2026-08-02'), 23: 'RCC', 29: 100, 174: 'PRESTATION APRES VENTE' }),
     ]);
     const { consommables, volumetrie } = parseEtatVenteArtis(wb);
     expect(consommables).toEqual([]);
@@ -221,14 +238,14 @@ describe('parseEtatVenteArtis', () => {
     ]);
   });
 
-  it('aggregates SSC rows per machine (colonne "Bien facturé" = n° de série) and per période', () => {
+  it('aggregates rows per machine (colonne "Bien facturé" = n° de série) and per période', () => {
     const wb = workbook([
       head(),
-      row({ 0: 'SSC', 7: new Date('2026-07-30'), 23: 'RCN', 29: 2231, 215: 'A7AK021010312' }),
-      row({ 0: 'SSC', 7: new Date('2026-07-15'), 23: 'RCC', 29: 100, 215: 'A7AK021010312' }),
-      row({ 0: 'SSC', 7: new Date('2026-07-30'), 23: 'RCN', 29: 343, 215: 'RFH0634294' }),
-      row({ 0: 'SSC', 7: new Date('2026-08-01'), 23: 'RCN', 29: 50, 215: 'A7AK021010312' }),
-      row({ 0: 'SSC', 7: new Date('2026-07-30'), 23: 'LOCI', 29: 1, 215: 'A7AK021010312' }),
+      row({ 7: new Date('2026-07-30'), 23: 'RCN', 29: 2231, 174: 'PRESTATION APRES VENTE', 215: 'A7AK021010312' }),
+      row({ 7: new Date('2026-07-15'), 23: 'RCC', 29: 100, 174: 'PRESTATION APRES VENTE', 215: 'A7AK021010312' }),
+      row({ 7: new Date('2026-07-30'), 23: 'RCN', 29: 343, 174: 'PRESTATION APRES VENTE', 215: 'RFH0634294' }),
+      row({ 7: new Date('2026-08-01'), 23: 'RCN', 29: 50, 174: 'PRESTATION APRES VENTE', 215: 'A7AK021010312' }),
+      row({ 7: new Date('2026-07-30'), 23: 'LOCI', 29: 1, 174: 'LOCATION INTERNE', 215: 'A7AK021010312' }),
     ]);
     const { volumetrieParMachine } = parseEtatVenteArtis(wb);
     expect(volumetrieParMachine).toEqual([
@@ -239,7 +256,7 @@ describe('parseEtatVenteArtis', () => {
   });
 
   it('skips per-machine aggregation when "Bien facturé" is blank', () => {
-    const wb = workbook([head(), row({ 0: 'SSC', 7: new Date('2026-07-30'), 23: 'RCN', 29: 100 })]);
+    const wb = workbook([head(), row({ 7: new Date('2026-07-30'), 23: 'RCN', 29: 100, 174: 'PRESTATION APRES VENTE' })]);
     const { volumetrie, volumetrieParMachine } = parseEtatVenteArtis(wb);
     expect(volumetrie).toEqual([{ periode: '2026-07', copiesNB: 100, copiesCouleur: 0 }]);
     expect(volumetrieParMachine).toEqual([]);
