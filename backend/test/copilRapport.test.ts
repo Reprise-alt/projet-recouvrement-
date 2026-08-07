@@ -13,6 +13,7 @@ import {
   interventionsParMois,
   interventionsParSite,
   interventionsParType,
+  moisDansPlage,
   periodeLabel,
   sitesTopInterventions,
   volumetrieTriee,
@@ -234,5 +235,37 @@ describe('calculerAlertesParc', () => {
   it('returns all-empty results when there is no data at all', () => {
     const result = calculerAlertesParc([], [], []);
     expect(result).toEqual({ volumetrieMensuelle: [], compteurTotal: [], interventionsFrequentes: [], sitesTop: [] });
+  });
+
+  it('scopes the monthly alert to the filtered period while the compteur total stays on the full history', () => {
+    const interventions: { equipementId: string | null; site: string; dateCloture: Date | string | null }[] = [];
+    // Rapport limité à juillet 2026 : seule cette période doit alimenter
+    // l'alerte mensuelle, mais le compteur total doit voir juillet ET les
+    // mois précédents (déjà en base avant le filtre du rapport).
+    const volumetriePeriode = [{ equipementId: 'eq1', periode: '2026-07', copiesNB: 12000, copiesCouleur: 0 }];
+    const volumetrieTout = [
+      { equipementId: 'eq1', periode: '2026-04', copiesNB: 350000, copiesCouleur: 0 },
+      { equipementId: 'eq1', periode: '2026-05', copiesNB: 350000, copiesCouleur: 0 },
+      { equipementId: 'eq1', periode: '2026-07', copiesNB: 12000, copiesCouleur: 0 },
+    ];
+
+    const result = calculerAlertesParc(equipements, interventions, volumetriePeriode, volumetrieTout);
+
+    expect(result.volumetrieMensuelle).toEqual([{ numeroSerie: 'SN1', modele: 'BH227', site: 'Dakar', periodeLabel: expect.stringMatching(/juillet 2026/i), total: 12000 }]);
+    expect(result.compteurTotal).toEqual([{ numeroSerie: 'SN1', modele: 'BH227', site: 'Dakar', total: 712000 }]);
+  });
+});
+
+describe('moisDansPlage', () => {
+  it('lists every AAAA-MM month from debut to fin inclusive', () => {
+    expect(moisDansPlage(new Date('2026-07-01T00:00:00Z'), new Date('2026-07-31T23:59:59Z'))).toEqual(['2026-07']);
+  });
+
+  it('spans a multi-month range', () => {
+    expect(moisDansPlage(new Date('2026-05-15T00:00:00Z'), new Date('2026-07-02T00:00:00Z'))).toEqual(['2026-05', '2026-06', '2026-07']);
+  });
+
+  it('crosses a year boundary', () => {
+    expect(moisDansPlage(new Date('2026-11-01T00:00:00Z'), new Date('2027-02-01T00:00:00Z'))).toEqual(['2026-11', '2026-12', '2027-01', '2027-02']);
   });
 });

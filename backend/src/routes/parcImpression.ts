@@ -17,6 +17,7 @@ import {
   interventionsParMois,
   interventionsParSite,
   interventionsParType,
+  moisDansPlage,
   periodeLabel,
   volumetrieTriee,
 } from '../lib/copilRapport';
@@ -33,6 +34,10 @@ parcImpressionRouter.use(requireAuth, requireModuleOperations());
 function parsePeriodeRange(query: Record<string, unknown>): { debut: Date | null; fin: Date | null } {
   const debut = typeof query.debut === 'string' && query.debut ? new Date(query.debut) : null;
   const fin = typeof query.fin === 'string' && query.fin ? new Date(query.fin) : null;
+  // "fin" est une date de jour (ex. "2026-07-31") -> minuit UTC sans l'heure
+  // exclurait toute la dernière journée du filtre "lte" ; on la pousse à la
+  // toute fin du jour pour que la journée de fin soit incluse en entier.
+  if (fin && !isNaN(fin.getTime())) fin.setUTCHours(23, 59, 59, 999);
   return { debut: debut && !isNaN(debut.getTime()) ? debut : null, fin: fin && !isNaN(fin.getTime()) ? fin : null };
 }
 
@@ -204,21 +209,36 @@ parcImpressionRouter.get('/clients/:id/rapport-copil.pptx', async (req, res, nex
       prisma.volumetrieEquipement.findMany({ where: { equipement: { clientOperationsId } } }),
     ]);
 
-    const synthese = computeParcSynthese(equipements, interventions, volumetrie, livraisons);
+    // ReleveVolumetrie/VolumetrieEquipement sont identifiés par période
+    // ("AAAA-MM"), pas par une date ponctuelle -- debut/fin ne peuvent donc
+    // pas passer par un simple filtre Prisma comme pour les interventions et
+    // livraisons ; on filtre en mémoire sur la liste des mois couverts.
+    const moisFiltre = debut && fin ? moisDansPlage(debut, fin) : null;
+    const volumetrieFiltree = moisFiltre ? volumetrie.filter((v) => moisFiltre.includes(v.periode)) : volumetrie;
+    const volumetrieEquipementFiltre = moisFiltre ? volumetrieEquipement.filter((v) => moisFiltre.includes(v.periode)) : volumetrieEquipement;
+
+    const synthese = computeParcSynthese(equipements, interventions, volumetrieFiltree, livraisons);
     const sla = computeSlaStats(interventions);
-    const volTriee = volumetrieTriee(volumetrie);
-    const alertes = calculerAlertesParc(equipements, interventions, volumetrieEquipement);
+    const volTriee = volumetrieTriee(volumetrieFiltree);
+    // Compteur total (2e argument) volontairement non filtré -- cumul de vie
+    // de la machine, jamais limité au mois/à la plage choisie pour le rapport.
+    const alertes = calculerAlertesParc(equipements, interventions, volumetrieEquipementFiltre, volumetrieEquipement);
     const parSiteBrut = interventionsParSite(interventions);
 
-    const periodeReelle = calculerPeriodeReelle(
-      [...interventions.map((i) => i.dateDeclaration), ...livraisons.map((l) => l.date)],
-      volumetrie.map((v) => v.periode)
-    );
+    const periodeAffichee =
+      moisFiltre && moisFiltre.length === 1
+        ? periodeLabel(moisFiltre[0])
+        : debut && fin
+          ? `${fmtDateLong(debut)} au ${fmtDateLong(fin)}`
+          : (calculerPeriodeReelle(
+              [...interventions.map((i) => i.dateDeclaration), ...livraisons.map((l) => l.date)],
+              volumetrie.map((v) => v.periode)
+            ) ?? 'Aucune donnée importée');
 
     const data: CopilRapportData = {
       clientNom: scoped.co.client.nom,
       entiteLabel: entreprise?.nom ?? scoped.co.client.entite,
-      periodeLabel: periodeReelle ?? 'Aucune donnée importée',
+      periodeLabel: periodeAffichee,
       dateGenerationLabel: fmtDateLong(new Date()),
       prochainCopilLabel: null,
       contact: { nom: chargeDeCompte?.nom ?? null, email: chargeDeCompte?.email ?? null, tel: null },

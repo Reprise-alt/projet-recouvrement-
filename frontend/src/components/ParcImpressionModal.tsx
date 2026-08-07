@@ -60,6 +60,7 @@ export function ParcImpressionModal({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importBusy, setImportBusy] = useState(false);
   const [rapportBusy, setRapportBusy] = useState(false);
+  const [moisRapport, setMoisRapport] = useState(''); // format "AAAA-MM", vide = toute la période
 
   async function handleImportFile(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -87,8 +88,18 @@ export function ParcImpressionModal({
   async function handleGenererRapport() {
     setRapportBusy(true);
     try {
-      const nomFichier = `COPIL_${clientNom.replace(/[^a-zA-Z0-9]+/g, '_')}.pptx`;
-      await downloadFile(`/api/parc/clients/${clientOperationsId}/rapport-copil.pptx`, nomFichier);
+      let url = `/api/parc/clients/${clientOperationsId}/rapport-copil.pptx`;
+      let suffixeFichier = '';
+      if (moisRapport) {
+        const [annee, mois] = moisRapport.split('-').map(Number);
+        const debut = `${moisRapport}-01`;
+        const dernierJour = new Date(Date.UTC(annee, mois, 0)).getUTCDate();
+        const fin = `${moisRapport}-${String(dernierJour).padStart(2, '0')}`;
+        url += `?debut=${debut}&fin=${fin}`;
+        suffixeFichier = `_${moisRapport}`;
+      }
+      const nomFichier = `COPIL_${clientNom.replace(/[^a-zA-Z0-9]+/g, '_')}${suffixeFichier}.pptx`;
+      await downloadFile(url, nomFichier);
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Échec de la génération du rapport');
     } finally {
@@ -105,6 +116,13 @@ export function ParcImpressionModal({
             <div style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>{clientNom}</div>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input
+              type="month"
+              value={moisRapport}
+              onChange={(e) => setMoisRapport(e.target.value)}
+              title="Mois du rapport (vide = toute la période)"
+              style={{ fontSize: 12.5, padding: '4px 6px' }}
+            />
             <button
               type="button"
               className="primary"

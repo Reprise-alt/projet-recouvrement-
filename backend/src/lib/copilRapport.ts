@@ -14,6 +14,26 @@ function versDate(v: Date | string): Date {
   return typeof v === 'string' ? new Date(v) : v;
 }
 
+// Liste des périodes "AAAA-MM" couvertes par [debut, fin] inclus -- sert à
+// filtrer ReleveVolumetrie et VolumetrieEquipement (identifiés par période,
+// pas par une date ponctuelle) sur la même fenêtre que le reste du rapport.
+export function moisDansPlage(debut: Date, fin: Date): string[] {
+  const mois: string[] = [];
+  let y = debut.getUTCFullYear();
+  let m = debut.getUTCMonth();
+  const finY = fin.getUTCFullYear();
+  const finM = fin.getUTCMonth();
+  while (y < finY || (y === finY && m <= finM)) {
+    mois.push(`${y}-${String(m + 1).padStart(2, '0')}`);
+    m++;
+    if (m > 11) {
+      m = 0;
+      y++;
+    }
+  }
+  return mois;
+}
+
 export interface EquipementModeleLike {
   modele: string;
   statut: 'actif' | 'retire' | 'introuvable';
@@ -276,17 +296,25 @@ export interface AlertesParc {
 // Point d'entrée unique des alertes du parc -- réutilisé tel quel par le
 // rapport COPIL (PPTX) et par l'onglet "Alertes" de la modale, pour ne
 // jamais avoir deux implémentations du même calcul qui divergent.
+// volumetrieEquipementTout sert uniquement à l'alerte "compteur total" (cumul
+// de vie de la machine, jamais limité à la fenêtre affichée) -- distinct de
+// volumetrieEquipementPeriode qui alimente l'alerte ">10 000 pages/mois" et
+// doit, elle, respecter le mois/la plage choisie pour le rapport. Par défaut
+// (appel sans filtre de période, ex. l'onglet Alertes de la modale) les deux
+// pointent vers le même jeu de données complet.
 export function calculerAlertesParc(
   equipements: EquipementInfoLike[],
   interventions: InterventionEquipementLike[],
-  volumetrieEquipement: VolumetrieEquipementBruteLike[]
+  volumetrieEquipementPeriode: VolumetrieEquipementBruteLike[],
+  volumetrieEquipementTout: VolumetrieEquipementBruteLike[] = volumetrieEquipementPeriode
 ): AlertesParc {
   const equipementInfoParId = new Map(equipements.map((e) => [e.id, { numeroSerie: e.numeroSerie, modele: e.modele, site: e.site }]));
 
-  const volumetrieAvecInfo = volumetrieEquipement.map((v) => {
-    const info = equipementInfoParId.get(v.equipementId);
-    return { numeroSerie: info?.numeroSerie ?? '?', modele: info?.modele ?? '?', site: info?.site ?? '?', periode: v.periode, copiesNB: v.copiesNB, copiesCouleur: v.copiesCouleur };
-  });
+  const avecInfo = (rows: VolumetrieEquipementBruteLike[]) =>
+    rows.map((v) => {
+      const info = equipementInfoParId.get(v.equipementId);
+      return { numeroSerie: info?.numeroSerie ?? '?', modele: info?.modele ?? '?', site: info?.site ?? '?', periode: v.periode, copiesNB: v.copiesNB, copiesCouleur: v.copiesCouleur };
+    });
 
   const interventionsAvecMachine = interventions
     .filter((i) => i.equipementId != null)
@@ -296,14 +324,14 @@ export function calculerAlertesParc(
     });
 
   return {
-    volumetrieMensuelle: alertesVolumetrieMensuelle(volumetrieAvecInfo).map((a) => ({
+    volumetrieMensuelle: alertesVolumetrieMensuelle(avecInfo(volumetrieEquipementPeriode)).map((a) => ({
       numeroSerie: a.numeroSerie,
       modele: a.modele,
       site: a.site,
       periodeLabel: periodeLabel(a.periode),
       total: a.total,
     })),
-    compteurTotal: alertesCompteurTotal(volumetrieAvecInfo),
+    compteurTotal: alertesCompteurTotal(avecInfo(volumetrieEquipementTout)),
     interventionsFrequentes: alertesInterventionsFrequentes(interventionsAvecMachine),
     sitesTop: sitesTopInterventions(interventionsParSite(interventions)),
   };
