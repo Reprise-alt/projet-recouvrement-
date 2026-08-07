@@ -37,6 +37,11 @@ describe('detectArtisFileType', () => {
     expect(detectArtisFileType(wb)).toBe('biens');
   });
 
+  it('recognizes the ResultatsRecherche équipements format by its headers', () => {
+    const wb = workbook([['Identifiant Fabricant', 'Libellé du bien', 'Modèle', 'Site adresse 1']]);
+    expect(detectArtisFileType(wb)).toBe('biens');
+  });
+
   it('recognizes ResultatRequete by its headers', () => {
     const wb = workbook([['DIT no interne', 'DIT Etat']]);
     expect(detectArtisFileType(wb)).toBe('interventions');
@@ -65,6 +70,19 @@ describe('parseBiensArtis', () => {
     expect(rows).toEqual([
       { numeroSerie: 'A1UF021017006', modele: 'KONICABH283', site: 'Centre de Hann' },
       { numeroSerie: 'A61E021002998', modele: 'BH454e', site: 'AGENCE SALY MBOUR' },
+    ]);
+  });
+
+  it('also parses the ResultatsRecherche format (Identifiant Fabricant / Modèle / Site adresse 1)', () => {
+    const wb = workbook([
+      ['Identifiant Fabricant', 'Libellé du bien', 'Modèle', 'Site adresse 1'],
+      ['A63P025016441', 'BH3301P IMPRIMANTE N&B 33ppm', 'BH3301P', 'AGENCE OUAKAM'],
+      ['LCA4907397', '3010i MULTIFONCTION N&B A4/A3 30ppm', 'TASKALFA 3010i', 'AGENCE KEDOUGOU'],
+    ]);
+    const rows = parseBiensArtis(wb, 'BAOBAB SENEGAL SA');
+    expect(rows).toEqual([
+      { numeroSerie: 'A63P025016441', modele: 'BH3301P', site: 'AGENCE OUAKAM' },
+      { numeroSerie: 'LCA4907397', modele: 'TASKALFA 3010i', site: 'AGENCE KEDOUGOU' },
     ]);
   });
 });

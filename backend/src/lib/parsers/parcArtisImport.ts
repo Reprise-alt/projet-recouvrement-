@@ -91,6 +91,10 @@ export function detectArtisFileType(wb: XLSX.WorkBook): ArtisFileType {
   const headers = new Set((rows[0] ?? []).map((h) => normaliserTexte(h)));
   if (headers.has('DIT no interne') && headers.has('DIT Etat')) return 'interventions';
   if (headers.has('Identifiant fabricant') && headers.has('Libellé') && headers.has('Site')) return 'biens';
+  // Second format d'export équipements rencontré (rapport ARTIS
+  // "ResultatsRecherche", utilisé pour d'autres clients que biensDsSol) --
+  // mêmes données (n° de série, modèle, site), en-têtes différents.
+  if (headers.has('Identifiant Fabricant') && headers.has('Modèle') && headers.has('Site adresse 1')) return 'biens';
   if (headers.has('Origine') && headers.has('Code art.') && headers.has('Qté livrée')) return 'etatvente';
   return 'inconnu';
 }
@@ -100,10 +104,16 @@ export function parseBiensArtis(wb: XLSX.WorkBook, clientNom?: string): ArtisEqu
   if (rows.length < 2) return [];
   const headers = (rows[0] ?? []).map((h) => normaliserTexte(h));
   const idx = headerIndex(headers);
-  const iIdent = idx('Identifiant fabricant');
-  const iLibelle = idx('Libellé');
-  const iSite = idx('Site');
-  if (iIdent < 0 || iLibelle < 0 || iSite < 0) return [];
+
+  let iIdent = idx('Identifiant fabricant');
+  let iModele = idx('Libellé');
+  let iSite = idx('Site');
+  if (iIdent < 0 || iModele < 0 || iSite < 0) {
+    iIdent = idx('Identifiant Fabricant');
+    iModele = idx('Modèle');
+    iSite = idx('Site adresse 1');
+  }
+  if (iIdent < 0 || iModele < 0 || iSite < 0) return [];
 
   const out: ArtisEquipementRow[] = [];
   const vus = new Set<string>();
@@ -113,7 +123,7 @@ export function parseBiensArtis(wb: XLSX.WorkBook, clientNom?: string): ArtisEqu
     vus.add(numeroSerie);
     out.push({
       numeroSerie,
-      modele: normaliserTexte(row[iLibelle]) || 'Modèle inconnu',
+      modele: normaliserTexte(row[iModele]) || 'Modèle inconnu',
       site: nettoyerSiteArtis(row[iSite], clientNom) || 'Site inconnu',
     });
   }
