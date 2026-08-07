@@ -662,8 +662,27 @@ model EquipementParc {
   updatedAt          DateTime         @updatedAt
 
   interventions Intervention[]
+  volumetrieParMachine VolumetrieEquipement[]
 
   @@unique([clientOperationsId, numeroSerie])
+}
+
+// Distinct de ReleveVolumetrie (agrégat par client) -- nécessaire pour les
+// alertes machine par machine du rapport COPIL (> 10 000 pages/mois,
+// compteur total > 700 000 pages), que l'agrégat client seul ne permet pas
+// de calculer. Alimenté uniquement par l'import ARTIS (export SSC, colonne
+// "Bien facturé" = n° de série), pas de saisie manuelle pour l'instant.
+model VolumetrieEquipement {
+  id           String         @id @default(cuid())
+  equipement   EquipementParc @relation(fields: [equipementId], references: [id], onDelete: Cascade)
+  equipementId String
+  periode      String
+  copiesNB     Int            @default(0)
+  copiesCouleur Int           @default(0)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@unique([equipementId, periode])
 }
 
 // datePriseEnCharge et dateCloture nullables à dessein : un ticket qui

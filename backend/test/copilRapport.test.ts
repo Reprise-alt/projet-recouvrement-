@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  alertesCompteurTotal,
+  alertesInterventionsFrequentes,
+  alertesVolumetrieMensuelle,
+  calculerPeriodeReelle,
+  capParModeleAvecAutres,
+  capParSiteAvecAutres,
   consommablesParMois,
   consommablesParReference,
   equipementsParModele,
@@ -7,6 +13,7 @@ import {
   interventionsParSite,
   interventionsParType,
   periodeLabel,
+  sitesTopInterventions,
   volumetrieTriee,
 } from '../src/lib/copilRapport';
 
@@ -97,5 +104,95 @@ describe('volumetrieTriee', () => {
 describe('periodeLabel', () => {
   it('formats AAAA-MM into a French month label', () => {
     expect(periodeLabel('2026-07')).toMatch(/juillet 2026/i);
+  });
+});
+
+describe('calculerPeriodeReelle', () => {
+  it('returns a single month label when every date falls in the same month', () => {
+    expect(calculerPeriodeReelle([new Date('2026-07-05'), new Date('2026-07-20')])).toMatch(/juillet 2026/i);
+  });
+
+  it('returns a range label spanning the earliest to the latest month across all sources', () => {
+    const label = calculerPeriodeReelle([new Date('2026-04-05'), new Date('2026-06-20')], ['2026-07']);
+    expect(label).toMatch(/avril 2026.*juillet 2026/i);
+  });
+
+  it('returns null when there is no data at all', () => {
+    expect(calculerPeriodeReelle([])).toBeNull();
+  });
+});
+
+describe('capParModeleAvecAutres', () => {
+  it('leaves the list untouched when at or under the cap', () => {
+    const items = [{ modele: 'A', qte: 3 }, { modele: 'B', qte: 2 }];
+    expect(capParModeleAvecAutres(items, 8)).toEqual(items);
+  });
+
+  it('buckets the tail into "Autres modèles" beyond the cap', () => {
+    const items = Array.from({ length: 10 }, (_, i) => ({ modele: `M${i}`, qte: 10 - i }));
+    const result = capParModeleAvecAutres(items, 4);
+    expect(result).toHaveLength(4);
+    expect(result[3]).toEqual({ modele: 'Autres modèles (7)', qte: 7 + 6 + 5 + 4 + 3 + 2 + 1 });
+  });
+});
+
+describe('capParSiteAvecAutres', () => {
+  it('sums clôturées/en cours/total into the "Autres sites" bucket', () => {
+    const items = Array.from({ length: 12 }, (_, i) => ({ site: `Site ${i}`, clotures: 1, enCours: 0, total: 1 }));
+    const result = capParSiteAvecAutres(items, 9);
+    expect(result).toHaveLength(9);
+    expect(result[8]).toEqual({ site: 'Autres sites (4)', clotures: 4, enCours: 0, total: 4 });
+  });
+});
+
+describe('alertesVolumetrieMensuelle', () => {
+  it('flags only machines exceeding the monthly threshold, sorted descending', () => {
+    const rows = [
+      { numeroSerie: 'SN1', modele: 'BH227', site: 'Dakar', periode: '2026-07', copiesNB: 8000, copiesCouleur: 3000 },
+      { numeroSerie: 'SN2', modele: 'BH287', site: 'Thies', periode: '2026-07', copiesNB: 5000, copiesCouleur: 0 },
+      { numeroSerie: 'SN3', modele: 'BH367', site: 'Mbour', periode: '2026-07', copiesNB: 20000, copiesCouleur: 1000 },
+    ];
+    expect(alertesVolumetrieMensuelle(rows, 10000)).toEqual([
+      { numeroSerie: 'SN3', modele: 'BH367', site: 'Mbour', periode: '2026-07', total: 21000 },
+      { numeroSerie: 'SN1', modele: 'BH227', site: 'Dakar', periode: '2026-07', total: 11000 },
+    ]);
+  });
+});
+
+describe('alertesCompteurTotal', () => {
+  it('sums across ALL periods per machine regardless of report window, then filters', () => {
+    const rows = [
+      { numeroSerie: 'SN1', modele: 'BH227', site: 'Dakar', periode: '2026-04', copiesNB: 400000, copiesCouleur: 0 },
+      { numeroSerie: 'SN1', modele: 'BH227', site: 'Dakar', periode: '2026-05', copiesNB: 350000, copiesCouleur: 0 },
+      { numeroSerie: 'SN2', modele: 'BH287', site: 'Thies', periode: '2026-04', copiesNB: 100000, copiesCouleur: 0 },
+    ];
+    expect(alertesCompteurTotal(rows, 700000)).toEqual([{ numeroSerie: 'SN1', modele: 'BH227', site: 'Dakar', total: 750000 }]);
+  });
+});
+
+describe('alertesInterventionsFrequentes', () => {
+  it('flags machines with strictly more than the threshold of interventions', () => {
+    const rows = [
+      ...Array.from({ length: 5 }, () => ({ numeroSerie: 'SN1', modele: 'BH227', site: 'Dakar' })),
+      ...Array.from({ length: 4 }, () => ({ numeroSerie: 'SN2', modele: 'BH287', site: 'Thies' })),
+      { numeroSerie: 'SN3', modele: 'BH367', site: 'Mbour' },
+    ];
+    expect(alertesInterventionsFrequentes(rows, 4)).toEqual([{ numeroSerie: 'SN1', modele: 'BH227', site: 'Dakar', total: 5 }]);
+  });
+});
+
+describe('sitesTopInterventions', () => {
+  it('returns the single top site when there is no tie', () => {
+    const parSite = [{ site: 'Dakar', total: 51 }, { site: 'Thies', total: 5 }];
+    expect(sitesTopInterventions(parSite)).toEqual([{ site: 'Dakar', total: 51 }]);
+  });
+
+  it('returns every tied site when several share the max', () => {
+    const parSite = [{ site: 'Dakar', total: 10 }, { site: 'Thies', total: 10 }, { site: 'Mbour', total: 3 }];
+    expect(sitesTopInterventions(parSite)).toEqual([{ site: 'Dakar', total: 10 }, { site: 'Thies', total: 10 }]);
+  });
+
+  it('returns an empty list when there is no data', () => {
+    expect(sitesTopInterventions([])).toEqual([]);
   });
 });

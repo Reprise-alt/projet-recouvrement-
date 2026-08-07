@@ -16,7 +16,7 @@ function baseData(overrides: Partial<CopilRapportData> = {}): CopilRapportData {
 
     interventionsTotal: 2,
     interventionsPreventives: 1,
-    sla: { total: 2, clotures: 1, ouverts: 1, tauxCloture: 50, delaiMoyenUrgenteHeures: 4, delaiMoyenStandardHeures: 12 },
+    sla: { total: 2, clotures: 1, ouverts: 1, tauxCloture: 50, delaiMoyenUrgenteHeures: 4, delaiMoyenStandardHeures: 12, priseEnChargeMesuree: 2 },
     parSite: [{ site: 'Dakar', clotures: 1, enCours: 1, total: 2 }],
     parMoisInterventions: [{ mois: 'avril 2026', total: 2 }],
     parType: [
@@ -34,6 +34,11 @@ function baseData(overrides: Partial<CopilRapportData> = {}): CopilRapportData {
     parMoisConsommables: [{ mois: 'avril 2026', nbLignes: 2 }],
 
     actions: [{ priorite: 'p1', action: 'Clôturer les tickets', responsable: 'SORAM', echeance: '30/06/2026', statut: 'En cours' }],
+
+    alertesVolumetrieMensuelle: [{ numeroSerie: 'SN1', modele: 'BH227', site: 'Dakar', periodeLabel: 'avril 2026', total: 12000 }],
+    alertesCompteurTotal: [{ numeroSerie: 'SN2', modele: 'BH287', site: 'Thies', total: 750000 }],
+    alertesInterventionsFrequentes: [{ numeroSerie: 'SN3', modele: 'BH367', site: 'Mbour', total: 5 }],
+    sitesTopInterventions: [{ site: 'Dakar', total: 2 }],
     ...overrides,
   };
 }
@@ -62,7 +67,11 @@ describe('generateCopilRapportPptx', () => {
         actions: [],
         equipementsActifs: 0,
         interventionsTotal: 0,
-        sla: { total: 0, clotures: 0, ouverts: 0, tauxCloture: 0, delaiMoyenUrgenteHeures: null, delaiMoyenStandardHeures: null },
+        sla: { total: 0, clotures: 0, ouverts: 0, tauxCloture: 0, delaiMoyenUrgenteHeures: null, delaiMoyenStandardHeures: null, priseEnChargeMesuree: 0 },
+        alertesVolumetrieMensuelle: [],
+        alertesCompteurTotal: [],
+        alertesInterventionsFrequentes: [],
+        sitesTopInterventions: [],
       })
     );
     expect(isPptxZip(buf)).toBe(true);

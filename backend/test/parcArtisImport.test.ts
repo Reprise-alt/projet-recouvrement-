@@ -144,7 +144,7 @@ describe('parseInterventionsArtis', () => {
 
 describe('parseEtatVenteArtis', () => {
   function head(): unknown[] {
-    const h = new Array(35).fill(null);
+    const h = new Array(220).fill(null);
     h[0] = 'Origine';
     h[2] = 'Date livraison';
     h[3] = 'N° BL';
@@ -153,10 +153,11 @@ describe('parseEtatVenteArtis', () => {
     h[24] = 'Désignation';
     h[28] = 'Qté livrée';
     h[29] = 'Qté facturée';
+    h[215] = 'Bien facturé';
     return h;
   }
   function row(base: Record<number, unknown>): unknown[] {
-    const arr: unknown[] = new Array(35).fill(null);
+    const arr: unknown[] = new Array(220).fill(null);
     Object.entries(base).forEach(([k, v]) => (arr[Number(k)] = v));
     return arr;
   }
@@ -200,5 +201,29 @@ describe('parseEtatVenteArtis', () => {
       { periode: '2026-07', copiesNB: 2231 + 343, copiesCouleur: 462 },
       { periode: '2026-08', copiesNB: 0, copiesCouleur: 100 },
     ]);
+  });
+
+  it('aggregates SSC rows per machine (colonne "Bien facturé" = n° de série) and per période', () => {
+    const wb = workbook([
+      head(),
+      row({ 0: 'SSC', 7: new Date('2026-07-30'), 23: 'RCN', 29: 2231, 215: 'A7AK021010312' }),
+      row({ 0: 'SSC', 7: new Date('2026-07-15'), 23: 'RCC', 29: 100, 215: 'A7AK021010312' }),
+      row({ 0: 'SSC', 7: new Date('2026-07-30'), 23: 'RCN', 29: 343, 215: 'RFH0634294' }),
+      row({ 0: 'SSC', 7: new Date('2026-08-01'), 23: 'RCN', 29: 50, 215: 'A7AK021010312' }),
+      row({ 0: 'SSC', 7: new Date('2026-07-30'), 23: 'LOCI', 29: 1, 215: 'A7AK021010312' }),
+    ]);
+    const { volumetrieParMachine } = parseEtatVenteArtis(wb);
+    expect(volumetrieParMachine).toEqual([
+      { numeroSerie: 'A7AK021010312', periode: '2026-07', copiesNB: 2231, copiesCouleur: 100 },
+      { numeroSerie: 'RFH0634294', periode: '2026-07', copiesNB: 343, copiesCouleur: 0 },
+      { numeroSerie: 'A7AK021010312', periode: '2026-08', copiesNB: 50, copiesCouleur: 0 },
+    ]);
+  });
+
+  it('skips per-machine aggregation when "Bien facturé" is blank', () => {
+    const wb = workbook([head(), row({ 0: 'SSC', 7: new Date('2026-07-30'), 23: 'RCN', 29: 100 })]);
+    const { volumetrie, volumetrieParMachine } = parseEtatVenteArtis(wb);
+    expect(volumetrie).toEqual([{ periode: '2026-07', copiesNB: 100, copiesCouleur: 0 }]);
+    expect(volumetrieParMachine).toEqual([]);
   });
 });

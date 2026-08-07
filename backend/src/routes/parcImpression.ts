@@ -7,6 +7,12 @@ import { loadScoped } from './operations';
 import { computeParcSynthese, computeSlaStats } from '../lib/parcImpression';
 import { detectArtisFileType, parseBiensArtis, parseEtatVenteArtis, parseInterventionsArtis } from '../lib/parsers/parcArtisImport';
 import {
+  alertesCompteurTotal,
+  alertesInterventionsFrequentes,
+  alertesVolumetrieMensuelle,
+  calculerPeriodeReelle,
+  capParModeleAvecAutres,
+  capParSiteAvecAutres,
   consommablesParMois,
   consommablesParReference,
   equipementsParModele,
@@ -14,6 +20,7 @@ import {
   interventionsParSite,
   interventionsParType,
   periodeLabel,
+  sitesTopInterventions,
   volumetrieTriee,
 } from '../lib/copilRapport';
 import { CopilRapportData, generateCopilRapportPptx } from '../lib/copilRapportPptx';
@@ -99,7 +106,7 @@ parcImpressionRouter.post('/clients/:id/import', uploadParc.single('fichier'), a
     }
 
     if (type === 'etatvente') {
-      const { consommables, volumetrie } = parseEtatVenteArtis(wb);
+      const { consommables, volumetrie, volumetrieParMachine } = parseEtatVenteArtis(wb);
       let consommablesCrees = 0;
       for (const r of consommables) {
         const existant = await prisma.livraisonConsommable.findUnique({
@@ -118,7 +125,28 @@ parcImpressionRouter.post('/clients/:id/import', uploadParc.single('fichier'), a
           update: { copiesNB: v.copiesNB, copiesCouleur: v.copiesCouleur },
         });
       }
-      return res.json({ type, consommablesTraites: consommablesCrees, periodesVolumetrie: volumetrie.length });
+
+      // Volumétrie par machine (alertes du rapport COPIL) -- seules les
+      // machines déjà connues au parc (importées depuis biensDsSol) peuvent
+      // être rattachées ; le n° de série "Bien facturé" d'une machine non
+      // encore importée est silencieusement ignoré, pas créé à la volée.
+      let machinesTraitees = 0;
+      if (volumetrieParMachine.length > 0) {
+        const equipements = await prisma.equipementParc.findMany({ where: { clientOperationsId }, select: { id: true, numeroSerie: true } });
+        const equipementIdParNumeroSerie = new Map(equipements.map((e) => [e.numeroSerie, e.id]));
+        for (const v of volumetrieParMachine) {
+          const equipementId = equipementIdParNumeroSerie.get(v.numeroSerie);
+          if (!equipementId) continue;
+          await prisma.volumetrieEquipement.upsert({
+            where: { equipementId_periode: { equipementId, periode: v.periode } },
+            create: { equipementId, periode: v.periode, copiesNB: v.copiesNB, copiesCouleur: v.copiesCouleur },
+            update: { copiesNB: v.copiesNB, copiesCouleur: v.copiesCouleur },
+          });
+          machinesTraitees++;
+        }
+      }
+
+      return res.json({ type, consommablesTraites: consommablesCrees, periodesVolumetrie: volumetrie.length, machinesTraitees });
     }
 
     return res.status(400).json({ error: 'Format de fichier ARTIS non reconnu' });
@@ -165,7 +193,7 @@ parcImpressionRouter.get('/clients/:id/rapport-copil.pptx', async (req, res, nex
     const { debut, fin } = parsePeriodeRange(req.query as Record<string, unknown>);
     const dateFilter = debut || fin ? { gte: debut ?? undefined, lte: fin ?? undefined } : undefined;
 
-    const [equipements, interventions, volumetrie, livraisons, actions, entreprise, chargeDeCompte] = await Promise.all([
+    const [equipements, interventions, volumetrie, livraisons, actions, entreprise, chargeDeCompte, volumetrieEquipement] = await Promise.all([
       prisma.equipementParc.findMany({ where: { clientOperationsId } }),
       prisma.intervention.findMany({ where: { clientOperationsId, ...(dateFilter ? { dateDeclaration: dateFilter } : {}) } }),
       prisma.releveVolumetrie.findMany({ where: { clientOperationsId } }),
@@ -173,28 +201,50 @@ parcImpressionRouter.get('/clients/:id/rapport-copil.pptx', async (req, res, nex
       prisma.actionCopil.findMany({ where: { clientOperationsId }, orderBy: [{ priorite: 'asc' }, { createdAt: 'asc' }] }),
       prisma.entreprise.findUnique({ where: { code: scoped.co.client.entite } }),
       scoped.co.chargeDeCompteId ? prisma.utilisateur.findUnique({ where: { id: scoped.co.chargeDeCompteId } }) : Promise.resolve(null),
+      // Compteur total volontairement non filtré par période -- c'est un
+      // cumul de vie de la machine, pas un indicateur de la fenêtre affichée.
+      prisma.volumetrieEquipement.findMany({ where: { equipement: { clientOperationsId } } }),
     ]);
 
     const synthese = computeParcSynthese(equipements, interventions, volumetrie, livraisons);
     const sla = computeSlaStats(interventions);
     const volTriee = volumetrieTriee(volumetrie);
 
+    const equipementInfoParId = new Map(equipements.map((e) => [e.id, { numeroSerie: e.numeroSerie, modele: e.modele, site: e.site }]));
+    const volumetrieEquipementAvecInfo = volumetrieEquipement.map((v) => {
+      const info = equipementInfoParId.get(v.equipementId);
+      return { numeroSerie: info?.numeroSerie ?? '?', modele: info?.modele ?? '?', site: info?.site ?? '?', periode: v.periode, copiesNB: v.copiesNB, copiesCouleur: v.copiesCouleur };
+    });
+    const interventionsAvecMachine = interventions
+      .filter((i) => i.equipementId != null)
+      .map((i) => {
+        const info = equipementInfoParId.get(i.equipementId!);
+        return { numeroSerie: info?.numeroSerie ?? '?', modele: info?.modele ?? '?', site: info?.site ?? '?' };
+      });
+
+    const parSiteBrut = interventionsParSite(interventions);
+
+    const periodeReelle = calculerPeriodeReelle(
+      [...interventions.map((i) => i.dateDeclaration), ...livraisons.map((l) => l.date)],
+      volumetrie.map((v) => v.periode)
+    );
+
     const data: CopilRapportData = {
       clientNom: scoped.co.client.nom,
       entiteLabel: entreprise?.nom ?? scoped.co.client.entite,
-      periodeLabel: debut && fin ? `${fmtDateLong(debut)} au ${fmtDateLong(fin)}` : 'Depuis le début du suivi',
+      periodeLabel: periodeReelle ?? 'Aucune donnée importée',
       dateGenerationLabel: fmtDateLong(new Date()),
       prochainCopilLabel: null,
       contact: { nom: chargeDeCompte?.nom ?? null, email: chargeDeCompte?.email ?? null, tel: null },
 
       equipementsActifs: synthese.equipementsActifs,
       equipementsIntrouvables: synthese.equipementsIntrouvables,
-      parModele: equipementsParModele(equipements),
+      parModele: capParModeleAvecAutres(equipementsParModele(equipements)),
 
       interventionsTotal: synthese.interventionsTotal,
       interventionsPreventives: synthese.interventionsPreventives,
       sla,
-      parSite: interventionsParSite(interventions),
+      parSite: capParSiteAvecAutres(parSiteBrut),
       parMoisInterventions: interventionsParMois(interventions),
       parType: interventionsParType(interventions),
 
@@ -214,6 +264,17 @@ parcImpressionRouter.get('/clients/:id/rapport-copil.pptx', async (req, res, nex
         echeance: a.echeance ? fmtDate(a.echeance) : null,
         statut: STATUT_ACTION_LABELS_FR[a.statut] ?? a.statut,
       })),
+
+      alertesVolumetrieMensuelle: alertesVolumetrieMensuelle(volumetrieEquipementAvecInfo).map((a) => ({
+        numeroSerie: a.numeroSerie,
+        modele: a.modele,
+        site: a.site,
+        periodeLabel: periodeLabel(a.periode),
+        total: a.total,
+      })),
+      alertesCompteurTotal: alertesCompteurTotal(volumetrieEquipementAvecInfo),
+      alertesInterventionsFrequentes: alertesInterventionsFrequentes(interventionsAvecMachine),
+      sitesTopInterventions: sitesTopInterventions(parSiteBrut),
     };
 
     const buffer = await generateCopilRapportPptx(data);

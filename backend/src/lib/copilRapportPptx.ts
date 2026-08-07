@@ -58,6 +58,20 @@ export interface CopilRapportData {
   parMoisConsommables: { mois: string; nbLignes: number }[];
 
   actions: { priorite: 'p1' | 'p2' | 'p3'; action: string; responsable: string | null; echeance: string | null; statut: string }[];
+
+  alertesVolumetrieMensuelle: { numeroSerie: string; modele: string; site: string; periodeLabel: string; total: number }[];
+  alertesCompteurTotal: { numeroSerie: string; modele: string; site: string; total: number }[];
+  alertesInterventionsFrequentes: { numeroSerie: string; modele: string; site: string; total: number }[];
+  sitesTopInterventions: { site: string; total: number }[];
+}
+
+// Les vraies désignations ARTIS (modèles, sites) dépassent largement ce
+// qu'une colonne de tableau peut afficher sur une seule ligne (jusqu'à 75
+// caractères constatés) -- tronquer plutôt que de laisser le texte déborder
+// de sa cellule et gonfler la hauteur de ligne au-delà de ce que la diapo
+// peut contenir.
+function tronquer(s: string, max = 42): string {
+  return s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s;
 }
 
 function toneColor(tone: CopilKpiTile['tone']): string {
@@ -303,13 +317,13 @@ export async function generateCopilRapportPptx(data: CopilRapportData): Promise<
   {
     const slide = pres.addSlide();
     contentHeader(slide, '1', `Inventaire du parc — ${data.equipementsActifs} équipements`, data);
-    const rows = data.parModele.map((r) => [r.modele, r.qte]);
+    const rows = data.parModele.map((r) => [tronquer(r.modele, 44), r.qte]);
     const totalRow: (string | number)[] = ['TOTAL', data.parModele.reduce((s, r) => s + r.qte, 0)];
     dataTable(slide, ['Modèle', 'Qté'], [...rows, totalRow], { x: MARGIN, y: 1.15, w: 5.4, h: 3.7, colW: [4, 1.4] });
     if (data.parModele.length > 0) {
       slide.addChart(
         pres.ChartType.doughnut,
-        [{ name: 'Équipements', labels: data.parModele.map((r) => r.modele), values: data.parModele.map((r) => r.qte) }],
+        [{ name: 'Équipements', labels: data.parModele.map((r) => tronquer(r.modele, 22)), values: data.parModele.map((r) => r.qte) }],
         {
           x: 5.95,
           y: 1.15,
@@ -334,7 +348,7 @@ export async function generateCopilRapportPptx(data: CopilRapportData): Promise<
   {
     const slide = pres.addSlide();
     contentHeader(slide, '2', 'Suivi des interventions par site', data);
-    const rows = data.parSite.map((r) => [r.site, r.clotures, r.enCours, r.total]);
+    const rows = data.parSite.map((r) => [tronquer(r.site, 26), r.clotures, r.enCours, r.total]);
     const totaux = data.parSite.reduce((acc, r) => ({ clotures: acc.clotures + r.clotures, enCours: acc.enCours + r.enCours, total: acc.total + r.total }), {
       clotures: 0,
       enCours: 0,
@@ -351,7 +365,7 @@ export async function generateCopilRapportPptx(data: CopilRapportData): Promise<
       const topSites = data.parSite.slice(0, 8);
       slide.addChart(
         pres.ChartType.bar,
-        [{ name: 'Interventions', labels: topSites.map((r) => r.site), values: topSites.map((r) => r.total) }],
+        [{ name: 'Interventions', labels: topSites.map((r) => tronquer(r.site, 18)), values: topSites.map((r) => r.total) }],
         {
           x: 5.95,
           y: 1.15,
@@ -519,21 +533,111 @@ export async function generateCopilRapportPptx(data: CopilRapportData): Promise<
     const slide = pres.addSlide();
     contentHeader(slide, '5', 'Délais d\'intervention — performance SLA', data);
     const heures = (h: number | null) => (h == null ? '—' : `${Math.round(h)} h`);
+    // Volontairement limité aux deux dates contractuelles du SLA (D :
+    // déclaration, DF : prise en charge) -- ni le taux de clôture ni les
+    // tickets ouverts n'entrent ici, ce sont des indicateurs de clôture
+    // (déjà sur la diapo Synthèse), pas de délai de réponse.
     kpiTileRow(
       slide,
       [
-        { label: 'Taux de clôture global', value: `${data.sla.tauxCloture}%`, tone: data.sla.tauxCloture >= 90 ? 'success' : 'amber' },
         { label: 'Délai moyen — urgentes', value: heures(data.sla.delaiMoyenUrgenteHeures) },
         { label: 'Délai moyen — standard', value: heures(data.sla.delaiMoyenStandardHeures) },
-        { label: 'Tickets ouverts', value: String(data.sla.ouverts), tone: data.sla.ouverts > 0 ? 'amber' : 'success' },
+        { label: 'Prise en charge mesurée', value: `${data.sla.priseEnChargeMesuree}/${data.sla.total}` },
       ],
       1.3,
       1.15
     );
     slide.addText(
-      'Délai mesuré : déclaration du ticket → prise en charge (délai de réponse). Objectifs contractuels : 4h Dakar/Grand Dakar, 24 à 48h Régions.',
+      'Délai mesuré : déclaration du ticket (D) → prise en charge (DF) — délai de réponse uniquement, pas de résolution. Objectifs contractuels : 4h Dakar/Grand Dakar, 24 à 48h Régions.',
       { x: MARGIN, y: 2.75, w: SLIDE_W - MARGIN * 2, h: 0.6, fontFace: FONT_BODY, fontSize: 9.5, italic: true, color: SLATE }
     );
+    footer(slide, data, ++page);
+  }
+
+  /* ---------- Alertes ---------- */
+  {
+    const slide = pres.addSlide();
+    contentHeader(slide, '', 'Alertes', data);
+
+    const topSitesLabel =
+      data.sitesTopInterventions.length === 0
+        ? 'Aucune donnée'
+        : data.sitesTopInterventions.map((s) => `${tronquer(s.site, 24)} (${s.total})`).join(' · ');
+    slide.addShape('roundRect', { x: MARGIN, y: 1.1, w: SLIDE_W - MARGIN * 2, h: 0.45, rectRadius: 0.05, fill: { color: TINT }, line: { type: 'none' } });
+    slide.addText([{ text: 'SITE(S) AVEC LE PLUS D\'INTERVENTIONS  ', options: { bold: true, color: SLATE } }, { text: topSitesLabel, options: { color: INK } }], {
+      x: MARGIN + 0.15,
+      y: 1.1,
+      w: SLIDE_W - MARGIN * 2 - 0.3,
+      h: 0.45,
+      valign: 'middle',
+      fontFace: FONT_BODY,
+      fontSize: 9.5,
+    });
+
+    const colW = (SLIDE_W - MARGIN * 2 - 0.3) / 3;
+    const alerteColonne = (
+      x: number,
+      titre: string,
+      lignes: string[],
+      vide: string
+    ) => {
+      slide.addShape('rect', { x, y: 1.75, w: colW, h: 0.32, fill: { color: INK }, line: { type: 'none' } });
+      slide.addText(titre.toUpperCase(), {
+        x: x + 0.08,
+        y: 1.75,
+        w: colW - 0.16,
+        h: 0.32,
+        valign: 'middle',
+        fontFace: FONT_BODY,
+        fontSize: 7.5,
+        bold: true,
+        color: WHITE,
+        fit: 'shrink',
+      });
+      if (lignes.length === 0) {
+        slide.addText(vide, { x: x + 0.08, y: 2.15, w: colW - 0.16, h: 0.4, fontFace: FONT_BODY, fontSize: 8.5, italic: true, color: SLATE });
+        return;
+      }
+      const affichees = lignes.slice(0, 7);
+      const reste = lignes.length - affichees.length;
+      slide.addText(
+        affichees.map((l, i) => ({ text: l, options: { breakLine: i < affichees.length - 1 } })),
+        {
+          x: x + 0.08,
+          y: 2.12,
+          w: colW - 0.16,
+          h: 2.9,
+          fontFace: FONT_BODY,
+          fontSize: 8,
+          color: INK,
+          valign: 'top',
+          paraSpaceAfter: 5,
+        }
+      );
+      if (reste > 0) {
+        slide.addText(`+ ${reste} autre(s)`, { x: x + 0.08, y: 5.05, w: colW - 0.16, h: 0.2, fontFace: FONT_BODY, fontSize: 7.5, italic: true, color: SLATE });
+      }
+    };
+
+    alerteColonne(
+      MARGIN,
+      '> 10 000 pages / mois',
+      data.alertesVolumetrieMensuelle.map((a) => `${tronquer(a.modele, 20)} — ${tronquer(a.site, 16)} (${a.periodeLabel}) : ${a.total.toLocaleString('fr-FR')} p.`),
+      'Aucune machine au-dessus du seuil.'
+    );
+    alerteColonne(
+      MARGIN + colW + 0.15,
+      '> 700 000 pages (compteur total)',
+      data.alertesCompteurTotal.map((a) => `${tronquer(a.modele, 20)} — ${tronquer(a.site, 16)} : ${a.total.toLocaleString('fr-FR')} p.`),
+      'Aucune machine au-dessus du seuil.'
+    );
+    alerteColonne(
+      MARGIN + (colW + 0.15) * 2,
+      '> 4 interventions / période',
+      data.alertesInterventionsFrequentes.map((a) => `${tronquer(a.modele, 20)} — ${tronquer(a.site, 16)} : ${a.total} intervention(s)`),
+      'Aucune machine au-dessus du seuil.'
+    );
+
     footer(slide, data, ++page);
   }
 

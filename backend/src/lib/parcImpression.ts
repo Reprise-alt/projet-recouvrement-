@@ -17,6 +17,7 @@ export interface SlaStats {
   tauxCloture: number; // 0-100, arrondi
   delaiMoyenUrgenteHeures: number | null;
   delaiMoyenStandardHeures: number | null;
+  priseEnChargeMesuree: number; // interventions avec datePriseEnCharge renseigné (déclaration -> prise en charge mesurable)
 }
 
 function heuresEntre(a: Date | string, b: Date | string): number {
@@ -52,6 +53,7 @@ export function computeSlaStats(interventions: InterventionLike[]): SlaStats {
     tauxCloture: total ? Math.round((100 * clotures) / total) : 0,
     delaiMoyenUrgenteHeures: moyenne(delaisUrgente),
     delaiMoyenStandardHeures: moyenne(delaisStandard),
+    priseEnChargeMesuree: interventions.filter((i) => i.datePriseEnCharge != null).length,
   };
 }
 

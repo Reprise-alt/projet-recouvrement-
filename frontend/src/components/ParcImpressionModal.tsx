@@ -70,7 +70,10 @@ export function ParcImpressionModal({
       const result = await api.upload<ArtisImportResult>(`/api/parc/clients/${clientOperationsId}/import`, formData);
       if (result.type === 'biens') showToast(`Import ARTIS — ${result.traites ?? 0} équipement(s) traité(s).`);
       else if (result.type === 'interventions') showToast(`Import ARTIS — ${result.traites ?? 0} intervention(s) traitée(s).`);
-      else showToast(`Import ARTIS — ${result.consommablesTraites ?? 0} consommable(s), ${result.periodesVolumetrie ?? 0} période(s) de volumétrie.`);
+      else
+        showToast(
+          `Import ARTIS — ${result.consommablesTraites ?? 0} consommable(s), ${result.periodesVolumetrie ?? 0} période(s) de volumétrie, ${result.machinesTraitees ?? 0} machine(s).`
+        );
       bump();
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : "Échec de l'import ARTIS");

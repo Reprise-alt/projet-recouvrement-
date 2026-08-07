@@ -787,4 +787,5 @@ export interface ArtisImportResult {
   traites?: number;
   consommablesTraites?: number;
   periodesVolumetrie?: number;
+  machinesTraitees?: number;
 }

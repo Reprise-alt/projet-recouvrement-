@@ -161,9 +161,17 @@ export function parseInterventionsArtis(wb: XLSX.WorkBook): ArtisInterventionRow
   return out;
 }
 
+export interface ArtisVolumetrieMachine {
+  numeroSerie: string;
+  periode: string;
+  copiesNB: number;
+  copiesCouleur: number;
+}
+
 export interface ArtisEtatVenteResult {
   consommables: ArtisConsommableRow[];
   volumetrie: ArtisVolumetriePeriode[];
+  volumetrieParMachine: ArtisVolumetrieMachine[];
 }
 
 // Les deux exports "ResultatEtatVente" partagent la même entête -- ils ne se
@@ -173,7 +181,7 @@ export interface ArtisEtatVenteResult {
 // même si un futur export mélange les deux.
 export function parseEtatVenteArtis(wb: XLSX.WorkBook): ArtisEtatVenteResult {
   const rows = firstSheetRows(wb);
-  if (rows.length < 2) return { consommables: [], volumetrie: [] };
+  if (rows.length < 2) return { consommables: [], volumetrie: [], volumetrieParMachine: [] };
   const headers = (rows[0] ?? []).map((h) => normaliserTexte(h));
   const idx = headerIndex(headers);
   const iOrigine = idx('Origine');
@@ -184,7 +192,8 @@ export function parseEtatVenteArtis(wb: XLSX.WorkBook): ArtisEtatVenteResult {
   const iDesignation = idx('Désignation');
   const iQteLivree = idx('Qté livrée');
   const iQteFacturee = idx('Qté facturée');
-  if (iOrigine < 0 || iCodeArt < 0) return { consommables: [], volumetrie: [] };
+  const iBienFacture = idx('Bien facturé');
+  if (iOrigine < 0 || iCodeArt < 0) return { consommables: [], volumetrie: [], volumetrieParMachine: [] };
 
   // Une même paire (N° BL, Code art.) peut apparaître deux fois sur le même
   // bordereau (deux machines de destination différentes livrées par la même
@@ -193,6 +202,7 @@ export function parseEtatVenteArtis(wb: XLSX.WorkBook): ArtisEtatVenteResult {
   // silencieusement perdre la deuxième ligne au moment de l'upsert.
   const consommablesParReference = new Map<string, ArtisConsommableRow>();
   const volumetrieParPeriode = new Map<string, { copiesNB: number; copiesCouleur: number }>();
+  const volumetrieParMachine = new Map<string, { numeroSerie: string; periode: string; copiesNB: number; copiesCouleur: number }>();
 
   for (const row of rows.slice(1)) {
     const origine = normaliserTexte(row[iOrigine]);
@@ -225,10 +235,19 @@ export function parseEtatVenteArtis(wb: XLSX.WorkBook): ArtisEtatVenteResult {
       if (codeArt === 'RCN') acc.copiesNB += quantite;
       else acc.copiesCouleur += quantite;
       volumetrieParPeriode.set(periode, acc);
+
+      const numeroSerie = normaliserTexte(row[iBienFacture]);
+      if (numeroSerie) {
+        const cleMachine = `${numeroSerie}|${periode}`;
+        const accMachine = volumetrieParMachine.get(cleMachine) ?? { numeroSerie, periode, copiesNB: 0, copiesCouleur: 0 };
+        if (codeArt === 'RCN') accMachine.copiesNB += quantite;
+        else accMachine.copiesCouleur += quantite;
+        volumetrieParMachine.set(cleMachine, accMachine);
+      }
     }
   }
 
   const consommables = Array.from(consommablesParReference.values());
   const volumetrie = Array.from(volumetrieParPeriode.entries()).map(([periode, v]) => ({ periode, ...v }));
-  return { consommables, volumetrie };
+  return { consommables, volumetrie, volumetrieParMachine: Array.from(volumetrieParMachine.values()) };
 }

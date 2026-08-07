@@ -11,6 +11,7 @@ describe('computeSlaStats', () => {
       tauxCloture: 0,
       delaiMoyenUrgenteHeures: null,
       delaiMoyenStandardHeures: null,
+      priseEnChargeMesuree: 0,
     });
   });
 
