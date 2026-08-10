@@ -687,6 +687,12 @@ export function ClientOperationsDrawer({ id, user, initialSection, onClose, onCh
                       <span>Motif</span>
                       {co.motifResiliation ? MOTIF_RESILIATION_LABELS[co.motifResiliation] : '—'}
                     </div>
+                    {co.motifDetail && (
+                      <div style={{ gridColumn: '1 / -1' }}>
+                        <span>Circonstances</span>
+                        {co.motifDetail}
+                      </div>
+                    )}
                   </div>
                   {canEdit && (
                     <button onClick={reactiver} disabled={busy}>
