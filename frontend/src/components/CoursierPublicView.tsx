@@ -15,6 +15,19 @@ function fmtHeure(iso: string): string {
   return new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 }
 
+// Une tâche encore à traiter aujourd'hui fait partie de la tournée à
+// construire -- qu'elle soit fraîche ('a_faire') ou qu'elle ait déjà été
+// reportée un jour avant d'arriver à échéance aujourd'hui ('reportee',
+// cf. tacheStatutAffiche : toute tâche dont `date` diffère de
+// `dateInitiale`). Se limiter au seul statut 'a_faire' exclurait à tort
+// toute tâche déjà reportée une fois -- observé en prod : ne laissait plus
+// qu'une tâche éligible, rendant les flèches inertes (haut et bas tous
+// deux hors limites avec une seule tâche dans la liste).
+function dansLaTournee(t: TacheCoursierPublic): boolean {
+  const statut = tacheStatutAffiche(t);
+  return statut === 'a_faire' || statut === 'reportee';
+}
+
 // Vue terrain sans authentification classique : identifiée uniquement par
 // le token dans l'URL (cf. App.tsx / routes/coursierPublic.ts côté
 // backend). Volontairement minimale — pas de topbar, gros boutons, pensée
@@ -117,7 +130,7 @@ export function CoursierPublicView({ token }: { token: string }) {
   function deplacer(t: TacheCoursierPublic, direction: 'haut' | 'bas') {
     if (!data) return;
     const liste = [...data.taches];
-    const aFaire = liste.filter((x) => tacheStatutAffiche(x) === 'a_faire');
+    const aFaire = liste.filter(dansLaTournee);
     const idx = aFaire.findIndex((x) => x.id === t.id);
     const cibleIdx = direction === 'haut' ? idx - 1 : idx + 1;
     if (idx === -1 || cibleIdx < 0 || cibleIdx >= aFaire.length) return;
@@ -177,7 +190,7 @@ export function CoursierPublicView({ token }: { token: string }) {
                 // flèche correspondante -- uniquement parmi les tâches
                 // restant à faire, une tâche déjà faite ne compte pas dans
                 // la tournée à venir.
-                const aFaireIds = data.taches.filter((x) => tacheStatutAffiche(x) === 'a_faire').map((x) => x.id);
+                const aFaireIds = data.taches.filter(dansLaTournee).map((x) => x.id);
                 return data.taches.map((t) => {
                   const statut = tacheStatutAffiche(t);
                   const busy = busyId === t.id;
