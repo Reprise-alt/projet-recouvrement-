@@ -102,7 +102,7 @@ function getToolsForUser(user: AuthedUser): Tool[] {
       {
         name: 'parc_impression_resume',
         description:
-          "Synthèse du parc d'impression d'un client (équipements actifs, nombre d'interventions, délais médians SLA, volumétrie de copies, consommables livrés). Utiliser pour toute question sur les imprimantes, interventions techniques ou copies d'un client précis.",
+          "Synthèse du parc d'impression d'UN client précis (équipements actifs, nombre d'interventions, délais médians SLA, volumétrie de copies, consommables livrés). Nécessite un nom de client -- pour une question portant sur l'ensemble du portefeuille (\"quel client a une machine qui a fait...\"), utiliser plutôt alertes_parc_impression_portefeuille.",
         input_schema: {
           type: 'object',
           properties: {
@@ -110,6 +110,26 @@ function getToolsForUser(user: AuthedUser): Tool[] {
             entite: { type: 'string', description: 'Code entité pour restreindre la recherche (optionnel)' },
           },
           required: ['nom_client'],
+        },
+      },
+      {
+        name: 'alertes_parc_impression_portefeuille',
+        description:
+          "Balaie TOUS les clients du portefeuille accessible (pas un seul) pour repérer les machines qui dépassent un seuil, sur un critère donné : volumétrie mensuelle (nécessite une période AAAA-MM), compteur total cumulé, ou nombre d'interventions. Utiliser pour toute question du type \"quel client a une machine qui a...\", \"y a-t-il une machine qui dépasse...\" sans nom de client précisé.",
+        input_schema: {
+          type: 'object',
+          properties: {
+            critere: {
+              type: 'string',
+              enum: ['volumetrie_mensuelle', 'compteur_total', 'interventions_frequentes'],
+              description:
+                "volumetrie_mensuelle = pages imprimées sur UN mois donné (nécessite periode) ; compteur_total = pages cumulées depuis toujours ; interventions_frequentes = nombre total d'interventions techniques",
+            },
+            periode: { type: 'string', description: "Mois au format AAAA-MM (ex: 2026-07) -- requis uniquement pour critere=volumetrie_mensuelle" },
+            seuil: { type: 'number', description: 'Seuil à dépasser -- valeurs par défaut si omis : 10000 pages/mois, 700000 pages cumulées, ou 4 interventions selon le critère' },
+            entite: { type: 'string', description: 'Code entité pour restreindre la recherche (optionnel)' },
+          },
+          required: ['critere'],
         },
       },
     );
@@ -226,6 +246,131 @@ export async function parcImpressionResume(user: AuthedUser, input: { nom_client
   return { client: co.client.nom, entite: co.client.entite, ...synthese };
 }
 
+interface AlerteMachinePortefeuille {
+  client: string;
+  entite: string;
+  numeroSerie: string;
+  modele: string;
+  site: string;
+  total: number;
+}
+
+// Contrairement à parcImpressionResume (un client à la fois), balaie tous
+// les comptes du périmètre accessible -- répond à "quel client a une
+// machine qui dépasse X", question à laquelle aucun autre outil ne peut
+// répondre sans connaître déjà le nom du client recherché.
+export async function alertesParcImpressionPortefeuille(
+  user: AuthedUser,
+  input: { critere?: string; periode?: string; seuil?: number; entite?: string }
+) {
+  const critere = input.critere;
+  if (critere !== 'volumetrie_mensuelle' && critere !== 'compteur_total' && critere !== 'interventions_frequentes') {
+    return { error: "critere requis : 'volumetrie_mensuelle', 'compteur_total' ou 'interventions_frequentes'" };
+  }
+  if (critere === 'volumetrie_mensuelle' && !/^\d{4}-\d{2}$/.test(input.periode ?? '')) {
+    return { error: 'periode requise au format AAAA-MM pour ce critère (ex: 2026-07)' };
+  }
+
+  const entiteFilter = resolveEntiteScopeOperations(user, input.entite);
+  const cos = await prisma.clientOperations.findMany({
+    where: { client: entiteWhereOperations(entiteFilter), ...chargeDeCompteWhere(user) },
+    select: { id: true, client: { select: CLIENT_SELECT_OPERATIONS } },
+  });
+  if (cos.length === 0) return { resultat: 'Aucun compte dans le périmètre accessible.' };
+  const clientParCoId = new Map(cos.map((c) => [c.id, c.client]));
+  const coIds = cos.map((c) => c.id);
+
+  // Résultat plafonné à 30 lignes -- suffisant pour répondre, sans gonfler
+  // inutilement le payload renvoyé au modèle sur un portefeuille chargé.
+  const TOP_N = 30;
+
+  if (critere === 'interventions_frequentes') {
+    const seuil = input.seuil ?? 4;
+    const interventions = await prisma.intervention.findMany({
+      where: { clientOperationsId: { in: coIds }, equipementId: { not: null } },
+      select: { equipementId: true, clientOperationsId: true, equipement: { select: { numeroSerie: true, modele: true, site: true } } },
+    });
+    const parMachine = new Map<string, AlerteMachinePortefeuille>();
+    for (const iv of interventions) {
+      if (!iv.equipementId || !iv.equipement) continue;
+      const c = clientParCoId.get(iv.clientOperationsId);
+      const acc = parMachine.get(iv.equipementId) ?? {
+        client: c?.nom ?? '?',
+        entite: c?.entite ?? '?',
+        numeroSerie: iv.equipement.numeroSerie,
+        modele: iv.equipement.modele,
+        site: iv.equipement.site,
+        total: 0,
+      };
+      acc.total++;
+      parMachine.set(iv.equipementId, acc);
+    }
+    const alertes = Array.from(parMachine.values())
+      .filter((a) => a.total > seuil)
+      .sort((a, b) => b.total - a.total)
+      .slice(0, TOP_N);
+    return alertes.length ? { critere, seuil, alertes } : { resultat: `Aucune machine au-dessus de ${seuil} interventions dans le périmètre accessible.` };
+  }
+
+  // volumetrie_mensuelle et compteur_total partagent la même source
+  // (VolumetrieEquipement) -- seul le filtre de période diffère.
+  const seuil = input.seuil ?? (critere === 'volumetrie_mensuelle' ? 10000 : 700000);
+  const releves = await prisma.volumetrieEquipement.findMany({
+    where: {
+      equipement: { clientOperationsId: { in: coIds } },
+      ...(critere === 'volumetrie_mensuelle' ? { periode: input.periode } : {}),
+    },
+    select: {
+      equipementId: true,
+      copiesNB: true,
+      copiesCouleur: true,
+      equipement: { select: { numeroSerie: true, modele: true, site: true, clientOperationsId: true } },
+    },
+  });
+
+  if (critere === 'volumetrie_mensuelle') {
+    const alertes = releves
+      .map((r) => {
+        const c = clientParCoId.get(r.equipement.clientOperationsId);
+        return {
+          client: c?.nom ?? '?',
+          entite: c?.entite ?? '?',
+          numeroSerie: r.equipement.numeroSerie,
+          modele: r.equipement.modele,
+          site: r.equipement.site,
+          total: r.copiesNB + r.copiesCouleur,
+        };
+      })
+      .filter((r) => r.total > seuil)
+      .sort((a, b) => b.total - a.total)
+      .slice(0, TOP_N);
+    return alertes.length
+      ? { critere, periode: input.periode, seuil, alertes }
+      : { resultat: `Aucune machine au-dessus de ${seuil} pages pour la période ${input.periode} dans le périmètre accessible.` };
+  }
+
+  // compteur_total : cumul toutes périodes confondues, par machine.
+  const cumulParMachine = new Map<string, AlerteMachinePortefeuille>();
+  for (const r of releves) {
+    const c = clientParCoId.get(r.equipement.clientOperationsId);
+    const acc = cumulParMachine.get(r.equipementId) ?? {
+      client: c?.nom ?? '?',
+      entite: c?.entite ?? '?',
+      numeroSerie: r.equipement.numeroSerie,
+      modele: r.equipement.modele,
+      site: r.equipement.site,
+      total: 0,
+    };
+    acc.total += r.copiesNB + r.copiesCouleur;
+    cumulParMachine.set(r.equipementId, acc);
+  }
+  const alertes = Array.from(cumulParMachine.values())
+    .filter((a) => a.total > seuil)
+    .sort((a, b) => b.total - a.total)
+    .slice(0, TOP_N);
+  return alertes.length ? { critere, seuil, alertes } : { resultat: `Aucune machine au-dessus de ${seuil} pages cumulées dans le périmètre accessible.` };
+}
+
 async function executeTool(name: string, input: unknown, user: AuthedUser): Promise<{ result: unknown; isError: boolean }> {
   try {
     const args = (input ?? {}) as Record<string, unknown>;
@@ -245,6 +390,12 @@ async function executeTool(name: string, input: unknown, user: AuthedUser): Prom
       case 'parc_impression_resume':
         if (!user.roleOperations) return { result: { error: 'Accès refusé' }, isError: true };
         return { result: await parcImpressionResume(user, args as { nom_client: string; entite?: string }), isError: false };
+      case 'alertes_parc_impression_portefeuille':
+        if (!user.roleOperations) return { result: { error: 'Accès refusé' }, isError: true };
+        return {
+          result: await alertesParcImpressionPortefeuille(user, args as { critere?: string; periode?: string; seuil?: number; entite?: string }),
+          isError: false,
+        };
       default:
         return { result: { error: `Outil inconnu : ${name}` }, isError: true };
     }
