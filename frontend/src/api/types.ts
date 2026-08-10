@@ -842,3 +842,17 @@ export interface AlertesParcResponse {
   interventionsFrequentes: AlerteMachine[];
   sitesTop: { site: string; total: number }[];
 }
+
+// ============================================================================
+// Assistant (bulle de chat flottante, connecté aux vraies données via
+// tool-use côté backend -- cf. lib/assistant.ts).
+// ============================================================================
+
+export interface AssistantMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface AssistantChatResponse {
+  message: AssistantMessage;
+}

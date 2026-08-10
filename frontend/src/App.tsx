@@ -14,6 +14,7 @@ import { IntegrationsPanel } from './components/IntegrationsPanel';
 import { EntreprisesPanel } from './components/EntreprisesPanel';
 import { EntityLogo, entityAccent } from './components/EntityLogo';
 import { OperationsView } from './components/OperationsView';
+import { AssistantBubble } from './components/AssistantBubble';
 import { Entite, Entreprise } from './api/types';
 import { useResource } from './hooks/useResource';
 import { useTheme } from './hooks/useTheme';
@@ -351,6 +352,7 @@ export function App() {
       {entreprisesOpen && (
         <EntreprisesPanel onClose={() => setEntreprisesOpen(false)} onChanged={refetchEntreprises} />
       )}
+      <AssistantBubble />
     </div>
   );
 }
