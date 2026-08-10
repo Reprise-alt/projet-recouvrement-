@@ -400,6 +400,7 @@ export interface TacheCoursierPublic extends Omit<TacheCoursier, 'client' | 'cou
 export interface CoursierTachesPubliques {
   coursier: { nom: string };
   taches: TacheCoursierPublic[];
+  autresCoursiers: { id: string; nom: string }[];
 }
 
 // Écran de salle : planning complet du jour (tous coursiers, y compris non

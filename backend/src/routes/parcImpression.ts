@@ -206,7 +206,13 @@ parcImpressionRouter.get('/clients/:id/synthese', async (req, res, next) => {
       prisma.livraisonConsommable.findMany({ where: { clientOperationsId: req.params.id, ...(dateFilter ? { date: dateFilter } : {}) } }),
     ]);
 
-    res.json(computeParcSynthese(equipements, interventions, volumetrie, livraisons));
+    // ReleveVolumetrie est identifié par période ("AAAA-MM"), pas par une
+    // date ponctuelle -- ne peut pas passer par un filtre Prisma comme les
+    // interventions/livraisons ci-dessus (cf. même logique sur le rapport PPTX).
+    const moisFiltre = debut && fin ? moisDansPlage(debut, fin) : null;
+    const volumetrieFiltree = moisFiltre ? volumetrie.filter((v) => moisFiltre.includes(v.periode)) : volumetrie;
+
+    res.json(computeParcSynthese(equipements, interventions, volumetrieFiltree, livraisons));
   } catch (err) {
     next(err);
   }
@@ -328,14 +334,21 @@ parcImpressionRouter.get('/clients/:id/alertes', async (req, res, next) => {
     const scoped = await loadScoped(req, req.params.id);
     if (scoped.error) return res.status(scoped.error).json(scoped.body);
     const clientOperationsId = req.params.id;
+    const { debut, fin } = parsePeriodeRange(req.query as Record<string, unknown>);
+    const dateFilter = debut || fin ? { gte: debut ?? undefined, lte: fin ?? undefined } : undefined;
 
     const [equipements, interventions, volumetrieEquipement] = await Promise.all([
       prisma.equipementParc.findMany({ where: { clientOperationsId } }),
-      prisma.intervention.findMany({ where: { clientOperationsId } }),
+      prisma.intervention.findMany({ where: { clientOperationsId, ...(dateFilter ? { dateDeclaration: dateFilter } : {}) } }),
+      // Compteur total (2e argument de calculerAlertesParc) volontairement non
+      // filtré -- cumul de vie de la machine, comme sur le rapport PPTX.
       prisma.volumetrieEquipement.findMany({ where: { equipement: { clientOperationsId } } }),
     ]);
 
-    res.json(calculerAlertesParc(equipements, interventions, volumetrieEquipement));
+    const moisFiltre = debut && fin ? moisDansPlage(debut, fin) : null;
+    const volumetrieEquipementFiltre = moisFiltre ? volumetrieEquipement.filter((v) => moisFiltre.includes(v.periode)) : volumetrieEquipement;
+
+    res.json(calculerAlertesParc(equipements, interventions, volumetrieEquipementFiltre, volumetrieEquipement));
   } catch (err) {
     next(err);
   }
@@ -401,8 +414,10 @@ parcImpressionRouter.get('/clients/:id/interventions', async (req, res, next) =>
   try {
     const scoped = await loadScoped(req, req.params.id);
     if (scoped.error) return res.status(scoped.error).json(scoped.body);
+    const { debut, fin } = parsePeriodeRange(req.query as Record<string, unknown>);
+    const dateFilter = debut || fin ? { gte: debut ?? undefined, lte: fin ?? undefined } : undefined;
     const interventions = await prisma.intervention.findMany({
-      where: { clientOperationsId: req.params.id },
+      where: { clientOperationsId: req.params.id, ...(dateFilter ? { dateDeclaration: dateFilter } : {}) },
       orderBy: { dateDeclaration: 'desc' },
     });
     res.json({ interventions, sla: computeSlaStats(interventions) });
@@ -459,8 +474,10 @@ parcImpressionRouter.get('/clients/:id/volumetrie', async (req, res, next) => {
   try {
     const scoped = await loadScoped(req, req.params.id);
     if (scoped.error) return res.status(scoped.error).json(scoped.body);
+    const { debut, fin } = parsePeriodeRange(req.query as Record<string, unknown>);
     const releves = await prisma.releveVolumetrie.findMany({ where: { clientOperationsId: req.params.id }, orderBy: { periode: 'desc' } });
-    res.json(releves);
+    const moisFiltre = debut && fin ? moisDansPlage(debut, fin) : null;
+    res.json(moisFiltre ? releves.filter((v) => moisFiltre.includes(v.periode)) : releves);
   } catch (err) {
     next(err);
   }
@@ -491,7 +508,12 @@ parcImpressionRouter.get('/clients/:id/consommables', async (req, res, next) => 
   try {
     const scoped = await loadScoped(req, req.params.id);
     if (scoped.error) return res.status(scoped.error).json(scoped.body);
-    const livraisons = await prisma.livraisonConsommable.findMany({ where: { clientOperationsId: req.params.id }, orderBy: { date: 'desc' } });
+    const { debut, fin } = parsePeriodeRange(req.query as Record<string, unknown>);
+    const dateFilter = debut || fin ? { gte: debut ?? undefined, lte: fin ?? undefined } : undefined;
+    const livraisons = await prisma.livraisonConsommable.findMany({
+      where: { clientOperationsId: req.params.id, ...(dateFilter ? { date: dateFilter } : {}) },
+      orderBy: { date: 'desc' },
+    });
     res.json(livraisons);
   } catch (err) {
     next(err);

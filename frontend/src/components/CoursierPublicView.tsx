@@ -28,6 +28,7 @@ export function CoursierPublicView({ token }: { token: string }) {
   const [modes, setModes] = useState<Record<string, ModePaiementCollecte>>({});
   const [reportDates, setReportDates] = useState<Record<string, string>>({});
   const [motifs, setMotifs] = useState<Record<string, MotifReport | ''>>({});
+  const [reaffectations, setReaffectations] = useState<Record<string, string>>({});
 
   async function load() {
     setLoading(true);
@@ -55,6 +56,20 @@ export function CoursierPublicView({ token }: { token: string }) {
         montant: t.type === 'recuperation_reglement' ? montants[t.id] || null : undefined,
         modePaiement: t.type === 'recuperation_reglement' ? modes[t.id] || null : undefined,
       });
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function reaffecter(t: TacheCoursierPublic) {
+    const coursierId = reaffectations[t.id];
+    if (!coursierId) return;
+    setBusyId(t.id);
+    try {
+      await api.patch(`/api/coursier-public/${token}/taches/${t.id}`, { coursierId });
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Erreur');
@@ -226,6 +241,32 @@ export function CoursierPublicView({ token }: { token: string }) {
                             Reporter
                           </button>
                         </div>
+                        {data.autresCoursiers.length > 0 && (
+                          <div className="cm-row2">
+                            <div className="cm-field" style={{ flex: 1 }}>
+                              <label>Réaffecter à</label>
+                              <select
+                                value={reaffectations[t.id] ?? ''}
+                                onChange={(e) => setReaffectations((prev) => ({ ...prev, [t.id]: e.target.value }))}
+                              >
+                                <option value="">Choisir un coursier…</option>
+                                {data.autresCoursiers.map((c) => (
+                                  <option key={c.id} value={c.id}>
+                                    {c.nom}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <button
+                              className="cm-report-btn"
+                              type="button"
+                              disabled={busy || !reaffectations[t.id]}
+                              onClick={() => reaffecter(t)}
+                            >
+                              Réaffecter
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

@@ -42,6 +42,19 @@ interface TabProps {
   onChanged: () => void;
 }
 
+// Construit le "?debut=...&fin=..." partagé par la synthèse, les
+// interventions, la volumétrie, les consommables, les alertes et le rapport
+// PPTX -- un seul et même mois choisi dans l'en-tête doit filtrer tous les
+// onglets de façon cohérente, pas seulement le rapport téléchargé.
+function periodeQueryParams(moisRapport: string): string {
+  if (!moisRapport) return '';
+  const [annee, mois] = moisRapport.split('-').map(Number);
+  const debut = `${moisRapport}-01`;
+  const dernierJour = new Date(Date.UTC(annee, mois, 0)).getUTCDate();
+  const fin = `${moisRapport}-${String(dernierJour).padStart(2, '0')}`;
+  return `?debut=${debut}&fin=${fin}`;
+}
+
 export function ParcImpressionModal({
   clientOperationsId,
   clientNom,
@@ -112,16 +125,8 @@ export function ParcImpressionModal({
   async function handleGenererRapport() {
     setRapportBusy(true);
     try {
-      let url = `/api/parc/clients/${clientOperationsId}/rapport-copil.pptx`;
-      let suffixeFichier = '';
-      if (moisRapport) {
-        const [annee, mois] = moisRapport.split('-').map(Number);
-        const debut = `${moisRapport}-01`;
-        const dernierJour = new Date(Date.UTC(annee, mois, 0)).getUTCDate();
-        const fin = `${moisRapport}-${String(dernierJour).padStart(2, '0')}`;
-        url += `?debut=${debut}&fin=${fin}`;
-        suffixeFichier = `_${moisRapport}`;
-      }
+      const url = `/api/parc/clients/${clientOperationsId}/rapport-copil.pptx${periodeQueryParams(moisRapport)}`;
+      const suffixeFichier = moisRapport ? `_${moisRapport}` : '';
       const nomFichier = `COPIL_${clientNom.replace(/[^a-zA-Z0-9]+/g, '_')}${suffixeFichier}.pptx`;
       await downloadFile(url, nomFichier);
     } catch (err) {
@@ -198,21 +203,27 @@ export function ParcImpressionModal({
         </div>
 
         <div style={{ overflowY: 'auto', flex: 1 }}>
-          {tab === 'synthese' && <SyntheseTab clientOperationsId={clientOperationsId} reloadKey={reloadKey} />}
+          {tab === 'synthese' && <SyntheseTab clientOperationsId={clientOperationsId} reloadKey={reloadKey} moisRapport={moisRapport} />}
           {tab === 'equipements' && <EquipementsTab clientOperationsId={clientOperationsId} canEdit={canEdit} reloadKey={reloadKey} onChanged={bump} />}
-          {tab === 'interventions' && <InterventionsTab clientOperationsId={clientOperationsId} canEdit={canEdit} reloadKey={reloadKey} onChanged={bump} />}
-          {tab === 'volumetrie' && <VolumetrieTab clientOperationsId={clientOperationsId} canEdit={canEdit} reloadKey={reloadKey} onChanged={bump} />}
-          {tab === 'consommables' && <ConsommablesTab clientOperationsId={clientOperationsId} canEdit={canEdit} reloadKey={reloadKey} onChanged={bump} />}
+          {tab === 'interventions' && (
+            <InterventionsTab clientOperationsId={clientOperationsId} canEdit={canEdit} reloadKey={reloadKey} onChanged={bump} moisRapport={moisRapport} />
+          )}
+          {tab === 'volumetrie' && (
+            <VolumetrieTab clientOperationsId={clientOperationsId} canEdit={canEdit} reloadKey={reloadKey} onChanged={bump} moisRapport={moisRapport} />
+          )}
+          {tab === 'consommables' && (
+            <ConsommablesTab clientOperationsId={clientOperationsId} canEdit={canEdit} reloadKey={reloadKey} onChanged={bump} moisRapport={moisRapport} />
+          )}
           {tab === 'actions' && <ActionsTab clientOperationsId={clientOperationsId} canEdit={canEdit} reloadKey={reloadKey} onChanged={bump} />}
-          {tab === 'alertes' && <AlertesTab clientOperationsId={clientOperationsId} reloadKey={reloadKey} />}
+          {tab === 'alertes' && <AlertesTab clientOperationsId={clientOperationsId} reloadKey={reloadKey} moisRapport={moisRapport} />}
         </div>
       </div>
     </div>
   );
 }
 
-function SyntheseTab({ clientOperationsId, reloadKey }: { clientOperationsId: string; reloadKey: unknown }) {
-  const { data, loading } = useResource<ParcSynthese>(`/api/parc/clients/${clientOperationsId}/synthese`, reloadKey);
+function SyntheseTab({ clientOperationsId, reloadKey, moisRapport }: { clientOperationsId: string; reloadKey: unknown; moisRapport: string }) {
+  const { data, loading } = useResource<ParcSynthese>(`/api/parc/clients/${clientOperationsId}/synthese${periodeQueryParams(moisRapport)}`, reloadKey);
   if (loading || !data) return <div>Chargement…</div>;
 
   const heures = (h: number | null) => (h == null ? '—' : `${Math.round(h)} h`);
@@ -258,8 +269,8 @@ function SyntheseTab({ clientOperationsId, reloadKey }: { clientOperationsId: st
   );
 }
 
-function AlertesTab({ clientOperationsId, reloadKey }: { clientOperationsId: string; reloadKey: unknown }) {
-  const { data, loading } = useResource<AlertesParcResponse>(`/api/parc/clients/${clientOperationsId}/alertes`, reloadKey);
+function AlertesTab({ clientOperationsId, reloadKey, moisRapport }: { clientOperationsId: string; reloadKey: unknown; moisRapport: string }) {
+  const { data, loading } = useResource<AlertesParcResponse>(`/api/parc/clients/${clientOperationsId}/alertes${periodeQueryParams(moisRapport)}`, reloadKey);
   if (loading || !data) return <div>Chargement…</div>;
 
   const siteTopLabel =
@@ -460,9 +471,12 @@ function EquipementsTab({ clientOperationsId, canEdit, reloadKey, onChanged }: T
   );
 }
 
-function InterventionsTab({ clientOperationsId, canEdit, reloadKey, onChanged }: TabProps) {
+function InterventionsTab({ clientOperationsId, canEdit, reloadKey, onChanged, moisRapport }: TabProps & { moisRapport: string }) {
   const { showToast } = useToast();
-  const { data, loading, refetch } = useResource<InterventionsResponse>(`/api/parc/clients/${clientOperationsId}/interventions`, reloadKey);
+  const { data, loading, refetch } = useResource<InterventionsResponse>(
+    `/api/parc/clients/${clientOperationsId}/interventions${periodeQueryParams(moisRapport)}`,
+    reloadKey
+  );
   const [busy, setBusy] = useState(false);
 
   async function handleAdd(e: FormEvent<HTMLFormElement>) {
@@ -597,9 +611,12 @@ function InterventionsTab({ clientOperationsId, canEdit, reloadKey, onChanged }:
   );
 }
 
-function VolumetrieTab({ clientOperationsId, canEdit, reloadKey, onChanged }: TabProps) {
+function VolumetrieTab({ clientOperationsId, canEdit, reloadKey, onChanged, moisRapport }: TabProps & { moisRapport: string }) {
   const { showToast } = useToast();
-  const { data, loading, refetch } = useResource<ReleveVolumetrie[]>(`/api/parc/clients/${clientOperationsId}/volumetrie`, reloadKey);
+  const { data, loading, refetch } = useResource<ReleveVolumetrie[]>(
+    `/api/parc/clients/${clientOperationsId}/volumetrie${periodeQueryParams(moisRapport)}`,
+    reloadKey
+  );
   const [busy, setBusy] = useState(false);
 
   async function handleSave(e: FormEvent<HTMLFormElement>) {
@@ -672,9 +689,12 @@ function VolumetrieTab({ clientOperationsId, canEdit, reloadKey, onChanged }: Ta
   );
 }
 
-function ConsommablesTab({ clientOperationsId, canEdit, reloadKey, onChanged }: TabProps) {
+function ConsommablesTab({ clientOperationsId, canEdit, reloadKey, onChanged, moisRapport }: TabProps & { moisRapport: string }) {
   const { showToast } = useToast();
-  const { data, loading, refetch } = useResource<LivraisonConsommable[]>(`/api/parc/clients/${clientOperationsId}/consommables`, reloadKey);
+  const { data, loading, refetch } = useResource<LivraisonConsommable[]>(
+    `/api/parc/clients/${clientOperationsId}/consommables${periodeQueryParams(moisRapport)}`,
+    reloadKey
+  );
   const [busy, setBusy] = useState(false);
 
   async function handleAdd(e: FormEvent<HTMLFormElement>) {

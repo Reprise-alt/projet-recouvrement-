@@ -29,12 +29,22 @@ coursierPublicRouter.get('/:token/taches', async (req, res, next) => {
     if (!coursier) return res.status(404).json({ error: 'Lien invalide ou désactivé' });
 
     const { date, nextDay } = todayRange();
-    const taches = await prisma.tacheCoursier.findMany({
-      where: { coursierId: coursier.id, date: { gte: date, lt: nextDay }, statut: { not: 'annulee' } },
-      include: { client: { select: { id: true, nom: true, tel: true, entite: true } } },
-      orderBy: { createdAt: 'asc' },
-    });
-    res.json({ coursier: { nom: coursier.nom }, taches });
+    // `autresCoursiers` alimente le sélecteur de réaffectation -- volontairement
+    // limité à id+nom (jamais le token, sans quoi ce lien personnel donnerait
+    // accès au lien de tous les autres coursiers).
+    const [taches, autresCoursiers] = await Promise.all([
+      prisma.tacheCoursier.findMany({
+        where: { coursierId: coursier.id, date: { gte: date, lt: nextDay }, statut: { not: 'annulee' } },
+        include: { client: { select: { id: true, nom: true, tel: true, entite: true } } },
+        orderBy: { createdAt: 'asc' },
+      }),
+      prisma.coursier.findMany({
+        where: { actif: true, id: { not: coursier.id } },
+        select: { id: true, nom: true },
+        orderBy: { nom: 'asc' },
+      }),
+    ]);
+    res.json({ coursier: { nom: coursier.nom }, taches, autresCoursiers });
   } catch (err) {
     next(err);
   }
@@ -52,8 +62,20 @@ coursierPublicRouter.patch('/:token/taches/:id', async (req, res, next) => {
       return res.status(404).json({ error: 'Tâche introuvable' });
     }
 
-    const { statut, montant, modePaiement, note, report, motifReport } = req.body ?? {};
+    const { statut, montant, modePaiement, note, report, motifReport, coursierId } = req.body ?? {};
     const data: Record<string, unknown> = {};
+
+    if (coursierId !== undefined) {
+      if (typeof coursierId !== 'string' || !coursierId) {
+        return res.status(400).json({ error: 'Coursier de destination requis' });
+      }
+      // Une tâche ne peut être réaffectée qu'à un coursier actif -- jamais
+      // vers un lien désactivé (fiche désactivée = plus surveillée par
+      // personne côté ADV).
+      const cible = await prisma.coursier.findUnique({ where: { id: coursierId } });
+      if (!cible || !cible.actif) return res.status(400).json({ error: 'Coursier de destination introuvable' });
+      data.coursierId = coursierId;
+    }
 
     if (report !== undefined) {
       if (typeof report !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(report)) {

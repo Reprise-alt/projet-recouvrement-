@@ -822,11 +822,18 @@ operationsRouter.post('/clients/:id/resiliation', async (req, res, next) => {
     const { motif, detail, date } = req.body ?? {};
     if (!motif) return res.status(400).json({ error: 'Motif requis' });
 
+    let dateResiliation = new Date();
+    if (date) {
+      const parsed = new Date(date);
+      if (Number.isNaN(parsed.getTime())) return res.status(400).json({ error: 'Date de résiliation invalide' });
+      dateResiliation = parsed;
+    }
+
     const updated = await prisma.clientOperations.update({
       where: { id: req.params.id },
       data: {
         resilie: true,
-        dateResiliation: date ? new Date(date) : new Date(),
+        dateResiliation,
         motifResiliation: motif,
         motifDetail: detail ?? null,
       },

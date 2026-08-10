@@ -146,6 +146,7 @@ export function ClientOperationsDrawer({ id, user, initialSection, onClose, onCh
       await api.post(`/api/operations/clients/${id}/resiliation`, {
         motif: form.get('motif') as MotifResiliation,
         detail: form.get('detail'),
+        date: form.get('date'),
       });
       setShowResiliation(false);
       showToast('Résiliation enregistrée');
@@ -273,6 +274,10 @@ export function ClientOperationsDrawer({ id, user, initialSection, onClose, onCh
                       </option>
                     ))}
                   </select>
+                </div>
+                <div>
+                  <label>Date de résiliation</label>
+                  <input type="date" name="date" required defaultValue={new Date().toISOString().slice(0, 10)} />
                 </div>
                 <div>
                   <label>Circonstances</label>
