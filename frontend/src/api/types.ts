@@ -403,11 +403,23 @@ export interface CoursierTachesPubliques {
   autresCoursiers: { id: string; nom: string }[];
 }
 
+// Écran de salle : accès public par lien partagé (cf. sallePublic.ts) --
+// jamais le token personnel d'un coursier, seulement id+nom, sans quoi ce
+// lien partagé donnerait accès au lien de chaque coursier individuel.
+export interface CoursierPublicInfo {
+  id: string;
+  nom: string;
+}
+
+export interface TacheCoursierSalle extends Omit<TacheCoursier, 'coursier'> {
+  coursier: CoursierPublicInfo | null;
+}
+
 // Écran de salle : planning complet du jour (tous coursiers, y compris non
 // assigné) + la liste des coursiers actifs pour le sélecteur d'assignation.
 export interface SalleTachesResponse {
-  taches: TacheCoursier[];
-  coursiers: Coursier[];
+  taches: TacheCoursierSalle[];
+  coursiers: CoursierPublicInfo[];
 }
 
 // ============================================================================

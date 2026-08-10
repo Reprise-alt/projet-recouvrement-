@@ -1,23 +1,34 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../api/client';
-import { SalleTachesResponse } from '../api/types';
-import { TACHE_TYPE_LABELS, tacheStatutAffiche } from '../lib/constants';
+import { MotifReport, SalleTachesResponse, TacheCoursierSalle } from '../api/types';
+import { MOTIF_REPORT_LABELS, TACHE_TYPE_LABELS, tacheStatutAffiche } from '../lib/constants';
 import { EntityLogo, entityAccent } from './EntityLogo';
 
 const REFRESH_MS = 30000;
+
+function tomorrow(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
 
 // Écran partagé affiché en salle des coursiers -- pas un accès individuel :
 // toute l'équipe voit le même planning complet du jour (y compris non
 // assigné) et se dispatche elle-même en réunion du matin, contrairement au
 // lien personnel de chaque coursier qui ne montre que ses propres tâches
 // (cf. CoursierPublicView). Pensé pour rester ouvert toute la journée sur
-// un écran/tablette partagé -- se rafraîchit seul, gros texte, pas
-// d'action destructrice possible (assignation uniquement).
+// un écran/tablette partagé -- se rafraîchit seul, gros texte. Assigner et
+// reporter se décident souvent collectivement en réunion, donc possibles
+// ici ; marquer une tâche faite reste réservé au lien personnel de chaque
+// coursier, une fois sur le terrain.
 export function SalleCoursierView({ token }: { token: string }) {
   const [data, setData] = useState<SalleTachesResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [reportOpenId, setReportOpenId] = useState<string | null>(null);
+  const [reportDates, setReportDates] = useState<Record<string, string>>({});
+  const [reportMotifs, setReportMotifs] = useState<Record<string, MotifReport | ''>>({});
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const load = useCallback(async () => {
@@ -49,6 +60,67 @@ export function SalleCoursierView({ token }: { token: string }) {
     } finally {
       setBusyId(null);
     }
+  }
+
+  async function reporter(tacheId: string) {
+    const motifReport = reportMotifs[tacheId];
+    if (!motifReport) return;
+    setBusyId(tacheId);
+    try {
+      await api.patch(`/api/salle-public/${token}/taches/${tacheId}`, {
+        report: reportDates[tacheId] ?? tomorrow(),
+        motifReport,
+      });
+      setReportOpenId(null);
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  function renderReportControl(t: TacheCoursierSalle) {
+    if (tacheStatutAffiche(t) !== 'a_faire') return null;
+    if (reportOpenId !== t.id) {
+      return (
+        <button
+          type="button"
+          onClick={() => setReportOpenId(t.id)}
+          style={{ fontSize: 11.5, padding: '2px 8px', background: 'none', border: '1px solid var(--line)', borderRadius: 6, color: 'var(--ink-soft)' }}
+        >
+          Reporter
+        </button>
+      );
+    }
+    return (
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginTop: 4 }}>
+        <input
+          type="date"
+          value={reportDates[t.id] ?? tomorrow()}
+          onChange={(e) => setReportDates((prev) => ({ ...prev, [t.id]: e.target.value }))}
+          style={{ fontSize: 12, padding: '4px 6px' }}
+        />
+        <select
+          value={reportMotifs[t.id] ?? ''}
+          onChange={(e) => setReportMotifs((prev) => ({ ...prev, [t.id]: e.target.value as MotifReport }))}
+          style={{ fontSize: 12, padding: '4px 6px' }}
+        >
+          <option value="">Motif…</option>
+          {(Object.keys(MOTIF_REPORT_LABELS) as MotifReport[]).map((m) => (
+            <option key={m} value={m}>
+              {MOTIF_REPORT_LABELS[m]}
+            </option>
+          ))}
+        </select>
+        <button type="button" disabled={busyId === t.id || !reportMotifs[t.id]} onClick={() => reporter(t.id)} style={{ fontSize: 12, padding: '4px 8px' }}>
+          OK
+        </button>
+        <button type="button" onClick={() => setReportOpenId(null)} style={{ fontSize: 12, padding: '4px 8px', background: 'none' }}>
+          Annuler
+        </button>
+      </div>
+    );
   }
 
   if (error && !data) {
@@ -107,7 +179,7 @@ export function SalleCoursierView({ token }: { token: string }) {
                         {TACHE_TYPE_LABELS[t.type]}
                         {t.label && <div style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>{t.label}</div>}
                       </td>
-                      <td style={{ width: 220 }}>
+                      <td style={{ width: 200 }}>
                         <select
                           style={{ fontSize: 15, padding: '8px 10px', width: '100%' }}
                           disabled={busyId === t.id}
@@ -124,6 +196,7 @@ export function SalleCoursierView({ token }: { token: string }) {
                           ))}
                         </select>
                       </td>
+                      <td style={{ width: 170 }}>{renderReportControl(t)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -173,6 +246,7 @@ export function SalleCoursierView({ token }: { token: string }) {
                             {TACHE_TYPE_LABELS[t.type]}
                             {t.label ? ` — ${t.label}` : ''}
                           </div>
+                          {renderReportControl(t)}
                         </div>
                       );
                     })}
