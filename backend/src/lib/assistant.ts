@@ -6,6 +6,7 @@ import { Entite, resolveEntiteScope } from './entites';
 import { chargeDeCompteWhere, resolveEntiteScopeOperations } from './operationsAuth';
 import { clientEncours, clientJoursRetard, clientPalier, PALIERS } from './paliers';
 import { computeParcSynthese, computeSlaStats } from './parcImpression';
+import { buildPlanningRapport, TacheRapportEntree } from './taches';
 import { getConfig } from '../services/configService';
 
 // Assistant Claude connecté aux vraies données de l'app -- bulle flottante
@@ -28,6 +29,18 @@ function entiteWhereRecouvrement(entiteFilter: Entite | 'ALL') {
 function entiteWhereOperations(entiteFilter: Entite | 'ALL') {
   if (entiteFilter === 'ALL') return {};
   return { entite: entiteFilter };
+}
+
+// TacheCoursier porte directement son entité (pas de relation Client
+// systématique -- une tâche générique n'en a pas) -- mêmes règles de
+// filtrage que routes/taches.ts:tacheEntiteFilter.
+function tacheEntiteFilter(entiteFilter: Entite | 'ALL') {
+  if (entiteFilter === 'ALL') return {};
+  return { entite: { in: [entiteFilter, 'COMMUN'] } };
+}
+
+function parseDateOnlyAssistant(v?: string): Date | null {
+  return v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? new Date(`${v}T00:00:00.000Z`) : null;
 }
 
 function buildSystemPrompt(user: AuthedUser): string {
@@ -70,6 +83,19 @@ function getToolsForUser(user: AuthedUser): Tool[] {
             entite: { type: 'string', description: 'Code entité pour restreindre la recherche (optionnel)' },
           },
           required: ['nom'],
+        },
+      },
+      {
+        name: 'stats_planning_coursiers',
+        description:
+          "Statistiques sur le planning des coursiers sur une période : nombre total de tâches, moyenne de tâches par jour (globale et par coursier), tâches faites/reportées par coursier. Utiliser pour toute question sur l'activité des coursiers, leur charge de travail ou le nombre de tâches traitées.",
+        input_schema: {
+          type: 'object',
+          properties: {
+            from: { type: 'string', description: 'Date de début AAAA-MM-JJ (par défaut : 30 jours avant la date de fin)' },
+            to: { type: 'string', description: "Date de fin AAAA-MM-JJ (par défaut : aujourd'hui)" },
+            entite: { type: 'string', description: 'Code entité (optionnel)' },
+          },
         },
       },
     );
@@ -182,6 +208,52 @@ export async function chercherClientRecouvrement(user: AuthedUser, input: { nom:
     joursRetard: clientJoursRetard(c),
     palier: clientPalier(c, config),
   }));
+}
+
+export async function statsPlanningCoursiers(user: AuthedUser, input: { from?: string; to?: string; entite?: string }) {
+  const to = parseDateOnlyAssistant(input.to) ?? new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00.000Z');
+  const from = parseDateOnlyAssistant(input.from) ?? new Date(to.getTime() - 29 * 24 * 60 * 60 * 1000);
+  if (from > to) return { error: 'La date de début doit précéder la date de fin' };
+  const toExclusive = new Date(to.getTime() + 24 * 60 * 60 * 1000);
+
+  const entiteFilter = resolveEntiteScope(user, input.entite);
+  const taches = await prisma.tacheCoursier.findMany({
+    where: { dateInitiale: { gte: from, lt: toExclusive }, ...tacheEntiteFilter(entiteFilter) },
+    select: { statut: true, date: true, dateInitiale: true, entite: true, coursierId: true, coursier: { select: { nom: true } } },
+  });
+  if (taches.length === 0) {
+    return { resultat: `Aucune tâche planifiée entre ${from.toISOString().slice(0, 10)} et ${to.toISOString().slice(0, 10)} dans le périmètre accessible.` };
+  }
+
+  const entrees: TacheRapportEntree[] = taches.map((t) => ({
+    statut: t.statut,
+    date: t.date,
+    dateInitiale: t.dateInitiale,
+    entite: t.entite,
+    coursierId: t.coursierId,
+    coursierNom: t.coursier?.nom ?? null,
+  }));
+  const rapport = buildPlanningRapport(entrees);
+  // Moyenne calculée sur les jours calendaires de la période demandée (pas
+  // seulement les jours avec activité) -- une période incluant un jour sans
+  // aucune tâche doit faire baisser la moyenne, pas être ignorée.
+  const nombreJours = Math.max(1, Math.round((to.getTime() - from.getTime()) / 86400000) + 1);
+  const arrondi1 = (n: number) => Math.round(n * 10) / 10;
+
+  return {
+    periode: { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10), nombreJoursCalendaires: nombreJours },
+    totalTaches: rapport.global.total,
+    moyenneTachesParJourGlobale: arrondi1(rapport.global.total / nombreJours),
+    parCoursier: rapport.parCoursier
+      .filter((c) => c.coursierId !== null)
+      .map((c) => ({
+        nom: c.nom,
+        totalTaches: c.total,
+        moyenneTachesParJour: arrondi1(c.total / nombreJours),
+        faites: c.faites,
+        reportees: c.reportees,
+      })),
+  };
 }
 
 export async function statsOperations(user: AuthedUser, input: { entite?: string }) {
@@ -381,6 +453,9 @@ async function executeTool(name: string, input: unknown, user: AuthedUser): Prom
       case 'chercher_client_recouvrement':
         if (!user.accesRecouvrement) return { result: { error: 'Accès refusé' }, isError: true };
         return { result: await chercherClientRecouvrement(user, args as { nom: string; entite?: string }), isError: false };
+      case 'stats_planning_coursiers':
+        if (!user.accesRecouvrement) return { result: { error: 'Accès refusé' }, isError: true };
+        return { result: await statsPlanningCoursiers(user, args as { from?: string; to?: string; entite?: string }), isError: false };
       case 'stats_operations':
         if (!user.roleOperations) return { result: { error: 'Accès refusé' }, isError: true };
         return { result: await statsOperations(user, args as { entite?: string }), isError: false };
