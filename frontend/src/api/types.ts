@@ -321,7 +321,21 @@ export type TypeTacheCoursier =
 
 export type StatutTacheCoursier = 'a_faire' | 'faite' | 'annulee';
 export type ModePaiementCollecte = 'cheque' | 'espece' | 'autre';
-export type MotifReport = 'client_absent' | 'adresse_introuvable' | 'document_non_pret' | 'trafic_panne' | 'bureau_ferme' | 'autre';
+export type MotifReport =
+  | 'client_absent'
+  | 'adresse_introuvable'
+  | 'document_non_pret'
+  | 'trafic_panne'
+  | 'bureau_ferme'
+  | 'manque_de_temps'
+  | 'hors_periode'
+  | 'condition_climatique'
+  | 'conges_collaborateur'
+  | 'panne_vehicule'
+  | 'greve'
+  | 'rdv_annule'
+  | 'surcharge_activite'
+  | 'autre';
 
 export interface Coursier {
   id: string;

@@ -359,6 +359,14 @@ enum MotifReport {
   document_non_pret
   trafic_panne
   bureau_ferme
+  manque_de_temps
+  hors_periode
+  condition_climatique
+  conges_collaborateur
+  panne_vehicule
+  greve
+  rdv_annule
+  surcharge_activite
   autre
 }
 

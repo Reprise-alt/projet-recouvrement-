@@ -67,6 +67,14 @@ export const MOTIF_REPORT_LABELS: Record<MotifReport, string> = {
   document_non_pret: 'Document/paiement non prêt',
   trafic_panne: 'Trafic / panne scooter',
   bureau_ferme: 'Bureau fermé',
+  manque_de_temps: 'Manque de temps',
+  hors_periode: 'Hors période',
+  condition_climatique: 'Conditions climatiques',
+  conges_collaborateur: "Congé d'un collaborateur",
+  panne_vehicule: 'Panne véhicule',
+  greve: 'Grève / mouvement social',
+  rdv_annule: 'Rendez-vous annulé par le client',
+  surcharge_activite: "Trop de tâches ce jour-là",
   autre: 'Autre',
 };
 

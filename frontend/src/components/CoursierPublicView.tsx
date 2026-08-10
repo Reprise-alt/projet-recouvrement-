@@ -29,6 +29,7 @@ export function CoursierPublicView({ token }: { token: string }) {
   const [reportDates, setReportDates] = useState<Record<string, string>>({});
   const [motifs, setMotifs] = useState<Record<string, MotifReport | ''>>({});
   const [reaffectations, setReaffectations] = useState<Record<string, string>>({});
+  const [notes, setNotes] = useState<Record<string, string>>({});
 
   async function load() {
     setLoading(true);
@@ -55,6 +56,7 @@ export function CoursierPublicView({ token }: { token: string }) {
         statut: 'faite',
         montant: t.type === 'recuperation_reglement' ? montants[t.id] || null : undefined,
         modePaiement: t.type === 'recuperation_reglement' ? modes[t.id] || null : undefined,
+        note: notes[t.id]?.trim() || undefined,
       });
       await load();
     } catch (err) {
@@ -172,12 +174,24 @@ export function CoursierPublicView({ token }: { token: string }) {
                       {t.label && <div className="cm-note">{t.label}</div>}
 
                     {statut === 'faite' ? (
-                      <div className="cm-done-badge">
-                        <CheckCircle2 size={18} /> Faite
-                        {t.dateExecution && <span className="cm-done-time">à {fmtHeure(t.dateExecution)}</span>}
-                      </div>
+                      <>
+                        <div className="cm-done-badge">
+                          <CheckCircle2 size={18} /> Faite
+                          {t.dateExecution && <span className="cm-done-time">à {fmtHeure(t.dateExecution)}</span>}
+                        </div>
+                        {t.note && <div className="cm-note">{t.note}</div>}
+                      </>
                     ) : (
                       <div className="cm-actions">
+                        <div className="cm-field">
+                          <label>Site / repère (optionnel)</label>
+                          <input
+                            type="text"
+                            placeholder="Ex : Agence Sandaga, machine n°HP-4521"
+                            value={notes[t.id] ?? ''}
+                            onChange={(e) => setNotes((prev) => ({ ...prev, [t.id]: e.target.value }))}
+                          />
+                        </div>
                         {t.type === 'recuperation_reglement' && (
                           <div className="cm-row2">
                             <div className="cm-field" style={{ flex: 1.3 }}>
