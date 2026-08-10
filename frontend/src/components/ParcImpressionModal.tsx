@@ -235,12 +235,12 @@ function SyntheseTab({ clientOperationsId, reloadKey }: { clientOperationsId: st
         <div className="kpi-sub">{data.sla.ouverts} ticket(s) ouvert(s)</div>
       </div>
       <div className="kpi">
-        <div className="kpi-label">Délai moyen urgent</div>
-        <div className="kpi-value">{heures(data.sla.delaiMoyenUrgenteHeures)}</div>
+        <div className="kpi-label">Délai médian urgent</div>
+        <div className="kpi-value">{heures(data.sla.delaiMedianUrgenteHeures)}</div>
       </div>
       <div className="kpi">
-        <div className="kpi-label">Délai moyen standard</div>
-        <div className="kpi-value">{heures(data.sla.delaiMoyenStandardHeures)}</div>
+        <div className="kpi-label">Délai médian standard</div>
+        <div className="kpi-value">{heures(data.sla.delaiMedianStandardHeures)}</div>
       </div>
       <div className="kpi">
         <div className="kpi-label">Consommables livrés</div>

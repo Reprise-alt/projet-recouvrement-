@@ -537,17 +537,15 @@ export async function generateCopilRapportPptx(data: CopilRapportData): Promise<
     // Volontairement limité aux deux dates contractuelles du SLA (D :
     // déclaration, DF : prise en charge) -- ni le taux de clôture ni les
     // tickets ouverts n'entrent ici, ce sont des indicateurs de clôture
-    // (déjà sur la diapo Synthèse), pas de délai de réponse. La médiane est
-    // affichée à côté de la moyenne : un délai moyen urgent supérieur au
-    // standard vient souvent de quelques tickets isolés très en retard
-    // (la moyenne les absorbe, la médiane beaucoup moins) -- la liste des
-    // tickets les plus lents ci-dessous permet de vérifier lesquels.
+    // (déjà sur la diapo Synthèse), pas de délai de réponse. Médiane
+    // uniquement, pas la moyenne : un délai moyen urgent supérieur au
+    // standard venait de quelques tickets isolés très en retard (la moyenne
+    // les absorbe, la médiane beaucoup moins) -- la liste des tickets les
+    // plus lents ci-dessous permet de vérifier lesquels.
     kpiTileRow(
       slide,
       [
-        { label: 'Délai moyen — urgentes', value: heures(data.sla.delaiMoyenUrgenteHeures) },
         { label: 'Délai médian — urgentes', value: heures(data.sla.delaiMedianUrgenteHeures) },
-        { label: 'Délai moyen — standard', value: heures(data.sla.delaiMoyenStandardHeures) },
         { label: 'Délai médian — standard', value: heures(data.sla.delaiMedianStandardHeures) },
       ],
       1.3,
