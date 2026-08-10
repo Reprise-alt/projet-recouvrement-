@@ -799,6 +799,27 @@ operationsRouter.patch('/clients/:id/problemes/:problemeId', async (req, res, ne
 
 /* ---------- Démarrage de contrat ---------- */
 
+// Supprime le suivi des 90 jours en cours -- démarré par erreur, ou à
+// reprendre proprement depuis zéro. Efface aussi l'historique des étapes
+// déjà cochées : contrairement à une clôture (demarrageCloture, qui
+// signale un suivi mené à terme), une annulation ne doit laisser aucune
+// trace qu'un futur "Démarrer le suivi" pourrait retrouver toute faite.
+// Déclarée avant /demarrage/:cle ci-dessous : sinon Express matcherait
+// "annuler" comme une clé d'étape plutôt que d'atteindre cette route.
+operationsRouter.post('/clients/:id/demarrage/annuler', async (req, res, next) => {
+  try {
+    const scoped = await loadScoped(req, req.params.id);
+    if (scoped.error) return res.status(scoped.error).json(scoped.body);
+    await prisma.$transaction([
+      prisma.etapeDemarrageFait.deleteMany({ where: { clientOperationsId: req.params.id } }),
+      prisma.clientOperations.update({ where: { id: req.params.id }, data: { demarreLe: null, demarrageCloture: false } }),
+    ]);
+    res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+});
+
 operationsRouter.post('/clients/:id/demarrage/:cle', async (req, res, next) => {
   try {
     const scoped = await loadScoped(req, req.params.id);

@@ -197,6 +197,20 @@ export function ClientOperationsDrawer({ id, user, initialSection, onClose, onCh
     }
   }
 
+  async function annulerDemarrage() {
+    if (!confirm("Supprimer ce suivi des 90 jours ? Les étapes déjà cochées seront perdues -- vous pourrez redémarrer le suivi depuis zéro ensuite.")) return;
+    setBusy(true);
+    try {
+      await api.post(`/api/operations/clients/${id}/demarrage/annuler`, {});
+      showToast('Suivi des 90 jours supprimé');
+      afterMutation();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function initEtapesDefaut() {
     if (!co) return;
     setBusy(true);
@@ -465,6 +479,16 @@ export function ClientOperationsDrawer({ id, user, initialSection, onClose, onCh
                         );
                       })}
                     </div>
+                    {canEdit && (
+                      <button
+                        className="danger-btn"
+                        onClick={annulerDemarrage}
+                        disabled={busy}
+                        style={{ marginTop: 14, fontSize: 12 }}
+                      >
+                        Supprimer ce suivi
+                      </button>
+                    )}
                   </div>
                 ) : co.demarrageCloture ? (
                   <p style={{ fontSize: 13, color: 'var(--ink-soft)' }}>Suivi des 90 premiers jours clôturé.</p>
