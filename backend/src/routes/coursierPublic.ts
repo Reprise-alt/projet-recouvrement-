@@ -36,7 +36,11 @@ coursierPublicRouter.get('/:token/taches', async (req, res, next) => {
       prisma.tacheCoursier.findMany({
         where: { coursierId: coursier.id, date: { gte: date, lt: nextDay }, statut: { not: 'annulee' } },
         include: { client: { select: { id: true, nom: true, tel: true, entite: true } } },
-        orderBy: { createdAt: 'asc' },
+        // `ordre` nul (jamais réordonné) trie en dernier en ASC côté
+        // Postgres -- une tâche fraîchement assignée atterrit donc après
+        // celles déjà organisées en tournée, triée parmi elles par
+        // création plutôt que dans un ordre arbitraire.
+        orderBy: [{ ordre: 'asc' }, { createdAt: 'asc' }],
       }),
       prisma.coursier.findMany({
         where: { actif: true, id: { not: coursier.id } },
@@ -108,6 +112,42 @@ coursierPublicRouter.patch('/:token/taches/:id', async (req, res, next) => {
       include: { client: { select: { id: true, nom: true, tel: true, entite: true } } },
     });
     res.json(updated);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Le coursier construit sa tournée en réordonnant sa liste du jour --
+// reçoit toujours l'ordre complet (pas un simple "monter/descendre" d'une
+// tâche) pour rester une opération atomique et sans ambiguïté côté
+// serveur : chaque id de la liste reçoit sa position (index) comme
+// nouveau `ordre`.
+coursierPublicRouter.patch('/:token/reordonner', async (req, res, next) => {
+  try {
+    const coursier = await findCoursierByToken(req.params.token);
+    if (!coursier) return res.status(404).json({ error: 'Lien invalide ou désactivé' });
+
+    const { ordre } = req.body ?? {};
+    if (!Array.isArray(ordre) || ordre.length === 0 || !ordre.every((id) => typeof id === 'string')) {
+      return res.status(400).json({ error: 'Ordre invalide' });
+    }
+
+    const { date, nextDay } = todayRange();
+    const tachesDuJour = await prisma.tacheCoursier.findMany({
+      where: { coursierId: coursier.id, date: { gte: date, lt: nextDay }, statut: { not: 'annulee' } },
+      select: { id: true },
+    });
+    const idsAttendus = new Set(tachesDuJour.map((t) => t.id));
+    // La liste envoyée doit correspondre exactement aux tâches du jour de ce
+    // coursier -- ni une tâche d'un autre coursier (jamais vérifié côté
+    // client), ni un réordonnancement partiel qui laisserait deux tâches
+    // avec le même `ordre`.
+    if (ordre.length !== idsAttendus.size || !ordre.every((id) => idsAttendus.has(id))) {
+      return res.status(400).json({ error: 'La liste ne correspond pas aux tâches du jour' });
+    }
+
+    await prisma.$transaction(ordre.map((id: string, index: number) => prisma.tacheCoursier.update({ where: { id }, data: { ordre: index } })));
+    res.json({ ok: true });
   } catch (err) {
     next(err);
   }

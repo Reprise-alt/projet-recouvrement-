@@ -372,6 +372,7 @@ export interface TacheCoursier {
   note: string | null;
   dateExecution: string | null;
   motifReport: MotifReport | null;
+  ordre: number | null;
   client: { id: string; nom: string; entite: Entite } | null;
   coursier: Coursier | null;
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
 import { api, ApiError } from '../api/client';
 import { CoursierTachesPubliques, ModePaiementCollecte, MotifReport, TacheCoursierPublic } from '../api/types';
 import { MODE_PAIEMENT_LABELS, MOTIF_REPORT_LABELS, TACHE_TYPE_LABELS, tacheStatutAffiche, tachesDoublons } from '../lib/constants';
@@ -30,6 +30,7 @@ export function CoursierPublicView({ token }: { token: string }) {
   const [motifs, setMotifs] = useState<Record<string, MotifReport | ''>>({});
   const [reaffectations, setReaffectations] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState<Record<string, string>>({});
+  const [reorderBusy, setReorderBusy] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -97,6 +98,36 @@ export function CoursierPublicView({ token }: { token: string }) {
     }
   }
 
+  // Le coursier ne réordonne que les tâches restant à faire -- une tâche
+  // déjà faite est passée, la déplacer dans la tournée n'a pas de sens.
+  // Reçoit toujours la liste complète des ids du jour (faites incluses) :
+  // le backend exige un réordonnancement exhaustif (cf. coursierPublic.ts).
+  async function reordonner(idsOrdonnes: string[]) {
+    setReorderBusy(true);
+    try {
+      await api.patch(`/api/coursier-public/${token}/reordonner`, { ordre: idsOrdonnes });
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setReorderBusy(false);
+    }
+  }
+
+  function deplacer(t: TacheCoursierPublic, direction: 'haut' | 'bas') {
+    if (!data) return;
+    const liste = [...data.taches];
+    const aFaire = liste.filter((x) => tacheStatutAffiche(x) === 'a_faire');
+    const idx = aFaire.findIndex((x) => x.id === t.id);
+    const cibleIdx = direction === 'haut' ? idx - 1 : idx + 1;
+    if (idx === -1 || cibleIdx < 0 || cibleIdx >= aFaire.length) return;
+    const autre = aFaire[cibleIdx];
+    const posA = liste.findIndex((x) => x.id === t.id);
+    const posB = liste.findIndex((x) => x.id === autre.id);
+    [liste[posA], liste[posB]] = [liste[posB], liste[posA]];
+    reordonner(liste.map((x) => x.id));
+  }
+
   const total = data?.taches.length ?? 0;
   const faites = data?.taches.filter((t) => tacheStatutAffiche(t) === 'faite').length ?? 0;
 
@@ -141,22 +172,54 @@ export function CoursierPublicView({ token }: { token: string }) {
 
               {(() => {
                 const doublons = tachesDoublons(data.taches);
+                // Sert à numéroter la tournée (1, 2, 3…) et à savoir si une
+                // tâche est en tête/en fin de liste pour désactiver la
+                // flèche correspondante -- uniquement parmi les tâches
+                // restant à faire, une tâche déjà faite ne compte pas dans
+                // la tournée à venir.
+                const aFaireIds = data.taches.filter((x) => tacheStatutAffiche(x) === 'a_faire').map((x) => x.id);
                 return data.taches.map((t) => {
                   const statut = tacheStatutAffiche(t);
                   const busy = busyId === t.id;
                   const accent = entityAccent(t.entite);
                   const doublon = doublons.has(t.id);
+                  const posAFaire = aFaireIds.indexOf(t.id);
                   return (
                     <div
                       className={`cm-card${statut === 'faite' ? ' done' : ''}${doublon ? ' doublon' : ''}`}
                       key={t.id}
                       style={{ borderLeftColor: accent }}
                     >
-                      <div className="cm-chip" style={{ background: `${accent}1f` }}>
-                        <EntityLogo entite={t.entite} size={17} />
-                        <span className="cm-chip-label" style={{ color: accent }}>
-                          {t.entite}
-                        </span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                        <div className="cm-chip" style={{ background: `${accent}1f` }}>
+                          <EntityLogo entite={t.entite} size={17} />
+                          <span className="cm-chip-label" style={{ color: accent }}>
+                            {t.entite}
+                          </span>
+                        </div>
+                        {posAFaire !== -1 && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <span style={{ fontSize: 12.5, color: 'var(--ink-soft)', fontWeight: 700 }}>#{posAFaire + 1}</span>
+                            <button
+                              type="button"
+                              aria-label="Monter dans la tournée"
+                              disabled={reorderBusy || posAFaire === 0}
+                              onClick={() => deplacer(t, 'haut')}
+                              style={{ padding: '4px 7px' }}
+                            >
+                              <ChevronUp size={16} />
+                            </button>
+                            <button
+                              type="button"
+                              aria-label="Descendre dans la tournée"
+                              disabled={reorderBusy || posAFaire === aFaireIds.length - 1}
+                              onClick={() => deplacer(t, 'bas')}
+                              style={{ padding: '4px 7px' }}
+                            >
+                              <ChevronDown size={16} />
+                            </button>
+                          </div>
+                        )}
                       </div>
                       <div className="cm-title">{TACHE_TYPE_LABELS[t.type]}</div>
                       {t.client && (

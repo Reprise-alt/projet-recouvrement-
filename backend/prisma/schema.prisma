@@ -451,6 +451,14 @@ model TacheCoursier {
   // tâche n'a jamais été reportée.
   motifReport MotifReport?
 
+  // Position dans la tournée du coursier pour la journée -- nul tant qu'il
+  // n'a pas réordonné son planning (cf. routes/coursierPublic.ts), auquel
+  // cas le tri retombe sur createdAt. Volontairement un simple entier plutôt
+  // qu'une position relative : le coursier renvoie l'ordre complet de sa
+  // journée à chaque réordonnancement (cf. reordonner), donc pas besoin de
+  // gérer des décalages incrémentaux.
+  ordre Int?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
