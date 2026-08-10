@@ -7,7 +7,9 @@ import { chargeDeCompteWhere, resolveEntiteScopeOperations } from './operationsA
 import { clientEncours, clientJoursRetard, clientPalier, PALIERS } from './paliers';
 import { computeParcSynthese, computeSlaStats } from './parcImpression';
 import { buildPlanningRapport, TacheRapportEntree } from './taches';
+import { contractAlertLevel, contractEcheance } from './contracts';
 import { getConfig } from '../services/configService';
+import { buildPeriod, computeAgentStats } from '../routes/reporting';
 
 // Assistant Claude connecté aux vraies données de l'app -- bulle flottante
 // visible sur toute la plateforme (Recouvrement + Opérations + Parc
@@ -98,6 +100,31 @@ function getToolsForUser(user: AuthedUser): Tool[] {
           },
         },
       },
+      {
+        name: 'relances_par_agent',
+        description:
+          "Charge de travail par agent de recouvrement sur une période : nombre de relances effectuées, délai moyen de paiement après intervention, montant recouvré. Utiliser pour toute question sur l'activité ou la performance d'un agent de recouvrement précis ou de l'équipe.",
+        input_schema: {
+          type: 'object',
+          properties: {
+            from: { type: 'string', description: 'Date de début AAAA-MM-JJ (par défaut : 30 jours avant la date de fin)' },
+            to: { type: 'string', description: "Date de fin AAAA-MM-JJ (par défaut : aujourd'hui)" },
+            entite: { type: 'string', description: 'Code entité (optionnel)' },
+          },
+        },
+      },
+      {
+        name: 'echeances_contrats',
+        description:
+          "Contrats dont l'échéance (révision tarifaire ou renouvellement) approche, triés par urgence. Utiliser pour toute question sur les contrats à renouveler, à réviser, ou arrivant à échéance.",
+        input_schema: {
+          type: 'object',
+          properties: {
+            entite: { type: 'string', description: 'Code entité (optionnel)' },
+            jours_max: { type: 'number', description: "Ne retenir que les échéances à moins de N jours (par défaut 90) -- une valeur négative n'a aucun sens et sera ignorée" },
+          },
+        },
+      },
     );
   }
   if (user.roleOperations) {
@@ -156,6 +183,18 @@ function getToolsForUser(user: AuthedUser): Tool[] {
             entite: { type: 'string', description: 'Code entité pour restreindre la recherche (optionnel)' },
           },
           required: ['critere'],
+        },
+      },
+      {
+        name: 'resiliations_stats',
+        description:
+          "Statistiques sur les comptes résiliés : nombre total, répartition par motif de résiliation, liste des comptes concernés. Utiliser pour toute question sur le churn, les résiliations, ou la raison des départs de clients.",
+        input_schema: {
+          type: 'object',
+          properties: {
+            mois: { type: 'string', description: 'Restreindre à un mois précis, format AAAA-MM (ex: 2026-07) -- omettre pour toutes les résiliations confondues' },
+            entite: { type: 'string', description: 'Code entité (optionnel)' },
+          },
         },
       },
     );
@@ -254,6 +293,62 @@ export async function statsPlanningCoursiers(user: AuthedUser, input: { from?: s
         reportees: c.reportees,
       })),
   };
+}
+
+export async function relancesParAgent(user: AuthedUser, input: { from?: string; to?: string; entite?: string }) {
+  const toDate = parseDateOnlyAssistant(input.to) ?? new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00.000Z');
+  const fromDate = parseDateOnlyAssistant(input.from) ?? new Date(toDate.getTime() - 29 * 24 * 60 * 60 * 1000);
+  if (fromDate > toDate) return { error: 'La date de début doit précéder la date de fin' };
+  const period = buildPeriod(fromDate.toISOString().slice(0, 10), toDate.toISOString().slice(0, 10));
+  if (!period) return { error: 'Période invalide' };
+
+  const entiteFilter = resolveEntiteScope(user, input.entite);
+  const agents = await computeAgentStats(period, entiteWhereRecouvrement(entiteFilter));
+  if (agents.length === 0) {
+    return { resultat: `Aucune relance enregistrée entre ${period.fromStr} et ${period.toStr} dans le périmètre accessible.` };
+  }
+  return {
+    periode: { from: period.fromStr, to: period.toStr },
+    agents: agents.map((a) => ({
+      nom: a.nom,
+      nombreRelances: a.actions,
+      delaiMoyenApresInterventionJours: a.delaiMoyenApresIntervention,
+      montantRecouvreFCFA: a.montantRecouvre,
+      nombreFacturesPayees: a.nombreFactures,
+    })),
+  };
+}
+
+export async function echeancesContrats(user: AuthedUser, input: { entite?: string; jours_max?: number }) {
+  const entiteFilter = resolveEntiteScope(user, input.entite);
+  const joursMax = input.jours_max && input.jours_max > 0 ? input.jours_max : 90;
+
+  const clients = await prisma.client.findMany({
+    where: entiteWhereRecouvrement(entiteFilter),
+    include: { contrats: true },
+  });
+  const rows = clients
+    .flatMap((c) =>
+      c.contrats.map((contrat) => {
+        const e = contractEcheance(contrat);
+        return {
+          client: c.nom,
+          entite: c.entite,
+          numeroContrat: contrat.numero,
+          type: contrat.type,
+          echeanceType: e.type,
+          echeanceDate: e.date,
+          joursRestants: e.jours,
+          niveauAlerte: contractAlertLevel(contrat),
+        };
+      })
+    )
+    .filter((r) => r.joursRestants <= joursMax)
+    .sort((a, b) => a.joursRestants - b.joursRestants)
+    .slice(0, 30);
+
+  if (rows.length === 0) return { resultat: `Aucun contrat avec une échéance à moins de ${joursMax} jours dans le périmètre accessible.` };
+  return { joursMax, contrats: rows };
 }
 
 export async function statsOperations(user: AuthedUser, input: { entite?: string }) {
@@ -456,6 +551,12 @@ async function executeTool(name: string, input: unknown, user: AuthedUser): Prom
       case 'stats_planning_coursiers':
         if (!user.accesRecouvrement) return { result: { error: 'Accès refusé' }, isError: true };
         return { result: await statsPlanningCoursiers(user, args as { from?: string; to?: string; entite?: string }), isError: false };
+      case 'relances_par_agent':
+        if (!user.accesRecouvrement) return { result: { error: 'Accès refusé' }, isError: true };
+        return { result: await relancesParAgent(user, args as { from?: string; to?: string; entite?: string }), isError: false };
+      case 'echeances_contrats':
+        if (!user.accesRecouvrement) return { result: { error: 'Accès refusé' }, isError: true };
+        return { result: await echeancesContrats(user, args as { entite?: string; jours_max?: number }), isError: false };
       case 'stats_operations':
         if (!user.roleOperations) return { result: { error: 'Accès refusé' }, isError: true };
         return { result: await statsOperations(user, args as { entite?: string }), isError: false };
@@ -471,12 +572,49 @@ async function executeTool(name: string, input: unknown, user: AuthedUser): Prom
           result: await alertesParcImpressionPortefeuille(user, args as { critere?: string; periode?: string; seuil?: number; entite?: string }),
           isError: false,
         };
+      case 'resiliations_stats':
+        if (!user.roleOperations) return { result: { error: 'Accès refusé' }, isError: true };
+        return { result: await resiliationsStats(user, args as { mois?: string; entite?: string }), isError: false };
       default:
         return { result: { error: `Outil inconnu : ${name}` }, isError: true };
     }
   } catch (err) {
     return { result: { error: err instanceof Error ? err.message : 'Erreur inattendue' }, isError: true };
   }
+}
+
+export async function resiliationsStats(user: AuthedUser, input: { mois?: string; entite?: string }) {
+  const entiteFilter = resolveEntiteScopeOperations(user, input.entite);
+  const rows = await prisma.clientOperations.findMany({
+    where: { client: entiteWhereOperations(entiteFilter), resilie: true, ...chargeDeCompteWhere(user) },
+    select: { dateResiliation: true, motifResiliation: true, client: { select: CLIENT_SELECT_OPERATIONS } },
+  });
+
+  const cle = (d: Date) => `${new Date(d).getFullYear()}-${String(new Date(d).getMonth() + 1).padStart(2, '0')}`;
+  const filtered =
+    input.mois && /^\d{4}-\d{2}$/.test(input.mois) ? rows.filter((r) => r.dateResiliation && cle(r.dateResiliation) === input.mois) : rows;
+
+  if (filtered.length === 0) {
+    return { resultat: `Aucune résiliation${input.mois ? ` en ${input.mois}` : ''} dans le périmètre accessible.` };
+  }
+
+  const parMotif = new Map<string, number>();
+  for (const r of filtered) {
+    if (!r.motifResiliation) continue;
+    parMotif.set(r.motifResiliation, (parMotif.get(r.motifResiliation) ?? 0) + 1);
+  }
+
+  return {
+    periode: input.mois ?? 'toutes périodes confondues',
+    nombreResiliations: filtered.length,
+    repartitionParMotif: Object.fromEntries(parMotif),
+    clients: filtered.slice(0, 30).map((r) => ({
+      nom: r.client.nom,
+      entite: r.client.entite,
+      dateResiliation: r.dateResiliation,
+      motif: r.motifResiliation,
+    })),
+  };
 }
 
 export interface ChatMessage {

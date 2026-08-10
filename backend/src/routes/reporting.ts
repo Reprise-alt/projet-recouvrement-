@@ -47,14 +47,14 @@ function entiteWhere(entiteFilter: Entite | 'ALL') {
   return { OR: [{ entite: entiteFilter as any }, { entite: 'COMMUN' as any }] };
 }
 
-interface Period {
+export interface Period {
   from: Date;
   to: Date;
   fromStr: string;
   toStr: string;
 }
 
-function buildPeriod(fromStr: string, toStr: string): Period | null {
+export function buildPeriod(fromStr: string, toStr: string): Period | null {
   if (!fromStr || !toStr) return null;
   const from = new Date(`${fromStr}T00:00:00.000Z`);
   const to = new Date(`${toStr}T23:59:59.999Z`);
@@ -134,7 +134,7 @@ async function fetchReportingData(req: Request) {
 // agent sur une période -- voir le commentaire détaillé sur la route
 // GET /agents plus bas, cette fonction en est l'extraction pour être
 // réutilisée par GET /analyse.
-async function computeAgentStats(period: Period, where: object): Promise<(AgentStat & { utilisateurId: string })[]> {
+export async function computeAgentStats(period: Period, where: object): Promise<(AgentStat & { utilisateurId: string })[]> {
   const agentActionWhere = { palier: { gt: 0 }, utilisateurId: { not: null }, utilisateur: { estAgentRecouvrement: true } } as const;
 
   const actions = await prisma.actionRecouvrement.findMany({
