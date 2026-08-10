@@ -542,6 +542,7 @@ export interface ClientOperationsRow {
   climat: Climat | null;
   dernierReleve: string | null;
   releveFait: boolean;
+  revueTrimestreFaite: boolean;
   resilie: boolean;
   problemesOuverts: number;
   problemesBloquants: number;
@@ -640,6 +641,12 @@ export interface RevueTrimestreEntry {
   scores: ScoresAxes;
 }
 
+export interface RevueTrimestreFait {
+  id: string;
+  client: ClientOperationsIdentite;
+  dernierReleve: string;
+}
+
 export interface RevueTrimestreResponse {
   trimestre: string;
   semaine: number;
@@ -647,6 +654,7 @@ export interface RevueTrimestreResponse {
   totalEligibles: number;
   totalFaits: number;
   aTraiter: RevueTrimestreEntry[];
+  faits: RevueTrimestreFait[];
 }
 
 export interface ConfigOperations {

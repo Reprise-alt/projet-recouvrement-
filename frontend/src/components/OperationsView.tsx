@@ -379,6 +379,13 @@ function PortefeuilleTab({
         </button>
       </div>
 
+      {(data ?? []).some((r) => r.revueTrimestreFaite) && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--ink-soft)', marginBottom: 10 }}>
+          <span style={{ width: 12, height: 12, borderRadius: 3, background: toneBg('success'), border: '1px solid var(--line-soft)', flexShrink: 0 }} />
+          Vu en revue trimestrielle ce trimestre
+        </div>
+      )}
+
       <div className="table-card">
         {loading ? (
           <div className="empty-state">Chargement…</div>
@@ -414,7 +421,12 @@ function PortefeuilleTab({
                 const engagementRetard = !!(r.action && !r.actionFait && r.actionEcheance && new Date(r.actionEcheance) < new Date());
                 const joursContrat = r.finContrat ? Math.round((new Date(r.finContrat).getTime() - Date.now()) / 86400000) : null;
                 return (
-                  <tr key={r.id} className="row-hover" onClick={() => onSelect(r.id)}>
+                  <tr
+                    key={r.id}
+                    className="row-hover"
+                    onClick={() => onSelect(r.id)}
+                    style={r.revueTrimestreFaite ? { background: toneBg('success') } : undefined}
+                  >
                     <td onClick={(e) => e.stopPropagation()}>
                       <input type="checkbox" checked={r.vip} disabled={busyRow === r.id} onChange={() => toggleVip(r)} />
                     </td>
@@ -678,6 +690,7 @@ function NouveauCompteModal({ entityFilter, onClose, onCreated }: { entityFilter
 
 function RevueTrimestreCard({ entityFilter, reloadKey, onSelect }: { entityFilter: Entite | 'ALL'; reloadKey: unknown; onSelect: (id: string) => void }) {
   const { data } = useResource<RevueTrimestreResponse>(`/api/operations/revue-trimestre${buildQuery({ entite: entityFilter })}`, reloadKey);
+  const [showFaits, setShowFaits] = useState(false);
 
   if (!data || data.totalEligibles === 0) return null;
 
@@ -696,10 +709,43 @@ function RevueTrimestreCard({ entityFilter, reloadKey, onSelect }: { entityFilte
           <div style={{ flex: 1, height: 6, background: 'var(--line-soft)', borderRadius: 3, overflow: 'hidden' }}>
             <div style={{ width: `${pct}%`, height: '100%', background: 'var(--accent)' }} />
           </div>
-          <div style={{ fontSize: 12.5, fontFamily: 'var(--font-mono)', color: 'var(--ink-soft)', flexShrink: 0 }}>
+          <button
+            type="button"
+            onClick={() => setShowFaits((v) => !v)}
+            disabled={data.faits.length === 0}
+            style={{
+              fontSize: 12.5,
+              fontFamily: 'var(--font-mono)',
+              color: 'var(--ink-soft)',
+              flexShrink: 0,
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              cursor: data.faits.length ? 'pointer' : 'default',
+              textDecoration: data.faits.length ? 'underline' : 'none',
+            }}
+          >
             {data.totalFaits}/{data.totalEligibles} comptes vus ce trimestre
-          </div>
+          </button>
         </div>
+        {showFaits && data.faits.length > 0 && (
+          <div style={{ margin: '10px 0 6px' }}>
+            {data.faits.map((f) => (
+              <div
+                key={f.id}
+                className="row-hover"
+                onClick={() => onSelect(f.id)}
+                style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 14px', borderTop: '1px solid var(--line-soft)', cursor: 'pointer', fontSize: 12.5 }}
+              >
+                <EntityLogo entite={f.client.entite} size={12} />
+                <div style={{ flex: 1 }}>
+                  <strong>{f.client.nom}</strong> <span style={{ color: 'var(--ink-soft)' }}>· {f.client.entite}</span>
+                </div>
+                <span style={{ color: 'var(--ink-soft)', fontFamily: 'var(--font-mono)' }}>{fmtDate(f.dernierReleve)}</span>
+              </div>
+            ))}
+          </div>
+        )}
         {data.aTraiter.length === 0 ? (
           <p style={{ fontSize: 13, color: 'var(--ink-soft)', margin: '10px 0 0' }}>Rien à traiter cette semaine — tout est à jour.</p>
         ) : (

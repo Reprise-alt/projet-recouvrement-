@@ -229,6 +229,7 @@ operationsRouter.get('/portefeuille', async (req, res, next) => {
     }
 
     const now = Date.now();
+    const infoTrimestre = trimestreInfo();
     const portefeuille = rows.map((r) => {
       const problemes = r.problemes.map(toProblemeLike);
       const ouverts = problemes.filter((p) => !p.resoluLe);
@@ -262,6 +263,11 @@ operationsRouter.get('/portefeuille', async (req, res, next) => {
         climat: r.climat,
         dernierReleve: r.dernierReleve,
         releveFait: !!r.dernierReleve && semaineIsoKey(r.dernierReleve) === semaineIsoKey(),
+        // Distinct de releveFait (cette semaine) : couvre tout le trimestre en
+        // cours, pour une visibilité d'ensemble dans le tableau (cf. carte
+        // Revue trimestrielle). Un compte VIP ou résilié ne suit jamais ce
+        // cycle -- toujours faux pour eux, jamais mis en avant à tort.
+        revueTrimestreFaite: !r.vip && !r.resilie && !!r.dernierReleve && r.dernierReleve >= infoTrimestre.debut,
         resilie: r.resilie,
         problemesOuverts: ouverts.length,
         problemesBloquants: ouverts.filter((p) => p.gravite === 'bloquant').length,
@@ -738,11 +744,19 @@ operationsRouter.get('/revue-trimestre', async (req, res, next) => {
       }))
       .sort((a, b) => a.semaineAffectee - b.semaineAffectee || a.scores.global - b.scores.global);
 
+    // Le pendant de aTraiter : les comptes déjà vus ce trimestre -- pour que
+    // "5/265 comptes vus" mène à une vraie liste, pas juste un chiffre.
+    const faits = eligibles
+      .filter(faitCeTrimestre)
+      .map((r) => ({ id: r.id, client: r.client, dernierReleve: r.dernierReleve }))
+      .sort((a, b) => new Date(b.dernierReleve!).getTime() - new Date(a.dernierReleve!).getTime());
+
     res.json({
       trimestre: info.cle,
       semaine: info.semaine,
       totalSemaines: info.totalSemaines,
       totalEligibles: eligibles.length,
+      faits,
       totalFaits: eligibles.filter(faitCeTrimestre).length,
       aTraiter,
     });
