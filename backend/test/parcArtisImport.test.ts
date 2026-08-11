@@ -158,6 +158,23 @@ describe('parseInterventionsArtis', () => {
     const wb = workbook([head, good, noRef, noDate]);
     expect(parseInterventionsArtis(wb)).toHaveLength(1);
   });
+
+  // Un ticket "Annulée" (DIT Etat) n'a jamais eu lieu -- il ne doit jamais
+  // gonfler le total d'interventions, pour aucun client (cf. export réel
+  // SEN'EAU où une intervention "Annulée" était comptée comme curative).
+  it('excludes cancelled tickets (DIT Etat = Annulée), for any client', () => {
+    const head = new Array(120).fill(null);
+    head[0] = 'DIT no interne';
+    head[3] = 'DIT Date/Heure';
+    head[5] = 'DIT Etat';
+    head[43] = 'DIT Nature';
+    const annulee = row({ 0: '0047264', 3: new Date('2026-07-31T09:02:00Z'), 5: 'Annulée', 43: 'Maintenance curative' });
+    const cloturee = row({ 0: '0047245', 3: new Date('2026-07-30T09:00:00Z'), 5: 'Clôturée', 43: 'Maintenance préventive' });
+    const wb = workbook([head, annulee, cloturee]);
+    const rows = parseInterventionsArtis(wb);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].referenceExterne).toBe('0047245');
+  });
 });
 
 describe('parseEtatVenteArtis', () => {

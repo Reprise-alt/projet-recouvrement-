@@ -152,6 +152,12 @@ export function parseInterventionsArtis(wb: XLSX.WorkBook): ArtisInterventionRow
     const dateDeclaration = row[iDateDecl];
     if (!ref || !(dateDeclaration instanceof Date)) continue;
     const etat = normaliserTexte(row[iEtat]);
+    // Un ticket annulé (créé par erreur, doublon, demande retirée par le
+    // client...) n'a jamais eu lieu -- il ne doit compter ni dans le total
+    // d'interventions, ni dans les stats SLA, pour aucun client. On l'exclut
+    // ici plutôt que de le laisser passer avec un statut "curative" par
+    // défaut (cf. bug remonté : les annulées gonflaient le compteur).
+    if (/annul/i.test(etat)) continue;
     const nature = normaliserTexte(row[iNature]);
     const priorite = normaliserTexte(row[iPriorite]);
     const debut = row[iDebut];
