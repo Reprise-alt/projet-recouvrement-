@@ -85,18 +85,20 @@ async function requireAuthSso(req: Request, res: Response, next: NextFunction) {
     return res.status(401).json({ error: 'Authentification requise' });
   }
   const acc = accesDepuisMoi(moi);
-  if (!acc.email) {
-    return res.status(403).json({ error: 'Compte socle sans email — contactez un administrateur' });
-  }
+  // Clé de rattachement de la fiche locale : l'email du compte socle s'il
+  // existe (permet de conserver l'historique des relances de l'agent), sinon
+  // un repli stable dérivé de l'identifiant (unique côté socle). On ne bloque
+  // JAMAIS un compte valide du hub faute d'email — sinon boucle de connexion.
+  const cleEmail = acc.email ?? `${moi.utilisateur.identifiant}@olu360.local`;
 
   // Miroir local : source de vérité = socle. On crée la fiche si absente, on
   // réaligne rôle/entité/accès à chaque connexion. estAgentRecouvrement n'est
   // posé qu'à la création (drapeau de reporting local, ajustable ensuite).
   const utilisateur = await prisma.utilisateur.upsert({
-    where: { email: acc.email },
+    where: { email: cleEmail },
     create: {
       nom: acc.nom,
-      email: acc.email,
+      email: cleEmail,
       role: acc.role,
       entite: acc.entite,
       estAgentRecouvrement: acc.estAgentRecouvrement,
