@@ -1,19 +1,20 @@
 import { useState } from 'react';
 
+// Marques officielles du groupe (tuiles carrées vectorielles, cf. design
+// system OLU 360). Vendorées dans public/logos pour ne dépendre d'aucun CDN.
 const LOGO_PATHS: Record<string, string> = {
-  SORAM: '/logos/soram.png',
-  SIS: '/logos/sis.png',
-  IRIS: '/logos/iris-icon.png',
+  SORAM: '/logos/soram.svg',
+  SIS: '/logos/sis.svg',
+  IRIS: '/logos/iris.svg',
 };
 
-// Le logo SIS réutilise le lettrage "soram" (juste le sous-titre change), donc
-// à petite taille les deux se ressemblent trop pour se distinguer à l'oeil.
-// On ajoute une couleur d'accent propre à chaque entité (indépendante des
-// couleurs du logo) pour permettre un repérage rapide dans les listes.
+// Couleurs d'accent relevées sur les logos officiels (design system 1.0) :
+// le vert exact SORAM · SIS, le cyan exact IRIS. SORAM et SIS partagent le
+// vert de la marque ; l'accent ne sert donc qu'au repérage, le logo distingue.
 const KNOWN_ACCENTS: Record<string, string> = {
-  SORAM: '#2F6FB0',
-  SIS: '#9B4FA6',
-  IRIS: '#2AA7C4',
+  SORAM: '#6DEB15',
+  SIS: '#6DEB15',
+  IRIS: '#1BB0CA',
 };
 
 function hashHue(s: string): number {

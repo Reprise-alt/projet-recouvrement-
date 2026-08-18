@@ -35,22 +35,25 @@ export function LoginPage() {
   return (
     <div className="login-wrap">
       <div className="login-brand">
-        <svg viewBox="0 0 100 100" width="30" height="30">
-          <circle
-            cx="50"
-            cy="50"
-            r="34"
-            fill="none"
-            stroke="#1D9E75"
-            strokeWidth="13"
-            strokeLinecap="round"
-            strokeDasharray="168 46"
-            transform="rotate(100 50 50)"
-          />
-        </svg>
-        <div className="brand-wordmark">
-          <span className="w-olu">OLU</span> <span className="w-360">360</span>
-        </div>
+        <span className="brand-mark">
+          <svg viewBox="0 0 100 100" width="28" height="28" aria-hidden="true">
+            <circle
+              cx="50"
+              cy="50"
+              r="34"
+              fill="none"
+              stroke="var(--accent)"
+              strokeWidth="13"
+              strokeLinecap="round"
+              strokeDasharray="168 46"
+              transform="rotate(100 50 50)"
+            />
+          </svg>
+        </span>
+        <span className="brand-id">
+          <b>OLU 360</b>
+          <small>Écosystème IT du groupe</small>
+        </span>
       </div>
       <div className="login-card">
         <h1>Connexion</h1>

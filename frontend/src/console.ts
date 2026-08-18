@@ -11,7 +11,10 @@ export const CONSOLE: ConsoleId = ((): ConsoleId => {
 })();
 
 interface ConsoleMeta {
-  // Titre affiché dans la barre supérieure et l'onglet du navigateur.
+  // Nom de marque, affiché dans le bloc logo (« Console X / By Olu360 »),
+  // aligné sur les autres consoles du groupe (SAV, Smart Reporting, Relevés).
+  marque: string;
+  // Titre de la page, sous le bloc de marque et dans l'onglet du navigateur.
   titre: string;
   // Périmètre du sélecteur d'entités : 'groupe' = toutes les entités (SORAM,
   // IRIS, SIS...), 'operations' = SORAM et IRIS seulement (cf. cahier §1).
@@ -19,7 +22,7 @@ interface ConsoleMeta {
 }
 
 export const CONSOLE_META: Record<ConsoleId, ConsoleMeta> = {
-  recouvrement: { titre: 'Suivi du recouvrement', entites: 'groupe' },
-  operations: { titre: 'Suivi des opérations', entites: 'operations' },
-  coursier: { titre: 'Planning des coursiers', entites: 'groupe' },
+  recouvrement: { marque: 'Console Recouvrement', titre: 'Suivi du recouvrement', entites: 'groupe' },
+  operations: { marque: 'Console Opérations', titre: 'Suivi des opérations', entites: 'operations' },
+  coursier: { marque: 'Console Coursier', titre: 'Planning des coursiers', entites: 'groupe' },
 };

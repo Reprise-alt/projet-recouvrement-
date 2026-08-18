@@ -134,26 +134,29 @@ export function App() {
   const roleBadge = CONSOLE === 'operations' ? ROLE_OPERATIONS_LABELS[user.roleOperations!] ?? '' : ROLE_LABELS[user.role] ?? user.role;
 
   return (
-    <div className="wrap">
+    <div className="wrap" data-entite={effectiveEntity === 'ALL' ? 'OLU' : effectiveEntity}>
       <div className="topbar">
         <div>
           <div className="brand-logo-row">
-            <svg className="brand-mark" viewBox="0 0 100 100" width="32" height="32">
-              <circle
-                cx="50"
-                cy="50"
-                r="34"
-                fill="none"
-                stroke="#1D9E75"
-                strokeWidth="13"
-                strokeLinecap="round"
-                strokeDasharray="168 46"
-                transform="rotate(100 50 50)"
-              />
-            </svg>
-            <div className="brand-wordmark">
-              <span className="w-olu">OLU</span> <span className="w-360">360</span>
-            </div>
+            <span className="brand-mark">
+              <svg viewBox="0 0 100 100" width="28" height="28" aria-hidden="true">
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="34"
+                  fill="none"
+                  stroke="var(--accent)"
+                  strokeWidth="13"
+                  strokeLinecap="round"
+                  strokeDasharray="168 46"
+                  transform="rotate(100 50 50)"
+                />
+              </svg>
+            </span>
+            <span className="brand-id">
+              <b>{meta.marque}</b>
+              <small>By Olu360</small>
+            </span>
           </div>
           <div className="brand-rule"></div>
           <div className="brand-eyebrow">SORAM · IRIS · SIS — écosystème IT</div>
