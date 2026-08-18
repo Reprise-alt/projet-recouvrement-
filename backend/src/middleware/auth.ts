@@ -2,6 +2,13 @@ import { NextFunction, Request, Response } from 'express';
 import { prisma } from '../db';
 import { Entite, RoleUtilisateur, userCanAccessEntite } from '../lib/entites';
 import { extractEmailFromToken } from '../lib/verifyToken';
+import { accesDepuisMoi, lireCookie, resoudreSession } from '../lib/sso';
+
+// Mode d'authentification : 'sso' = session partagée du hub OLU 360 (cookie
+// olu360_session validé par le socle) ; 'supabase' (défaut) = JWT Supabase,
+// comportement historique. L'interrupteur permet de basculer sans rien casser,
+// en gardant Supabase comme filet le temps de la transition.
+const AUTH_MODE = process.env.AUTH_MODE === 'sso' ? 'sso' : 'supabase';
 
 export type RoleOperations = 'directrice_operations' | 'charge_compte' | 'direction_generale';
 
@@ -35,6 +42,8 @@ declare global {
 // rattachement restent gérés dans la table Utilisateur de cette base (cf.
 // cahier des charges §4). Voir lib/verifyToken.ts pour le repli dev-only.
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
+  if (AUTH_MODE === 'sso') return requireAuthSso(req, res, next);
+
   const header = req.headers.authorization;
   if (!header?.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Authentification requise' });
@@ -50,6 +59,60 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   if (!utilisateur) {
     return res.status(403).json({ error: "Compte non provisionné — contactez un administrateur" });
   }
+
+  req.user = {
+    id: utilisateur.id,
+    nom: utilisateur.nom,
+    email: utilisateur.email,
+    role: utilisateur.role as RoleUtilisateur,
+    entite: (utilisateur.entite as Entite | null) ?? null,
+    accesRecouvrement: utilisateur.accesRecouvrement,
+    roleOperations: (utilisateur.roleOperations as RoleOperations | null) ?? null,
+    accesPlanningCoursiers: utilisateur.accesPlanningCoursiers,
+  };
+  next();
+}
+
+// Authentification par le SSO du hub : le cookie olu360_session est validé par
+// le socle (/moi), qui donne l'identité + les accès console. Le socle est la
+// source de vérité ; on tient une fiche locale « miroir » (créée/actualisée à
+// la volée par email) parce que l'historique des relances pointe sur
+// l'utilisateur local — indispensable pour le reporting « par agent ».
+async function requireAuthSso(req: Request, res: Response, next: NextFunction) {
+  const token = lireCookie(req.headers.cookie, 'olu360_session');
+  const moi = await resoudreSession(token);
+  if (!moi) {
+    return res.status(401).json({ error: 'Authentification requise' });
+  }
+  const acc = accesDepuisMoi(moi);
+  if (!acc.email) {
+    return res.status(403).json({ error: 'Compte socle sans email — contactez un administrateur' });
+  }
+
+  // Miroir local : source de vérité = socle. On crée la fiche si absente, on
+  // réaligne rôle/entité/accès à chaque connexion. estAgentRecouvrement n'est
+  // posé qu'à la création (drapeau de reporting local, ajustable ensuite).
+  const utilisateur = await prisma.utilisateur.upsert({
+    where: { email: acc.email },
+    create: {
+      nom: acc.nom,
+      email: acc.email,
+      role: acc.role,
+      entite: acc.entite,
+      estAgentRecouvrement: acc.estAgentRecouvrement,
+      accesRecouvrement: acc.accesRecouvrement,
+      roleOperations: acc.roleOperations,
+      accesPlanningCoursiers: acc.accesPlanningCoursiers,
+    },
+    update: {
+      nom: acc.nom,
+      role: acc.role,
+      entite: acc.entite,
+      accesRecouvrement: acc.accesRecouvrement,
+      roleOperations: acc.roleOperations,
+      accesPlanningCoursiers: acc.accesPlanningCoursiers,
+    },
+  });
 
   req.user = {
     id: utilisateur.id,
