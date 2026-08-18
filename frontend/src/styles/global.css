@@ -464,5 +464,19 @@ label{font-family:var(--font-mono);font-size:10.5px;text-transform:uppercase;let
   .rail-entities{flex-direction:row;flex-wrap:wrap;}
   .rail-foot{margin:0;padding:0;border-top:0;}
   .rail-foot-actions{flex:none;}
-  .app-main{padding:18px 16px 60px;}
+  .app-main{padding:18px 14px 60px;}
+
+  /* Contenu métier sur petit écran : les tableaux et l'échelle des paliers
+     défilent horizontalement au lieu d'être coupés (la carte était en
+     overflow:hidden). Le tableau garde une largeur mini lisible et glisse
+     sous le doigt. */
+  .table-card{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  .table-card table{min-width:600px;}
+  th,td{padding:10px 14px;}
+  .ladder-card{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  .kpis{gap:10px;}
+  .drawer{padding:22px 18px 56px;}
+  .modal{padding:22px 18px;}
+  /* Barre d'en-tête de tableau : titre + actions s'empilent proprement. */
+  .table-head{flex-wrap:wrap;gap:10px;}
 }
