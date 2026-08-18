@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from './auth/AuthContext';
 import { LoginPage } from './components/LoginPage';
-import { Landing } from './components/Landing';
 import { RecouvrementView } from './components/RecouvrementView';
 import { ContractsView } from './components/ContractsView';
 import { PlanningView } from './components/PlanningView';
+import { OperationsView } from './components/OperationsView';
 import { CoursierPublicView } from './components/CoursierPublicView';
 import { SalleCoursierView } from './components/SalleCoursierView';
 import { SettingsModal } from './components/SettingsModal';
@@ -13,17 +13,14 @@ import { UsersPanel } from './components/UsersPanel';
 import { IntegrationsPanel } from './components/IntegrationsPanel';
 import { EntreprisesPanel } from './components/EntreprisesPanel';
 import { EntityLogo, entityAccent } from './components/EntityLogo';
-import { OperationsView } from './components/OperationsView';
-import { AssistantBubble } from './components/AssistantBubble';
 import { Entite, Entreprise } from './api/types';
 import { useResource } from './hooks/useResource';
 import { useTheme } from './hooks/useTheme';
-import { ChevronDown, Moon, Sun, Repeat } from 'lucide-react';
+import { ChevronDown, Moon, Sun } from 'lucide-react';
+import { CONSOLE, CONSOLE_META } from './console';
 
-type MainView = 'recouvrement' | 'contrats' | 'planning';
 type EntityFilter = Entite | 'ALL';
-type Module = 'recouvrement' | 'operations';
-const MODULE_KEY = 'recouvrement:module';
+type RecouvrementTab = 'recouvrement' | 'contrats';
 
 const ROLE_LABELS: Record<string, string> = {
   admin: 'Admin',
@@ -40,25 +37,20 @@ const ROLE_OPERATIONS_LABELS: Record<string, string> = {
 export function App() {
   const { user, loading, logout } = useAuth();
 
-  // Page vitrine publique — pas d'authentification requise, ne dépend pas de
-  // l'état de connexion (contrairement au reste de l'app ci-dessous).
-  if (window.location.pathname === '/presentation') return <Landing />;
-
-  // Lien personnel d'un coursier — identifié par un token dans l'URL, pas
-  // par une session : même logique d'accès public que la vitrine, mais
-  // scopée à un seul coursier côté API (cf. routes/coursierPublic.ts).
+  // Liens publics — accessibles sans session, identifiés par un token dans
+  // l'URL et scopés côté API. Ils appartiennent à la console Planning des
+  // coursiers mais restent résolus quelle que soit la console servie, pour
+  // qu'un lien partagé fonctionne toujours.
   if (window.location.pathname.startsWith('/coursier/')) {
     const token = window.location.pathname.slice('/coursier/'.length);
     return <CoursierPublicView token={token} />;
   }
-
-  // Écran de salle des coursiers — un seul lien partagé, pas un par
-  // personne (cf. SalleCoursierView), même logique d'accès public.
   if (window.location.pathname.startsWith('/salle/')) {
     const token = window.location.pathname.slice('/salle/'.length);
     return <SalleCoursierView token={token} />;
   }
-  const [view, setView] = useState<MainView>('recouvrement');
+
+  const [recouvrementTab, setRecouvrementTab] = useState<RecouvrementTab>('recouvrement');
   const [entityFilter, setEntityFilter] = useState<EntityFilter>('ALL');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -70,14 +62,12 @@ export function App() {
   const [dataVersion, setDataVersion] = useState(0);
   const bumpDataVersion = () => setDataVersion((v) => v + 1);
   const { theme, toggle: toggleTheme } = useTheme();
-  const [moduleState, setModuleState] = useState<Module | null>(() => {
-    const stored = localStorage.getItem(MODULE_KEY);
-    return stored === 'recouvrement' || stored === 'operations' ? (stored as Module) : null;
-  });
-  function setModule(m: Module) {
-    localStorage.setItem(MODULE_KEY, m);
-    setModuleState(m);
-  }
+
+  const meta = CONSOLE_META[CONSOLE];
+
+  useEffect(() => {
+    document.title = `OLU 360 — ${meta.titre}`;
+  }, [meta.titre]);
 
   useEffect(() => {
     if (!adminMenuOpen) return;
@@ -90,48 +80,49 @@ export function App() {
 
   const { data: entreprises, refetch: refetchEntreprises } = useResource<Entreprise[]>(user ? '/api/entreprises' : null);
 
+  // Périmètre du sélecteur d'entités selon la console. Pour le groupe
+  // (recouvrement, coursier) : toutes les entités hors "COMMUN" (pseudo-groupe
+  // partagé, jamais un onglet sélectionnable). Pour les opérations : SORAM et
+  // IRIS seulement (cahier §1). Un compte rattaché à une entité ne voit que la
+  // sienne ; un admin / une direction générale / un compte sans entité voient
+  // "Tous" plus le détail.
   const availableEntities = useMemo<EntityFilter[]>(() => {
     if (!user) return ['ALL'];
-    // L'entité commune ("COMMUN") est un pseudo-groupe partagé, jamais un
-    // onglet de filtre sélectionnable — comme avant l'ajout des entités
-    // dynamiques.
+    if (meta.entites === 'operations') {
+      const codes = (entreprises ?? []).filter((e) => e.code === 'SORAM' || e.code === 'IRIS').map((e) => e.code);
+      if (user.roleOperations === 'direction_generale' || !user.entite) return ['ALL', ...codes];
+      return [user.entite];
+    }
     const codes = (entreprises ?? []).filter((e) => !e.estCommun).map((e) => e.code);
     if (user.role === 'admin' || !user.entite) return ['ALL', ...codes];
     return [user.entite];
-  }, [user, entreprises]);
+  }, [user, entreprises, meta.entites]);
 
   const effectiveEntity: EntityFilter = availableEntities.includes(entityFilter) ? entityFilter : availableEntities[0];
 
-  // Opérations ne concerne que SORAM et IRIS (cahier §1) -- jamais SIS ni
-  // COMMUN, contrairement au sélecteur d'entité du recouvrement ci-dessus.
-  const availableEntitiesOperations = useMemo<EntityFilter[]>(() => {
-    if (!user) return ['ALL'];
-    const codes = (entreprises ?? []).filter((e) => e.code === 'SORAM' || e.code === 'IRIS').map((e) => e.code);
-    if (user.roleOperations === 'direction_generale' || !user.entite) return ['ALL', ...codes];
-    return [user.entite];
-  }, [user, entreprises]);
-  const [entityFilterOperations, setEntityFilterOperations] = useState<EntityFilter>('ALL');
-  const effectiveEntityOperations: EntityFilter = availableEntitiesOperations.includes(entityFilterOperations)
-    ? entityFilterOperations
-    : availableEntitiesOperations[0];
-
-  const availableModules = useMemo<Module[]>(() => {
-    if (!user) return [];
-    const mods: Module[] = [];
-    if (user.accesRecouvrement) mods.push('recouvrement');
-    if (user.roleOperations) mods.push('operations');
-    return mods;
+  // Droit d'accès à CETTE console. Les trois périmètres sont orthogonaux : un
+  // compte peut avoir le recouvrement sans le planning, les opérations sans le
+  // recouvrement, etc. Le back-end applique la même règle sur chaque route
+  // (requireAcces… / requireModuleOperations) — ce test ne fait que masquer
+  // l'interface d'une console à laquelle le compte n'a pas droit.
+  const hasAccess = useMemo<boolean>(() => {
+    if (!user) return false;
+    if (CONSOLE === 'operations') return !!user.roleOperations;
+    if (CONSOLE === 'coursier') return user.accesPlanningCoursiers;
+    return user.accesRecouvrement;
   }, [user]);
-  const effectiveModule: Module | null = moduleState && availableModules.includes(moduleState) ? moduleState : availableModules.length === 1 ? availableModules[0] : null;
 
   if (loading) return null;
   if (!user) return <LoginPage />;
 
-  if (availableModules.length === 0) {
+  if (!hasAccess) {
     return (
       <div className="empty-state" style={{ marginTop: 80 }}>
-        <h3>Aucun accès</h3>
-        <p>Votre compte n'a accès à aucun module de la plateforme. Contactez un administrateur.</p>
+        <h3>Accès non autorisé</h3>
+        <p>
+          Votre compte n'a pas accès à la console « {meta.titre} ». Si vous pensez qu'il s'agit d'une erreur, contactez un
+          administrateur.
+        </p>
         <button onClick={() => logout()} style={{ marginTop: 16 }}>
           Déconnexion
         </button>
@@ -139,42 +130,8 @@ export function App() {
     );
   }
 
-  if (!effectiveModule) {
-    return (
-      <div className="module-chooser">
-        <div className="module-chooser-card">
-          <div className="brand-logo-row" style={{ justifyContent: 'center' }}>
-            <svg className="brand-mark" viewBox="0 0 100 100" width="32" height="32">
-              <circle cx="50" cy="50" r="34" fill="none" stroke="#1D9E75" strokeWidth="13" strokeLinecap="round" strokeDasharray="168 46" transform="rotate(100 50 50)" />
-            </svg>
-            <div className="brand-wordmark">
-              <span className="w-olu">OLU</span> <span className="w-360">360</span>
-            </div>
-          </div>
-          <p className="module-chooser-sub">Bonjour {user.nom.split(' ')[0]} — quel module souhaitez-vous ouvrir ?</p>
-          <div className="module-chooser-options">
-            {availableModules.includes('recouvrement') && (
-              <button className="module-chooser-option" onClick={() => setModule('recouvrement')}>
-                <strong>Recouvrement</strong>
-                <span>Suivi des relances, contrats, planning coursiers</span>
-              </button>
-            )}
-            {availableModules.includes('operations') && (
-              <button className="module-chooser-option" onClick={() => setModule('operations')}>
-                <strong>Opérations</strong>
-                <span>Suivi relationnel du portefeuille SORAM / IRIS</span>
-              </button>
-            )}
-          </div>
-          <button className="module-chooser-logout" onClick={() => logout()}>
-            Déconnexion
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   const isAdmin = user.role === 'admin';
+  const roleBadge = CONSOLE === 'operations' ? ROLE_OPERATIONS_LABELS[user.roleOperations!] ?? '' : ROLE_LABELS[user.role] ?? user.role;
 
   return (
     <div className="wrap">
@@ -200,7 +157,7 @@ export function App() {
           </div>
           <div className="brand-rule"></div>
           <div className="brand-eyebrow">SORAM · IRIS · SIS — écosystème IT</div>
-          <h1 className="brand-title">{effectiveModule === 'operations' ? 'Suivi des opérations' : 'Suivi du recouvrement'}</h1>
+          <h1 className="brand-title">{meta.titre}</h1>
           <div className="brand-partners">
             {(['SORAM', 'SIS', 'IRIS'] as const).map((code) => (
               <div key={code} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
@@ -220,12 +177,12 @@ export function App() {
             {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
           </button>
           <div className="entity-toggle">
-            {(effectiveModule === 'operations' ? availableEntitiesOperations : availableEntities).map((k) => (
+            {availableEntities.map((k) => (
               <button
                 key={k}
-                className={(effectiveModule === 'operations' ? effectiveEntityOperations : effectiveEntity) === k ? 'active' : ''}
-                onClick={() => (effectiveModule === 'operations' ? setEntityFilterOperations(k) : setEntityFilter(k))}
-                disabled={(effectiveModule === 'operations' ? availableEntitiesOperations : availableEntities).length === 1}
+                className={effectiveEntity === k ? 'active' : ''}
+                onClick={() => setEntityFilter(k)}
+                disabled={availableEntities.length === 1}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -238,17 +195,7 @@ export function App() {
               </button>
             ))}
           </div>
-          {availableModules.length > 1 && (
-            <button
-              className="theme-toggle"
-              onClick={() => setModule(effectiveModule === 'operations' ? 'recouvrement' : 'operations')}
-              title={effectiveModule === 'operations' ? 'Passer au module Recouvrement' : 'Passer au module Opérations'}
-              aria-label="Changer de module"
-            >
-              <Repeat size={16} />
-            </button>
-          )}
-          {isAdmin && effectiveModule === 'recouvrement' && (
+          {isAdmin && CONSOLE === 'recouvrement' && (
             <div className="admin-menu" ref={adminMenuRef}>
               <button className="admin-menu-trigger" onClick={() => setAdminMenuOpen((v) => !v)}>
                 Administration <ChevronDown size={14} />
@@ -310,37 +257,32 @@ export function App() {
             </div>
             <div className="topbar-user-info">
               <strong>{user.nom}</strong>
-              <div className="role-badge">
-                {effectiveModule === 'operations' ? ROLE_OPERATIONS_LABELS[user.roleOperations!] : ROLE_LABELS[user.role] ?? user.role}
-              </div>
+              <div className="role-badge">{roleBadge}</div>
             </div>
           </div>
           <button onClick={() => logout()}>Déconnexion</button>
         </div>
       </div>
 
-      {effectiveModule === 'operations' ? (
-        <OperationsView entityFilter={effectiveEntityOperations} user={user} reloadKey={dataVersion} />
+      {CONSOLE === 'operations' ? (
+        <OperationsView entityFilter={effectiveEntity} user={user} reloadKey={dataVersion} />
+      ) : CONSOLE === 'coursier' ? (
+        <PlanningView entityFilter={effectiveEntity} role={user.role} />
       ) : (
         <>
           <div className="main-tabs">
-            <button className={view === 'recouvrement' ? 'active' : ''} onClick={() => setView('recouvrement')}>
+            <button className={recouvrementTab === 'recouvrement' ? 'active' : ''} onClick={() => setRecouvrementTab('recouvrement')}>
               Recouvrement
             </button>
-            <button className={view === 'contrats' ? 'active' : ''} onClick={() => setView('contrats')}>
+            <button className={recouvrementTab === 'contrats' ? 'active' : ''} onClick={() => setRecouvrementTab('contrats')}>
               Échéances de contrats
-            </button>
-            <button className={view === 'planning' ? 'active' : ''} onClick={() => setView('planning')}>
-              Planning des coursiers
             </button>
           </div>
 
-          {view === 'recouvrement' ? (
+          {recouvrementTab === 'recouvrement' ? (
             <RecouvrementView entityFilter={effectiveEntity} role={user.role} reloadKey={dataVersion} />
-          ) : view === 'contrats' ? (
-            <ContractsView entityFilter={effectiveEntity} role={user.role} reloadKey={dataVersion} />
           ) : (
-            <PlanningView entityFilter={effectiveEntity} role={user.role} />
+            <ContractsView entityFilter={effectiveEntity} role={user.role} reloadKey={dataVersion} />
           )}
         </>
       )}
@@ -349,10 +291,7 @@ export function App() {
       {importOpen && <ImportPanel onClose={() => setImportOpen(false)} onImported={bumpDataVersion} />}
       {usersOpen && <UsersPanel onClose={() => setUsersOpen(false)} />}
       {integrationsOpen && <IntegrationsPanel onClose={() => setIntegrationsOpen(false)} />}
-      {entreprisesOpen && (
-        <EntreprisesPanel onClose={() => setEntreprisesOpen(false)} onChanged={refetchEntreprises} />
-      )}
-      <AssistantBubble />
+      {entreprisesOpen && <EntreprisesPanel onClose={() => setEntreprisesOpen(false)} onChanged={refetchEntreprises} />}
     </div>
   );
 }

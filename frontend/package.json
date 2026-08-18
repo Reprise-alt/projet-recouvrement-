@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "build:recouvrement": "VITE_CONSOLE=recouvrement npm run build",
+    "build:operations": "VITE_CONSOLE=operations npm run build",
+    "build:coursier": "VITE_CONSOLE=coursier npm run build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit"
   },

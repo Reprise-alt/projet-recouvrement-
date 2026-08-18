@@ -23,6 +23,7 @@ export interface CurrentUser {
   estAgentRecouvrement: boolean;
   accesRecouvrement: boolean;
   roleOperations: RoleOperations | null;
+  accesPlanningCoursiers: boolean;
   derniereConnexion?: string | null;
 }
 

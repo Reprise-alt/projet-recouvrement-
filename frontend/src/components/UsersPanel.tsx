@@ -36,6 +36,7 @@ export function UsersPanel({ onClose }: { onClose: () => void }) {
         entite: entite || undefined,
         estAgentRecouvrement: form.get('estAgentRecouvrement') === 'on',
         accesRecouvrement: form.get('accesRecouvrement') === 'on',
+        accesPlanningCoursiers: form.get('accesPlanningCoursiers') === 'on',
         roleOperations: form.get('roleOperations') || undefined,
       });
       showToast('Utilisateur créé');
@@ -64,6 +65,18 @@ export function UsersPanel({ onClose }: { onClose: () => void }) {
     setBusy(true);
     try {
       await api.patch(`/api/users/${u.id}`, { accesRecouvrement: !u.accesRecouvrement });
+      refetch();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function togglePlanningCoursiers(u: CurrentUser) {
+    setBusy(true);
+    try {
+      await api.patch(`/api/users/${u.id}`, { accesPlanningCoursiers: !u.accesPlanningCoursiers });
       refetch();
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Erreur');
@@ -144,6 +157,10 @@ export function UsersPanel({ onClose }: { onClose: () => void }) {
                   <input type="checkbox" checked={u.accesRecouvrement} disabled={busy} onChange={() => toggleRecouvrement(u)} style={{ width: 'auto' }} />
                   Accès module Recouvrement
                 </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 5, textTransform: 'none', fontFamily: 'var(--font-body)', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={u.accesPlanningCoursiers} disabled={busy} onChange={() => togglePlanningCoursiers(u)} style={{ width: 'auto' }} />
+                  Accès Planning coursiers
+                </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 5, textTransform: 'none', fontFamily: 'var(--font-body)' }}>
                   Accès Opérations :
                   <select
@@ -203,6 +220,10 @@ export function UsersPanel({ onClose }: { onClose: () => void }) {
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, textTransform: 'none', fontFamily: 'var(--font-body)', fontSize: 13, cursor: 'pointer' }}>
             <input type="checkbox" name="accesRecouvrement" defaultChecked style={{ width: 'auto' }} />
             Accès au module Recouvrement
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, textTransform: 'none', fontFamily: 'var(--font-body)', fontSize: 13, cursor: 'pointer' }}>
+            <input type="checkbox" name="accesPlanningCoursiers" defaultChecked style={{ width: 'auto' }} />
+            Accès à la console Planning des coursiers
           </label>
           <div>
             <label>Accès Opérations (optionnel)</label>

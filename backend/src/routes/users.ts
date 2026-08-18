@@ -24,7 +24,8 @@ usersRouter.get('/', async (_req, res, next) => {
 
 usersRouter.post('/', async (req, res, next) => {
   try {
-    const { nom, email, role, entite, estAgentRecouvrement, accesRecouvrement, roleOperations } = req.body ?? {};
+    const { nom, email, role, entite, estAgentRecouvrement, accesRecouvrement, roleOperations, accesPlanningCoursiers } =
+      req.body ?? {};
     if (!nom || !email || !VALID_ROLES.includes(role)) {
       return res.status(400).json({ error: 'nom, email et role (admin|manager_entite|comptable) sont requis' });
     }
@@ -52,6 +53,15 @@ usersRouter.post('/', async (req, res, next) => {
         estAgentRecouvrement: typeof estAgentRecouvrement === 'boolean' ? estAgentRecouvrement : role !== 'admin',
         accesRecouvrement: typeof accesRecouvrement === 'boolean' ? accesRecouvrement : true,
         roleOperations: roleOperations || null,
+        // Planning des coursiers — console indépendante. À la création, on
+        // s'aligne par défaut sur l'accès recouvrement (comme la migration l'a
+        // fait pour les comptes existants), sauf choix explicite.
+        accesPlanningCoursiers:
+          typeof accesPlanningCoursiers === 'boolean'
+            ? accesPlanningCoursiers
+            : typeof accesRecouvrement === 'boolean'
+              ? accesRecouvrement
+              : true,
       },
     });
     res.status(201).json(created);
@@ -62,7 +72,7 @@ usersRouter.post('/', async (req, res, next) => {
 
 usersRouter.patch('/:id', async (req, res, next) => {
   try {
-    const { nom, role, entite, estAgentRecouvrement, accesRecouvrement, roleOperations } = req.body ?? {};
+    const { nom, role, entite, estAgentRecouvrement, accesRecouvrement, roleOperations, accesPlanningCoursiers } = req.body ?? {};
     if (role && !VALID_ROLES.includes(role)) {
       return res.status(400).json({ error: 'role invalide' });
     }
@@ -81,6 +91,7 @@ usersRouter.patch('/:id', async (req, res, next) => {
         estAgentRecouvrement: typeof estAgentRecouvrement === 'boolean' ? estAgentRecouvrement : undefined,
         accesRecouvrement: typeof accesRecouvrement === 'boolean' ? accesRecouvrement : undefined,
         roleOperations: roleOperations !== undefined ? roleOperations || null : undefined,
+        accesPlanningCoursiers: typeof accesPlanningCoursiers === 'boolean' ? accesPlanningCoursiers : undefined,
       },
     });
     res.json(updated);
