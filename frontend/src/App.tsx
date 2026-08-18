@@ -18,6 +18,7 @@ import { useResource } from './hooks/useResource';
 import { useTheme } from './hooks/useTheme';
 import { Moon, Sun } from 'lucide-react';
 import { CONSOLE, CONSOLE_META, ECOSYSTEME } from './console';
+import { AUTH_MODE, redirigerVersHub } from './auth/mode';
 
 type EntityFilter = Entite | 'ALL';
 type RecouvrementTab = 'recouvrement' | 'contrats';
@@ -102,7 +103,15 @@ export function App() {
   }, [user]);
 
   if (loading) return null;
-  if (!user) return <LoginPage />;
+  if (!user) {
+    // Mode SSO : pas de formulaire local — on renvoie au hub pour s'y
+    // connecter (le cookie de session sera ensuite lu automatiquement).
+    if (AUTH_MODE === 'sso') {
+      redirigerVersHub();
+      return null;
+    }
+    return <LoginPage />;
+  }
 
   if (!hasAccess) {
     return (

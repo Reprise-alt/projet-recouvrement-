@@ -2,6 +2,7 @@ import { createContext, ReactNode, useContext, useEffect, useMemo, useState } fr
 import { api, setAuthToken } from '../api/client';
 import { CurrentUser } from '../api/types';
 import { supabase } from './supabaseClient';
+import { AUTH_MODE, redirigerVersHub } from './mode';
 
 const TOKEN_STORAGE_KEY = 'recouvrement:token';
 
@@ -28,6 +29,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Mode SSO : pas de jeton local — la session vient du cookie partagé du
+    // hub, envoyé automatiquement (credentials). On tente /moi ; un échec
+    // (401) laisse user=null et l'app renverra vers le hub.
+    if (AUTH_MODE === 'sso') {
+      fetchCurrentUser()
+        .then(setUser)
+        .catch(() => setUser(null))
+        .finally(() => setLoading(false));
+      return;
+    }
+
     const stored = localStorage.getItem(TOKEN_STORAGE_KEY);
     if (!stored) {
       setLoading(false);
@@ -73,6 +85,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function logout() {
+    // Mode SSO : la session est partagée (hub) — se déconnecter d'une console
+    // seule n'aurait pas de sens. On renvoie au hub, où l'utilisateur ferme sa
+    // session globale.
+    if (AUTH_MODE === 'sso') {
+      setUser(null);
+      redirigerVersHub();
+      return;
+    }
     localStorage.removeItem(TOKEN_STORAGE_KEY);
     setAuthToken(null);
     setUser(null);

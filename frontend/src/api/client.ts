@@ -1,4 +1,11 @@
+import { AUTH_MODE } from '../auth/mode';
+
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
+// En mode SSO, l'authentification passe par le cookie de session partagée du
+// hub → il faut l'envoyer avec chaque requête (fetch ne l'envoie pas par
+// défaut en cross-origin). En mode Supabase, on reste sur le jeton Bearer.
+const CREDENTIALS: RequestCredentials = AUTH_MODE === 'sso' ? 'include' : 'same-origin';
 
 export class ApiError extends Error {
   status: number;
@@ -20,7 +27,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     headers['Content-Type'] = 'application/json';
   }
 
-  const res = await fetch(`${API_URL}${path}`, { ...options, headers });
+  const res = await fetch(`${API_URL}${path}`, { ...options, headers, credentials: CREDENTIALS });
   if (res.status === 204) return undefined as T;
 
   const isJson = res.headers.get('content-type')?.includes('application/json');
@@ -45,7 +52,7 @@ export const api = {
 export async function downloadFile(path: string, filename: string): Promise<void> {
   const headers: Record<string, string> = {};
   if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
-  const res = await fetch(`${API_URL}${path}`, { headers });
+  const res = await fetch(`${API_URL}${path}`, { headers, credentials: CREDENTIALS });
   if (!res.ok) throw new ApiError(res.status, `Erreur ${res.status}`);
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
@@ -61,7 +68,7 @@ export async function downloadFile(path: string, filename: string): Promise<void
 export async function downloadFilePost(path: string, filename: string, body: unknown): Promise<void> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
-  const res = await fetch(`${API_URL}${path}`, { method: 'POST', headers, body: JSON.stringify(body ?? {}) });
+  const res = await fetch(`${API_URL}${path}`, { method: 'POST', headers, credentials: CREDENTIALS, body: JSON.stringify(body ?? {}) });
   if (!res.ok) throw new ApiError(res.status, `Erreur ${res.status}`);
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
