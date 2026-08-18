@@ -373,3 +373,96 @@ label{font-family:var(--font-mono);font-size:10.5px;text-transform:uppercase;let
 .coursier-mobile .empty-state h3{font-size:19px;}
 .coursier-mobile .empty-state p{font-size:15.5px;}
 .coursier-mobile .login-error{font-size:15px;padding:14px 16px;border-radius:12px;}
+
+/* ═══════════════════════════════════════════════════════════════════
+   OSSATURE À RAIL LATÉRAL — alignée sur le gabarit du design system OLU 360
+   (rail sombre + zone principale claire, comme SAV / Smart Reporting /
+   Relevés). Seule l'ossature de navigation est concernée ; les écrans métier
+   (cartes, tableaux, drawers, modales) gardent leurs classes existantes.
+   =================================================================== */
+:root{
+  --rail-bg:#1B1F22;
+  --rail-bg-2:#262B2F;
+  --rail-line:#2C3236;
+  --rail-text:#C8CFD3;
+  --rail-text-2:#8A9298;
+  --brand-ink:#fff;           /* encre sur un aplat --brand (défaut / OLU) */
+}
+[data-theme='dark']{
+  --rail-bg:#0B1210;
+  --rail-bg-2:#16211C;
+  --rail-line:#1E2A24;
+  --rail-text:#C4D0CA;
+  --rail-text-2:#7E8C85;
+}
+/* Encre lisible sur la couleur de marque de chaque entité (le vert SORAM et
+   le cyan IRIS ne portent jamais de texte clair : on écrit en sombre). */
+[data-entite='SORAM'],[data-entite='SIS']{--brand-ink:#152605;}
+[data-entite='IRIS']{--brand-ink:#062830;}
+
+.shell{display:flex;min-height:100vh;}
+.rail{width:236px;flex:0 0 236px;background:var(--rail-bg);color:var(--rail-text);display:flex;flex-direction:column;padding:18px 0;position:sticky;top:0;height:100vh;overflow-y:auto;}
+.rail-brand{padding:0 16px 15px;border-bottom:1px solid var(--rail-line);margin-bottom:12px;}
+.rail-brand-logo{display:block;height:26px;width:auto;margin-bottom:9px;}
+.rail-brand b{display:block;font-family:var(--font-display);font-size:14px;font-weight:600;color:#fff;letter-spacing:.005em;}
+.rail-brand small{display:block;font-size:10.5px;color:var(--rail-text-2);letter-spacing:.05em;margin-top:2px;}
+.rail-brand .rail-eyebrow{display:block;font-family:var(--font-mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--rail-text-2);margin-top:8px;}
+
+.rail-section{padding:0 12px;margin-bottom:14px;}
+.rail-section-label{font-family:var(--font-mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--rail-text-2);padding:0 8px;margin:4px 0 7px;}
+
+/* Sélecteur de console (les autres domaines de l'écosystème) */
+.rail-switch{margin:0 12px 14px;}
+.rail-switch>summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;background:var(--rail-bg-2);color:var(--rail-text);border-radius:8px;padding:8px 11px;font-size:12.5px;}
+.rail-switch>summary::-webkit-details-marker{display:none;}
+.rail-switch>summary::after{content:'⌄';color:var(--rail-text-2);}
+.rail-switch[open]>summary{border-radius:8px 8px 0 0;}
+.rail-switch-list{background:var(--rail-bg-2);border-radius:0 0 8px 8px;padding:4px;}
+.rail-switch-list a{display:block;padding:7px 9px;border-radius:5px;color:var(--rail-text-2);text-decoration:none;font-size:12.5px;}
+.rail-switch-list a:hover{background:rgba(255,255,255,.05);color:#fff;}
+.rail-switch-list a[aria-current='page']{color:#fff;font-weight:600;}
+
+/* Filtre d'entité dans le rail */
+.rail-entities{display:flex;flex-direction:column;gap:3px;}
+.rail-entities button{display:flex;align-items:center;gap:8px;background:none;border:0;color:var(--rail-text-2);text-align:left;padding:7px 10px;border-radius:7px;cursor:pointer;font-size:13px;box-shadow:none;}
+.rail-entities button:hover:not(:disabled){background:var(--rail-bg-2);color:#fff;border-color:transparent;box-shadow:none;}
+.rail-entities button.active{background:var(--rail-bg-2);color:#fff;font-weight:600;box-shadow:inset 3px 0 0 var(--brand);}
+.rail-entities button:disabled{opacity:1;cursor:default;}
+.rail-entities img{height:15px;width:auto;display:block;}
+
+/* Navigation principale de la console */
+.rail-nav{display:flex;flex-direction:column;gap:1px;padding:0 12px;}
+.rail-nav button{display:flex;justify-content:space-between;align-items:center;gap:8px;background:none;border:0;color:var(--rail-text-2);text-align:left;padding:9px 11px;border-radius:7px;cursor:pointer;font-size:13.5px;font-weight:500;box-shadow:none;width:100%;}
+.rail-nav button:hover:not(:disabled){background:var(--rail-bg-2);color:#fff;border-color:transparent;box-shadow:none;}
+.rail-nav button.active{background:var(--brand);color:var(--brand-ink);font-weight:600;}
+.rail-nav .rail-pill{font-family:var(--font-mono);font-size:11px;background:rgba(255,255,255,.1);color:var(--rail-text);padding:1px 7px;border-radius:9px;}
+.rail-nav button.active .rail-pill{background:rgba(0,0,0,.16);color:var(--brand-ink);}
+
+.rail-foot{margin-top:auto;padding:14px 16px 0;border-top:1px solid var(--rail-line);}
+.rail-user{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.rail-user .avatar{background:var(--brand);color:var(--brand-ink);}
+.rail-user-info{font-size:12px;line-height:1.35;min-width:0;}
+.rail-user-info strong{color:#fff;display:block;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.rail-user-info .role-badge{color:var(--rail-text-2);}
+.rail-foot-actions{display:flex;gap:7px;}
+.rail-foot-actions button{flex:1;background:var(--rail-bg-2);border:1px solid var(--rail-line);color:var(--rail-text);font-size:12px;padding:8px 6px;border-radius:7px;display:flex;align-items:center;justify-content:center;gap:6px;box-shadow:none;}
+.rail-foot-actions button:hover:not(:disabled){color:#fff;border-color:var(--rail-text-2);background:var(--rail-bg-2);box-shadow:none;}
+
+/* Zone principale */
+.app-main{flex:1;min-width:0;padding:26px 32px 72px;}
+.app-main-head{margin-bottom:22px;}
+.app-main-head h1{font-size:24px;font-weight:700;letter-spacing:-.01em;}
+.app-main-head .app-sub{color:var(--ink-soft);font-size:13px;margin-top:3px;}
+
+@media (max-width:820px){
+  .shell{flex-direction:column;}
+  .rail{width:auto;flex:none;height:auto;position:static;flex-direction:row;flex-wrap:wrap;align-items:center;gap:10px 14px;padding:12px 16px;}
+  .rail-brand{border-bottom:0;margin:0;padding:0;}
+  .rail-brand .rail-eyebrow,.rail-brand small{display:none;}
+  .rail-switch,.rail-section{margin:0;padding:0;}
+  .rail-nav{flex-direction:row;flex-wrap:wrap;padding:0;}
+  .rail-entities{flex-direction:row;flex-wrap:wrap;}
+  .rail-foot{margin:0;padding:0;border-top:0;}
+  .rail-foot-actions{flex:none;}
+  .app-main{padding:18px 16px 60px;}
+}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from './auth/AuthContext';
 import { LoginPage } from './components/LoginPage';
 import { RecouvrementView } from './components/RecouvrementView';
@@ -12,12 +12,12 @@ import { ImportPanel } from './components/ImportPanel';
 import { UsersPanel } from './components/UsersPanel';
 import { IntegrationsPanel } from './components/IntegrationsPanel';
 import { EntreprisesPanel } from './components/EntreprisesPanel';
-import { EntityLogo, entityAccent } from './components/EntityLogo';
+import { EntityLogo } from './components/EntityLogo';
 import { Entite, Entreprise } from './api/types';
 import { useResource } from './hooks/useResource';
 import { useTheme } from './hooks/useTheme';
-import { ChevronDown, Moon, Sun } from 'lucide-react';
-import { CONSOLE, CONSOLE_META } from './console';
+import { Moon, Sun } from 'lucide-react';
+import { CONSOLE, CONSOLE_META, ECOSYSTEME } from './console';
 
 type EntityFilter = Entite | 'ALL';
 type RecouvrementTab = 'recouvrement' | 'contrats';
@@ -57,8 +57,6 @@ export function App() {
   const [usersOpen, setUsersOpen] = useState(false);
   const [integrationsOpen, setIntegrationsOpen] = useState(false);
   const [entreprisesOpen, setEntreprisesOpen] = useState(false);
-  const [adminMenuOpen, setAdminMenuOpen] = useState(false);
-  const adminMenuRef = useRef<HTMLDivElement>(null);
   const [dataVersion, setDataVersion] = useState(0);
   const bumpDataVersion = () => setDataVersion((v) => v + 1);
   const { theme, toggle: toggleTheme } = useTheme();
@@ -68,15 +66,6 @@ export function App() {
   useEffect(() => {
     document.title = `OLU 360 — ${meta.titre}`;
   }, [meta.titre]);
-
-  useEffect(() => {
-    if (!adminMenuOpen) return;
-    function onClickOutside(e: MouseEvent) {
-      if (adminMenuRef.current && !adminMenuRef.current.contains(e.target as Node)) setAdminMenuOpen(false);
-    }
-    document.addEventListener('mousedown', onClickOutside);
-    return () => document.removeEventListener('mousedown', onClickOutside);
-  }, [adminMenuOpen]);
 
   const { data: entreprises, refetch: refetchEntreprises } = useResource<Entreprise[]>(user ? '/api/entreprises' : null);
 
@@ -134,122 +123,81 @@ export function App() {
   const roleBadge = CONSOLE === 'operations' ? ROLE_OPERATIONS_LABELS[user.roleOperations!] ?? '' : ROLE_LABELS[user.role] ?? user.role;
 
   return (
-    <div className="wrap" data-entite={effectiveEntity === 'ALL' ? 'OLU' : effectiveEntity}>
-      <div className="topbar">
-        <div>
-          <div className="brand-logo-row">
-            <span className="brand-mark">
-              <svg viewBox="0 0 100 100" width="28" height="28" aria-hidden="true">
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="34"
-                  fill="none"
-                  stroke="var(--accent)"
-                  strokeWidth="13"
-                  strokeLinecap="round"
-                  strokeDasharray="168 46"
-                  transform="rotate(100 50 50)"
-                />
-              </svg>
-            </span>
-            <span className="brand-id">
-              <b>{meta.marque}</b>
-              <small>By Olu360</small>
-            </span>
-          </div>
-          <div className="brand-rule"></div>
-          <div className="brand-eyebrow">SORAM · IRIS · SIS — écosystème IT</div>
-          <h1 className="brand-title">{meta.titre}</h1>
-          <div className="brand-partners">
-            {(['SORAM', 'SIS', 'IRIS'] as const).map((code) => (
-              <div key={code} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                <EntityLogo entite={code} size={18} />
-                <div style={{ width: 22, height: 2, borderRadius: 1, background: entityAccent(code) }} />
-              </div>
+    <div className="shell" data-entite={effectiveEntity === 'ALL' ? 'OLU' : effectiveEntity}>
+      <nav className="rail">
+        <div className="rail-brand">
+          <img className="rail-brand-logo" src="/logos/olu360-blanc.svg" alt="OLU 360" />
+          <b>{meta.marque}</b>
+          <small>By Olu360</small>
+          <span className="rail-eyebrow">SORAM · IRIS · SIS</span>
+        </div>
+
+        <details className="rail-switch">
+          <summary>Changer de console</summary>
+          <div className="rail-switch-list">
+            {ECOSYSTEME.map((c) => (
+              <a key={c.id} href={c.url} aria-current={c.id === CONSOLE ? 'page' : undefined}>
+                {c.label}
+              </a>
             ))}
           </div>
-        </div>
-        <div className="topbar-actions">
-          <button
-            className="theme-toggle"
-            onClick={toggleTheme}
-            title={theme === 'dark' ? 'Passer en mode jour' : 'Passer en mode nuit'}
-            aria-label={theme === 'dark' ? 'Passer en mode jour' : 'Passer en mode nuit'}
-          >
-            {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
-          </button>
-          <div className="entity-toggle">
+        </details>
+
+        <div className="rail-section">
+          <div className="rail-section-label">Entité</div>
+          <div className="rail-entities">
             {availableEntities.map((k) => (
               <button
                 key={k}
                 className={effectiveEntity === k ? 'active' : ''}
                 onClick={() => setEntityFilter(k)}
                 disabled={availableEntities.length === 1}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  boxShadow: k !== 'ALL' ? `inset 2px 0 0 ${entityAccent(k)}` : undefined,
-                }}
               >
-                {k !== 'ALL' && <EntityLogo entite={k} size={13} />}
-                {k === 'ALL' ? 'Tous' : k}
+                {k !== 'ALL' && <EntityLogo entite={k} size={15} />}
+                {k === 'ALL' ? 'Toutes les entités' : k}
               </button>
             ))}
           </div>
-          {isAdmin && CONSOLE === 'recouvrement' && (
-            <div className="admin-menu" ref={adminMenuRef}>
-              <button className="admin-menu-trigger" onClick={() => setAdminMenuOpen((v) => !v)}>
-                Administration <ChevronDown size={14} />
-              </button>
-              {adminMenuOpen && (
-                <div className="admin-menu-panel">
-                  <button
-                    onClick={() => {
-                      setSettingsOpen(true);
-                      setAdminMenuOpen(false);
-                    }}
-                  >
-                    Paramètres des paliers
-                  </button>
-                  <button
-                    onClick={() => {
-                      setImportOpen(true);
-                      setAdminMenuOpen(false);
-                    }}
-                  >
-                    Importer un fichier
-                  </button>
-                  <button
-                    onClick={() => {
-                      setUsersOpen(true);
-                      setAdminMenuOpen(false);
-                    }}
-                  >
-                    Utilisateurs
-                  </button>
-                  <button
-                    onClick={() => {
-                      setIntegrationsOpen(true);
-                      setAdminMenuOpen(false);
-                    }}
-                  >
-                    Intégrations
-                  </button>
-                  <button
-                    onClick={() => {
-                      setEntreprisesOpen(true);
-                      setAdminMenuOpen(false);
-                    }}
-                  >
-                    Entreprises
-                  </button>
-                </div>
-              )}
+        </div>
+
+        <div className="rail-section">
+          <div className="rail-section-label">Navigation</div>
+          <div className="rail-nav">
+            {CONSOLE === 'recouvrement' ? (
+              <>
+                <button
+                  className={recouvrementTab === 'recouvrement' ? 'active' : ''}
+                  onClick={() => setRecouvrementTab('recouvrement')}
+                >
+                  Recouvrement
+                </button>
+                <button className={recouvrementTab === 'contrats' ? 'active' : ''} onClick={() => setRecouvrementTab('contrats')}>
+                  Échéances de contrats
+                </button>
+              </>
+            ) : CONSOLE === 'operations' ? (
+              <button className="active">Opérations</button>
+            ) : (
+              <button className="active">Planning des coursiers</button>
+            )}
+          </div>
+        </div>
+
+        {isAdmin && CONSOLE === 'recouvrement' && (
+          <div className="rail-section">
+            <div className="rail-section-label">Administration</div>
+            <div className="rail-nav">
+              <button onClick={() => setSettingsOpen(true)}>Paramètres des paliers</button>
+              <button onClick={() => setImportOpen(true)}>Importer un fichier</button>
+              <button onClick={() => setUsersOpen(true)}>Utilisateurs</button>
+              <button onClick={() => setIntegrationsOpen(true)}>Intégrations</button>
+              <button onClick={() => setEntreprisesOpen(true)}>Entreprises</button>
             </div>
-          )}
-          <div className="topbar-user">
+          </div>
+        )}
+
+        <div className="rail-foot">
+          <div className="rail-user">
             <div className="avatar">
               {user.nom
                 .split(' ')
@@ -258,37 +206,37 @@ export function App() {
                 .join('')
                 .toUpperCase()}
             </div>
-            <div className="topbar-user-info">
+            <div className="rail-user-info">
               <strong>{user.nom}</strong>
               <div className="role-badge">{roleBadge}</div>
             </div>
           </div>
-          <button onClick={() => logout()}>Déconnexion</button>
-        </div>
-      </div>
-
-      {CONSOLE === 'operations' ? (
-        <OperationsView entityFilter={effectiveEntity} user={user} reloadKey={dataVersion} />
-      ) : CONSOLE === 'coursier' ? (
-        <PlanningView entityFilter={effectiveEntity} role={user.role} />
-      ) : (
-        <>
-          <div className="main-tabs">
-            <button className={recouvrementTab === 'recouvrement' ? 'active' : ''} onClick={() => setRecouvrementTab('recouvrement')}>
-              Recouvrement
+          <div className="rail-foot-actions">
+            <button onClick={toggleTheme} title={theme === 'dark' ? 'Passer en mode jour' : 'Passer en mode nuit'}>
+              {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+              {theme === 'dark' ? 'Jour' : 'Nuit'}
             </button>
-            <button className={recouvrementTab === 'contrats' ? 'active' : ''} onClick={() => setRecouvrementTab('contrats')}>
-              Échéances de contrats
-            </button>
+            <button onClick={() => logout()}>Déconnexion</button>
           </div>
+        </div>
+      </nav>
 
-          {recouvrementTab === 'recouvrement' ? (
-            <RecouvrementView entityFilter={effectiveEntity} role={user.role} reloadKey={dataVersion} />
-          ) : (
-            <ContractsView entityFilter={effectiveEntity} role={user.role} reloadKey={dataVersion} />
-          )}
-        </>
-      )}
+      <main className="app-main">
+        <div className="app-main-head">
+          <h1>{meta.titre}</h1>
+          <div className="app-sub">{meta.sous}</div>
+        </div>
+
+        {CONSOLE === 'operations' ? (
+          <OperationsView entityFilter={effectiveEntity} user={user} reloadKey={dataVersion} />
+        ) : CONSOLE === 'coursier' ? (
+          <PlanningView entityFilter={effectiveEntity} role={user.role} />
+        ) : recouvrementTab === 'recouvrement' ? (
+          <RecouvrementView entityFilter={effectiveEntity} role={user.role} reloadKey={dataVersion} />
+        ) : (
+          <ContractsView entityFilter={effectiveEntity} role={user.role} reloadKey={dataVersion} />
+        )}
+      </main>
 
       {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} onSaved={bumpDataVersion} />}
       {importOpen && <ImportPanel onClose={() => setImportOpen(false)} onImported={bumpDataVersion} />}
