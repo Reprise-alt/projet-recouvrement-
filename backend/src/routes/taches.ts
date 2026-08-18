@@ -3,13 +3,15 @@ import { Router } from 'express';
 import multer from 'multer';
 import * as XLSX from 'xlsx';
 import { prisma } from '../db';
-import { requireAccesRecouvrement, requireAuth, requireRole } from '../middleware/auth';
+import { requireAccesPlanningCoursiers, requireAuth, requireRole } from '../middleware/auth';
 import { Entite, resolveEntiteScope, userCanAccessEntite } from '../lib/entites';
 import { buildPlanningRapport, modeleDuLe, resumeJournee, TACHE_TYPE_LABELS, TacheRapportEntree } from '../lib/taches';
 import { parseTacheCoursierImportWorkbook } from '../lib/parsers/tacheCoursierImport';
 
 export const tachesRouter = Router();
-tachesRouter.use(requireAuth, requireAccesRecouvrement);
+// Console Planning des coursiers : gardée par son propre flag, découplée du
+// recouvrement (cf. requireAccesPlanningCoursiers).
+tachesRouter.use(requireAuth, requireAccesPlanningCoursiers);
 
 // Même équipe que celle qui peut déjà enregistrer une action de
 // recouvrement (cf. clients.ts) -- l'ADV au sens large, pas seulement les

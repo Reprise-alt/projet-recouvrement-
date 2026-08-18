@@ -11,11 +11,13 @@ export interface AuthedUser {
   email: string;
   role: RoleUtilisateur;
   entite: Entite | null;
-  // Accès aux deux modules -- indépendants l'un de l'autre. accesRecouvrement
+  // Accès aux modules -- indépendants les uns des autres. accesRecouvrement
   // vrai par défaut (comptes existants) ; roleOperations null par défaut
-  // (nouveau module, jamais d'accès implicite).
+  // (nouveau module, jamais d'accès implicite) ; accesPlanningCoursiers pour
+  // la console Planning des coursiers, découplée du recouvrement.
   accesRecouvrement: boolean;
   roleOperations: RoleOperations | null;
+  accesPlanningCoursiers: boolean;
 }
 
 declare global {
@@ -57,6 +59,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     entite: (utilisateur.entite as Entite | null) ?? null,
     accesRecouvrement: utilisateur.accesRecouvrement,
     roleOperations: (utilisateur.roleOperations as RoleOperations | null) ?? null,
+    accesPlanningCoursiers: utilisateur.accesPlanningCoursiers,
   };
   next();
 }
@@ -80,6 +83,17 @@ export function requireAccesRecouvrement(req: Request, res: Response, next: Next
   if (!req.user) return res.status(401).json({ error: 'Authentification requise' });
   if (!req.user.accesRecouvrement) {
     return res.status(403).json({ error: 'Accès refusé — pas d\'accès au module Recouvrement' });
+  }
+  next();
+}
+
+// Porte d'entrée de la console Planning des coursiers -- découplée du
+// recouvrement depuis le découpage en consoles séparées. Un compte peut avoir
+// le Planning sans voir aucune donnée financière, et inversement.
+export function requireAccesPlanningCoursiers(req: Request, res: Response, next: NextFunction) {
+  if (!req.user) return res.status(401).json({ error: 'Authentification requise' });
+  if (!req.user.accesPlanningCoursiers) {
+    return res.status(403).json({ error: 'Accès refusé — pas d\'accès à la console Planning des coursiers' });
   }
   next();
 }

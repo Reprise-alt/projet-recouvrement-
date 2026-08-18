@@ -264,6 +264,12 @@ model Utilisateur {
   // qu'un admin ne l'attribue pas explicitement (cf. RoleOperations).
   roleOperations RoleOperations?
 
+  // Accès à la console Planning des coursiers -- indépendante du recouvrement
+  // depuis le découpage en consoles séparées. Défaut false, mais la migration
+  // pose true pour les comptes qui avaient déjà accesRecouvrement (seul vecteur
+  // d'accès au Planning auparavant) : on ne retire l'accès à personne.
+  accesPlanningCoursiers Boolean @default(false)
+
   actions          ActionRecouvrement[]
   comptesOperation ClientOperations[]   @relation("ChargeDeCompte")
 }
