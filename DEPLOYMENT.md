@@ -1,24 +1,46 @@
-# Déploiement — Olu 360 (recouvrement)
+# Déploiement — Olu 360 (Recouvrement · Opérations · Coursier)
 
-Deux services à déployer : `backend/` (API Node/Express + PostgreSQL) et `frontend/` (site statique
-Vite/React). Configs prêtes pour Railway et Render — choisis l'un ou l'autre, pas besoin des deux.
+Depuis le découpage en consoles séparées, l'ensemble se compose de **cinq ressources** : une base
+Postgres, **un seul back-end** (API Node/Express, partagé) et **trois sites statiques** Vite/React —
+un par console. Les trois fronts sont buildés depuis le **même dossier `frontend/`**, chacun avec une
+variable `VITE_CONSOLE` différente (`recouvrement` / `operations` / `coursier`) qui détermine la
+console servie. Configs prêtes pour Railway et Render.
+
+Domaines cibles : `recouvrement.olu360.com`, `operations.olu360.com`, `coursier.olu360.com`.
 
 ## Render (Blueprint)
 
-Le fichier `render.yaml` à la racine décrit les 3 ressources (base Postgres, backend, frontend
-statique). Sur [render.com](https://render.com) : New > Blueprint, pointe sur ce dépôt, Render lit
-`render.yaml` automatiquement.
+Le fichier `render.yaml` à la racine décrit toutes les ressources (base Postgres, back-end, les trois
+fronts, et un groupe de variables communes aux fronts). Sur [render.com](https://render.com) :
+New > Blueprint, pointe sur ce dépôt, Render lit `render.yaml` automatiquement.
 
 Après la première création, renseigne dans le dashboard Render les variables marquées
 `sync: false` (jamais commitées) :
 
-- Backend (`recouvrement-backend`) : `SUPABASE_URL` (Project Settings > General sur Supabase — sert
-  à vérifier les tokens via les clés publiques du projet, pas de secret à copier), `GOOGLE_CLIENT_ID`,
-  `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` (doit pointer vers
-  `https://<ton-backend>.onrender.com/api/integrations/gmail/callback`), `FRONTEND_URL` (l'URL du
-  site statique), `CORS_ORIGIN` (même URL, pour restreindre les appels API à ce frontend).
-- Frontend (`recouvrement-frontend`) : `VITE_API_URL` (l'URL du backend), et si Supabase est prêt
-  `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`. Laisse `VITE_ALLOW_DEV_LOGIN=false` en production.
+- **Back-end** (`recouvrement-backend`) : `SUPABASE_URL` (Project Settings > General sur Supabase —
+  sert à vérifier les tokens via les clés publiques du projet, pas de secret à copier),
+  `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` (doit pointer vers
+  `https://<ton-backend>.onrender.com/api/integrations/gmail/callback`), `FRONTEND_URL` (l'URL d'une
+  des consoles, pour les liens des e-mails), et surtout `CORS_ORIGIN` = **liste des 3 origines
+  séparées par des virgules** :
+  `https://recouvrement.olu360.com,https://operations.olu360.com,https://coursier.olu360.com`
+- **Groupe `olu360-frontend-shared`** (hérité par les 3 fronts, à renseigner **une seule fois**) :
+  `VITE_API_URL` (l'URL du back-end), et si Supabase est prêt `VITE_SUPABASE_URL` /
+  `VITE_SUPABASE_ANON_KEY`. `VITE_ALLOW_DEV_LOGIN=false` est déjà fixé.
+- **Chaque front** porte en plus son `VITE_CONSOLE` (déjà fixé dans le blueprint :
+  `recouvrement-frontend`→`recouvrement`, `operations-frontend`→`operations`,
+  `coursier-frontend`→`coursier`). Attache ensuite le domaine correspondant à chaque service
+  (Settings > Custom Domains).
+
+> Note : `VITE_CONSOLE` est lu au **build** par Vite. Un changement de valeur nécessite un
+> redéploiement du site concerné pour être pris en compte.
+
+### Migration additive (accès Planning coursiers)
+
+La migration `add_acces_planning_coursiers` est **additive** (ajout d'une colonne avec valeur par
+défaut, aucune donnée touchée) et s'applique automatiquement au démarrage du back-end via
+`prisma migrate deploy`. Elle met `accesPlanningCoursiers = true` pour tous les comptes qui avaient
+déjà l'accès recouvrement — personne ne perd l'accès au planning lors de la bascule.
 
 ## Railway
 

@@ -3,13 +3,30 @@ databases:
     plan: free
     postgresMajorVersion: "16"
 
+# Variables communes aux trois consoles front (un seul back-end / une seule
+# base partagés). À renseigner une fois : elles sont héritées par les 3 sites.
+envVarGroups:
+  - name: olu360-frontend-shared
+    envVars:
+      - key: VITE_API_URL
+        sync: false
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
+      - key: VITE_ALLOW_DEV_LOGIN
+        value: "false"
+
 services:
+  # ── Back-end unique, partagé par les trois consoles ───────────────────────
   - type: web
     name: recouvrement-backend
     runtime: node
     rootDir: backend
     plan: free
     buildCommand: npm install --include=dev && npm run build
+    # prisma migrate deploy applique les migrations additives au démarrage
+    # (dont accesPlanningCoursiers) — jamais de reset, jamais de perte.
     startCommand: npm run prisma:deploy && npm start
     healthCheckPath: /health
     envVars:
@@ -29,9 +46,12 @@ services:
         sync: false
       - key: FRONTEND_URL
         sync: false
+      # Liste blanche séparée par des virgules — les 3 origines des consoles :
+      # https://recouvrement.olu360.com,https://operations.olu360.com,https://coursier.olu360.com
       - key: CORS_ORIGIN
         sync: false
 
+  # ── Console Recouvrement ─────────────────────────────────────────────────
   - type: web
     name: recouvrement-frontend
     runtime: static
@@ -39,14 +59,41 @@ services:
     buildCommand: npm install --include=dev && npm run build
     staticPublishPath: dist
     envVars:
-      - key: VITE_API_URL
-        sync: false
-      - key: VITE_SUPABASE_URL
-        sync: false
-      - key: VITE_SUPABASE_ANON_KEY
-        sync: false
-      - key: VITE_ALLOW_DEV_LOGIN
-        value: "false"
+      - fromGroup: olu360-frontend-shared
+      - key: VITE_CONSOLE
+        value: recouvrement
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+  # ── Console Opérations ───────────────────────────────────────────────────
+  - type: web
+    name: operations-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install --include=dev && npm run build
+    staticPublishPath: dist
+    envVars:
+      - fromGroup: olu360-frontend-shared
+      - key: VITE_CONSOLE
+        value: operations
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+  # ── Console Coursier ─────────────────────────────────────────────────────
+  - type: web
+    name: coursier-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install --include=dev && npm run build
+    staticPublishPath: dist
+    envVars:
+      - fromGroup: olu360-frontend-shared
+      - key: VITE_CONSOLE
+        value: coursier
     routes:
       - type: rewrite
         source: /*
