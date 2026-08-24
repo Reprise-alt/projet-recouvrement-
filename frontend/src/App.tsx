@@ -3,6 +3,7 @@ import { useAuth } from './auth/AuthContext';
 import { LoginPage } from './components/LoginPage';
 import { RecouvrementView } from './components/RecouvrementView';
 import { ContractsView } from './components/ContractsView';
+import { ContentieuxView } from './components/ContentieuxView';
 import { PlanningView } from './components/PlanningView';
 import { OperationsView } from './components/OperationsView';
 import { CoursierPublicView } from './components/CoursierPublicView';
@@ -21,7 +22,7 @@ import { CONSOLE, CONSOLE_META, ECOSYSTEME } from './console';
 import { AUTH_MODE, redirigerVersHub } from './auth/mode';
 
 type EntityFilter = Entite | 'ALL';
-type RecouvrementTab = 'recouvrement' | 'contrats';
+type RecouvrementTab = 'recouvrement' | 'contrats' | 'contentieux';
 
 const ROLE_LABELS: Record<string, string> = {
   admin: 'Admin',
@@ -183,6 +184,12 @@ export function App() {
                 <button className={recouvrementTab === 'contrats' ? 'active' : ''} onClick={() => setRecouvrementTab('contrats')}>
                   Échéances de contrats
                 </button>
+                <button
+                  className={recouvrementTab === 'contentieux' ? 'active' : ''}
+                  onClick={() => setRecouvrementTab('contentieux')}
+                >
+                  Contentieux
+                </button>
               </>
             ) : CONSOLE === 'operations' ? (
               <button className="active">Opérations</button>
@@ -242,6 +249,8 @@ export function App() {
           <PlanningView entityFilter={effectiveEntity} role={user.role} />
         ) : recouvrementTab === 'recouvrement' ? (
           <RecouvrementView entityFilter={effectiveEntity} role={user.role} reloadKey={dataVersion} />
+        ) : recouvrementTab === 'contentieux' ? (
+          <ContentieuxView entityFilter={effectiveEntity} role={user.role} />
         ) : (
           <ContractsView entityFilter={effectiveEntity} role={user.role} reloadKey={dataVersion} />
         )}

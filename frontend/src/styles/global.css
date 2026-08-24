@@ -480,3 +480,7 @@ label{font-family:var(--font-mono);font-size:10.5px;text-transform:uppercase;let
   /* Barre d'en-tête de tableau : titre + actions s'empilent proprement. */
   .table-head{flex-wrap:wrap;gap:10px;}
 }
+
+/* Rotation d'icône pour les états de chargement (boutons Contentieux, etc.). */
+@keyframes spin{to{transform:rotate(360deg);}}
+.spin{animation:spin .9s linear infinite;}

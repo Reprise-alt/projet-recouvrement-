@@ -102,6 +102,7 @@ model Client {
   tachesCoursier        TacheCoursier[]
   tachesCoursierModeles TacheCoursierModele[]
   operations            ClientOperations?
+  dossiersContentieux   DossierContentieux[]
 
   // Clé de rapprochement à l'import (Excel manuel aujourd'hui, sync ARTIS/MAPON demain) :
   // un même client ne doit jamais être dupliqué d'un import à l'autre.
@@ -171,6 +172,13 @@ model Facture {
   dateDepot    DateTime?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
+
+  // Rattachement optionnel à un dossier contentieux : une facture impayée peut
+  // être versée à un dossier de recouvrement judiciaire. Nullable (la grande
+  // majorité des factures ne passe jamais au contentieux) ; SetNull pour ne
+  // pas perdre la facture si le dossier est supprimé.
+  dossierContentieux   DossierContentieux? @relation(fields: [dossierContentieuxId], references: [id], onDelete: SetNull)
+  dossierContentieuxId String?
 
   // Clé de fusion à l'import : le numéro de facture, jamais l'ordre des lignes.
   @@unique([clientId, numero])
@@ -272,6 +280,7 @@ model Utilisateur {
 
   actions          ActionRecouvrement[]
   comptesOperation ClientOperations[]   @relation("ChargeDeCompte")
+  dossiersContentieux DossierContentieux[] @relation("CreateurDossier")
 }
 
 // Seuils de paliers de recouvrement (jours de retard), config unique du groupe.
@@ -890,4 +899,174 @@ model ConfigOperations {
 
   finContratVigilanceJours Int @default(90)
   finContratRisqueJours    Int @default(30)
+}
+
+// =====================================================================
+// MODULE CONTENTIEUX — « Copilote Contentieux »
+// ---------------------------------------------------------------------
+// Fait passer une créance de l'amiable au judiciaire (cadre OHADA /
+// AUPSRVE : injonction de payer). L'IA prépare (analyse + décompte +
+// checklist) ; un huissier ou un avocat valide et signe. Voir la note de
+// cadrage du module. Aucune donnée juridique n'est inventée : chaque
+// montant/date est rattaché à une pièce, et les actes générés sont des
+// PROJETS à faire valider par le professionnel.
+// =====================================================================
+
+enum StatutDossierContentieux {
+  ouvert     // créé, pièces en cours de dépôt
+  analyse    // analyse IA produite
+  pret       // recevable, prêt à transmettre au professionnel
+  transmis   // remis à l'huissier / avocat
+  depose     // déposé au tribunal
+  clos       // recouvré ou classé sans suite
+}
+
+// Verdict de recevabilité (synthèse de l'analyse OHADA).
+enum VerdictRecevabilite {
+  non_evalue
+  pret         // créance certaine, liquide, exigible + pièces complètes
+  a_completer  // recevable sur le fond mais pièces manquantes
+  risque       // prescription probable, créance non certaine, etc.
+}
+
+// Type de pièce versée au dossier (sert au classement et à la checklist).
+enum TypePiece {
+  facture
+  bon_commande
+  contrat
+  mise_en_demeure
+  preuve_livraison
+  echange           // e-mail / WhatsApp / courrier
+  releve_de_compte
+  autre
+}
+
+// Actes réellement pratiqués par les huissiers au Sénégal (calqués sur les
+// modèles fournis par l'étude) :
+//  - commandement_de_payer : l'huissier somme le débiteur de payer sous 8 jours.
+//  - assignation_en_paiement : commandement qui vaut aussi assignation à
+//    comparaître devant le Tribunal de commerce (rappel art. 33 CPC, exposé
+//    des faits, « PAR CES MOTIFS », bordereau de pièces).
+enum TypeActe {
+  mise_en_demeure
+  commandement_de_payer
+  assignation_en_paiement
+  decompte_de_creance
+  bordereau_de_pieces
+}
+
+enum StatutActe {
+  brouillon   // projet généré par l'IA, non relu
+  valide      // relu par le professionnel
+  signe       // signé, prêt au dépôt
+}
+
+model DossierContentieux {
+  id       String @id @default(cuid())
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId String
+
+  reference String                   @unique @default(cuid()) // référence lisible du dossier
+  statut    StatutDossierContentieux @default(ouvert)
+  verdict   VerdictRecevabilite      @default(non_evalue)
+
+  // Montant réclamé = somme des postes du décompte (principal + intérêts +
+  // pénalités + frais). Recalculé à chaque analyse, jamais saisi à la main.
+  montantReclame Float?
+
+  // Créé par (auteur du dossier) — SetNull pour conserver l'historique si le
+  // compte est supprimé, comme ActionRecouvrement.
+  createur   Utilisateur? @relation("CreateurDossier", fields: [createurId], references: [id], onDelete: SetNull)
+  createurId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  factures Facture[]
+  pieces   PieceContentieux[]
+  analyse  AnalyseContentieux?
+  decompte LigneDecompte[]
+  actes    ActeContentieux[]
+
+  @@index([clientId])
+}
+
+// Pièce versée au dossier. Le contenu binaire est stocké en base (bytea) pour
+// que le module soit autonome (pas de dépendance à un stockage objet pour le
+// MVP). ocrTexte / extraitJson sont remplis par l'analyse IA.
+model PieceContentieux {
+  id        String             @id @default(cuid())
+  dossier   DossierContentieux @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  dossierId String
+
+  type       TypePiece @default(autre)
+  nomFichier String
+  mimeType   String
+  contenu    Bytes // le fichier lui-même
+  taille     Int
+
+  ocrTexte    String? // texte extrait par l'IA (aperçu)
+  extraitJson Json? // faits structurés extraits (montant, date, référence…)
+
+  createdAt      DateTime        @default(now())
+  lignesDecompte LigneDecompte[] // postes du décompte sourcés sur cette pièce
+
+  @@index([dossierId])
+}
+
+// Résultat de l'analyse OHADA d'un dossier (1 par dossier, remplacé à chaque
+// relance de l'analyse). Les trois conditions de l'injonction de payer +
+// prescription + pièces manquantes + compétence.
+model AnalyseContentieux {
+  id        String             @id @default(cuid())
+  dossier   DossierContentieux @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  dossierId String             @unique
+
+  certaine       Boolean // la dette est-elle prouvée par une pièce ?
+  liquide        Boolean // le montant est-il chiffré et justifié ?
+  exigible       Boolean // l'échéance est-elle dépassée ?
+  prescriptionOk Boolean // la créance est-elle encore dans les délais ?
+
+  manquants   String[] // pièces / éléments manquants (checklist)
+  competence  String? // juridiction compétente (domicile du débiteur)
+  syntheseIa  String? // synthèse rédigée par l'IA
+  modeleIa    String? // modèle Claude utilisé (traçabilité)
+  createdAt   DateTime @default(now())
+}
+
+// Un poste du décompte de créance, rattaché à une pièce justificative.
+model LigneDecompte {
+  id        String             @id @default(cuid())
+  dossier   DossierContentieux @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  dossierId String
+
+  poste   String // « Principal facture 2024-114 », « Intérêts de retard »…
+  montant Float
+
+  // Source : la pièce qui justifie ce montant (SetNull si la pièce est retirée
+  // — on garde la ligne, mais elle devient « non sourcée » et ressort en alerte).
+  sourcePiece   PieceContentieux? @relation(fields: [sourcePieceId], references: [id], onDelete: SetNull)
+  sourcePieceId String?
+
+  @@index([dossierId])
+}
+
+// Acte généré (PROJET). Fichier produit à partir d'un gabarit versionné.
+// Reste au statut brouillon tant qu'un professionnel ne l'a pas validé/signé.
+model ActeContentieux {
+  id        String             @id @default(cuid())
+  dossier   DossierContentieux @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  dossierId String
+
+  type           TypeActe
+  gabaritVersion String // ex. « injonction-de-payer/v0.1 » — traçabilité juridique
+  contenu        Bytes // le document (PDF)
+  mimeType       String     @default("application/pdf")
+  statut         StatutActe @default(brouillon)
+
+  valideParId String?
+  signeLe     DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([dossierId])
 }

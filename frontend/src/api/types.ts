@@ -865,3 +865,103 @@ export interface AssistantMessage {
 export interface AssistantChatResponse {
   message: AssistantMessage;
 }
+
+// ============================================================================
+// Contentieux -- Copilote Contentieux (dépôt d'un dossier judiciaire, analyse
+// IA + moteur déterministe OHADA, génération de PROJETS d'actes d'huissier).
+// Voir backend/src/routes/contentieux.ts et lib/contentieux.ts.
+// ============================================================================
+
+export type StatutDossierContentieux = 'ouvert' | 'analyse' | 'pret' | 'transmis' | 'depose' | 'clos';
+export type VerdictRecevabilite = 'non_evalue' | 'pret' | 'a_completer' | 'risque';
+export type TypePiece =
+  | 'facture'
+  | 'bon_commande'
+  | 'contrat'
+  | 'mise_en_demeure'
+  | 'preuve_livraison'
+  | 'echange'
+  | 'releve_de_compte'
+  | 'autre';
+export type TypeActe =
+  | 'mise_en_demeure'
+  | 'commandement_de_payer'
+  | 'assignation_en_paiement'
+  | 'decompte_de_creance'
+  | 'bordereau_de_pieces';
+export type StatutActe = 'brouillon' | 'valide' | 'signe';
+
+export interface PieceContentieux {
+  id: string;
+  type: TypePiece;
+  nomFichier: string;
+  mimeType: string;
+  taille: number;
+  ocrTexte: string | null;
+  extraitJson: unknown | null;
+  createdAt: string;
+}
+
+export interface LigneDecompte {
+  id: string;
+  poste: string;
+  montant: number;
+  sourcePieceId: string | null;
+}
+
+export interface AnalyseContentieux {
+  id: string;
+  certaine: boolean;
+  liquide: boolean;
+  exigible: boolean;
+  prescriptionOk: boolean;
+  manquants: string[];
+  competence: string | null;
+  syntheseIa: string | null;
+  modeleIa: string | null;
+  createdAt: string;
+}
+
+export interface ActeContentieux {
+  id: string;
+  type: TypeActe;
+  gabaritVersion: string;
+  statut: StatutActe;
+  createdAt: string;
+}
+
+export interface DossierContentieuxListItem {
+  id: string;
+  reference: string;
+  statut: StatutDossierContentieux;
+  verdict: VerdictRecevabilite;
+  montantReclame: number | null;
+  createdAt: string;
+  client: { id: string; nom: string; entite: Entite };
+  _count: { pieces: number; factures: number };
+}
+
+export interface DossierContentieuxDetail {
+  id: string;
+  reference: string;
+  statut: StatutDossierContentieux;
+  verdict: VerdictRecevabilite;
+  montantReclame: number | null;
+  createdAt: string;
+  client: { id: string; nom: string; entite: Entite };
+  factures: Facture[];
+  pieces: PieceContentieux[];
+  analyse: AnalyseContentieux | null;
+  decompte: LigneDecompte[];
+  actes: ActeContentieux[];
+}
+
+// Réponse de POST /dossiers/:id/analyser.
+export interface AnalyseResponse {
+  verdict: VerdictRecevabilite;
+  montantReclame: number | null;
+  analyse: AnalyseContentieux | null;
+  decompte: LigneDecompte[];
+  iaUtilisee: boolean;
+  iaDisponible: boolean;
+}
