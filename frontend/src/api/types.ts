@@ -24,6 +24,8 @@ export interface CurrentUser {
   accesRecouvrement: boolean;
   roleOperations: RoleOperations | null;
   accesPlanningCoursiers: boolean;
+  // Accès au seul onglet Contentieux (collaborateur juridique externe).
+  accesContentieux: boolean;
   derniereConnexion?: string | null;
 }
 
@@ -885,11 +887,20 @@ export type TypePiece =
   | 'autre';
 export type TypeActe =
   | 'mise_en_demeure'
+  | 'commandement_societe'
   | 'commandement_de_payer'
   | 'assignation_en_paiement'
   | 'decompte_de_creance'
   | 'bordereau_de_pieces';
 export type StatutActe = 'brouillon' | 'valide' | 'signe';
+
+export interface AvocatRef {
+  id: string;
+  nom: string;
+}
+export interface Avocat extends AvocatRef {
+  email: string;
+}
 
 export interface PieceContentieux {
   id: string;
@@ -927,6 +938,10 @@ export interface ActeContentieux {
   type: TypeActe;
   gabaritVersion: string;
   statut: StatutActe;
+  valideParId: string | null;
+  valideLe: string | null;
+  signeLe: string | null;
+  aVersionSignee?: boolean;
   createdAt: string;
 }
 
@@ -938,6 +953,7 @@ export interface DossierContentieuxListItem {
   montantReclame: number | null;
   createdAt: string;
   client: { id: string; nom: string; entite: Entite };
+  avocat: AvocatRef | null;
   _count: { pieces: number; factures: number };
 }
 
@@ -949,6 +965,7 @@ export interface DossierContentieuxDetail {
   montantReclame: number | null;
   createdAt: string;
   client: { id: string; nom: string; entite: Entite };
+  avocat: AvocatRef | null;
   factures: Facture[];
   pieces: PieceContentieux[];
   analyse: AnalyseContentieux | null;

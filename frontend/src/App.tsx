@@ -100,8 +100,19 @@ export function App() {
     if (!user) return false;
     if (CONSOLE === 'operations') return !!user.roleOperations;
     if (CONSOLE === 'coursier') return user.accesPlanningCoursiers;
-    return user.accesRecouvrement;
+    // La console Recouvrement admet aussi les collaborateurs juridiques externes
+    // (accesContentieux), qui n'y verront QUE l'onglet Contentieux.
+    return user.accesRecouvrement || user.accesContentieux;
   }, [user]);
+
+  // Collaborateur juridique externe : accès Contentieux sans le recouvrement
+  // interne. On ne lui montre que l'onglet Contentieux, ni la partie financière
+  // ni l'administration.
+  const contentieuxSeul = !!user && user.accesContentieux && !user.accesRecouvrement;
+
+  useEffect(() => {
+    if (contentieuxSeul) setRecouvrementTab('contentieux');
+  }, [contentieuxSeul]);
 
   if (loading) return null;
   if (!user) {
@@ -175,15 +186,19 @@ export function App() {
           <div className="rail-nav">
             {CONSOLE === 'recouvrement' ? (
               <>
-                <button
-                  className={recouvrementTab === 'recouvrement' ? 'active' : ''}
-                  onClick={() => setRecouvrementTab('recouvrement')}
-                >
-                  Recouvrement
-                </button>
-                <button className={recouvrementTab === 'contrats' ? 'active' : ''} onClick={() => setRecouvrementTab('contrats')}>
-                  Échéances de contrats
-                </button>
+                {!contentieuxSeul && (
+                  <>
+                    <button
+                      className={recouvrementTab === 'recouvrement' ? 'active' : ''}
+                      onClick={() => setRecouvrementTab('recouvrement')}
+                    >
+                      Recouvrement
+                    </button>
+                    <button className={recouvrementTab === 'contrats' ? 'active' : ''} onClick={() => setRecouvrementTab('contrats')}>
+                      Échéances de contrats
+                    </button>
+                  </>
+                )}
                 <button
                   className={recouvrementTab === 'contentieux' ? 'active' : ''}
                   onClick={() => setRecouvrementTab('contentieux')}
@@ -247,10 +262,10 @@ export function App() {
           <OperationsView entityFilter={effectiveEntity} user={user} reloadKey={dataVersion} />
         ) : CONSOLE === 'coursier' ? (
           <PlanningView entityFilter={effectiveEntity} role={user.role} />
+        ) : contentieuxSeul || recouvrementTab === 'contentieux' ? (
+          <ContentieuxView entityFilter={effectiveEntity} role={user.role} avocat={contentieuxSeul} />
         ) : recouvrementTab === 'recouvrement' ? (
           <RecouvrementView entityFilter={effectiveEntity} role={user.role} reloadKey={dataVersion} />
-        ) : recouvrementTab === 'contentieux' ? (
-          <ContentieuxView entityFilter={effectiveEntity} role={user.role} />
         ) : (
           <ContractsView entityFilter={effectiveEntity} role={user.role} reloadKey={dataVersion} />
         )}

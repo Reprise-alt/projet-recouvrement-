@@ -25,6 +25,9 @@ export interface AuthedUser {
   accesRecouvrement: boolean;
   roleOperations: RoleOperations | null;
   accesPlanningCoursiers: boolean;
+  // Accès au seul onglet Contentieux (collaborateur juridique externe). Drapeau
+  // LOCAL : jamais réaligné depuis le socle SSO — un admin l'attribue ici.
+  accesContentieux: boolean;
 }
 
 declare global {
@@ -69,6 +72,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     accesRecouvrement: utilisateur.accesRecouvrement,
     roleOperations: (utilisateur.roleOperations as RoleOperations | null) ?? null,
     accesPlanningCoursiers: utilisateur.accesPlanningCoursiers,
+    accesContentieux: utilisateur.accesContentieux,
   };
   next();
 }
@@ -125,6 +129,8 @@ async function requireAuthSso(req: Request, res: Response, next: NextFunction) {
     accesRecouvrement: utilisateur.accesRecouvrement,
     roleOperations: (utilisateur.roleOperations as RoleOperations | null) ?? null,
     accesPlanningCoursiers: utilisateur.accesPlanningCoursiers,
+    // Non réaligné depuis le socle : drapeau local (l'externe n'existe pas côté hub).
+    accesContentieux: utilisateur.accesContentieux,
   };
   next();
 }
@@ -150,6 +156,27 @@ export function requireAccesRecouvrement(req: Request, res: Response, next: Next
     return res.status(403).json({ error: 'Accès refusé — pas d\'accès au module Recouvrement' });
   }
   next();
+}
+
+// Porte d'entrée du module Contentieux. Admet DEUX profils : les internes du
+// recouvrement (accesRecouvrement) ET les collaborateurs juridiques externes
+// (accesContentieux) — ces derniers n'ayant accès qu'à cet onglet. La
+// distinction de DROITS (l'externe ne fait que consulter/valider/signer, et ne
+// voit que ses dossiers assignés) est appliquée dans le routeur contentieux via
+// estCollaborateurJuridique().
+export function requireAccesContentieux(req: Request, res: Response, next: NextFunction) {
+  if (!req.user) return res.status(401).json({ error: 'Authentification requise' });
+  if (!req.user.accesRecouvrement && !req.user.accesContentieux) {
+    return res.status(403).json({ error: 'Accès refusé — pas d\'accès au module Contentieux' });
+  }
+  next();
+}
+
+// Vrai pour un collaborateur juridique externe : accès Contentieux SANS accès
+// recouvrement interne. Détermine le périmètre (dossiers assignés uniquement) et
+// les droits restreints (consulter + valider/signer, jamais créer/modifier).
+export function estCollaborateurJuridique(user: AuthedUser): boolean {
+  return user.accesContentieux && !user.accesRecouvrement;
 }
 
 // Porte d'entrée de la console Planning des coursiers -- découplée du
