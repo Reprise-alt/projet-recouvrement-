@@ -37,6 +37,7 @@ import {
   type DonneesAssignation,
   type Huissier,
 } from '../lib/actes/actesContentieux';
+import { logoEntite, mentionsLegales } from '../lib/actes/mentionsLegales';
 import { StatutActe, StatutDossierContentieux, TypePiece, TypeActe } from '@prisma/client';
 
 export const contentieuxRouter = Router();
@@ -377,16 +378,21 @@ contentieuxRouter.post('/dossiers/:id/actes/commandement-societe', async (req, r
     if (!factures.length) return res.status(400).json({ error: 'Aucune facture rattachée : décompte impossible.' });
     const total = dossier.montantReclame ?? decompte.reduce((s, l) => s + l.montant, 0);
 
+    // Pré-remplissage depuis les mentions légales officielles de l'entité ; une
+    // valeur saisie dans le formulaire prime toujours. Logo de l'entité si connu.
+    const base = mentionsLegales(client?.entite);
+    const b = req.body?.societe || {};
     const donnees: DonneesCommandementSociete = {
       societe: {
-        nom: String(req.body?.societe?.nom || client?.entite || 'La société créancière'),
-        formeJuridique: req.body?.societe?.formeJuridique,
-        adresse: req.body?.societe?.adresse,
-        rccm: req.body?.societe?.rccm,
-        ninea: req.body?.societe?.ninea,
-        tel: req.body?.societe?.tel,
-        email: req.body?.societe?.email,
-        representant: req.body?.societe?.representant,
+        nom: String(b.nom || base?.nom || client?.entite || 'La société créancière'),
+        formeJuridique: b.formeJuridique || base?.formeJuridique,
+        adresse: b.adresse || base?.adresse,
+        rccm: b.rccm || base?.rccm,
+        ninea: b.ninea || base?.ninea,
+        tel: b.tel || base?.tel,
+        email: b.email || base?.email,
+        representant: b.representant,
+        logo: logoEntite(client?.entite),
       },
       lieu: req.body?.lieu,
       date: new Date(),
@@ -396,8 +402,8 @@ contentieuxRouter.post('/dossiers/:id/actes/commandement-societe', async (req, r
       debiteurRepresentant: req.body?.debiteurRepresentant,
       montantPrincipal: total,
       delaiJours: num(req.body?.delaiJours),
-      signataireNom: req.body?.signataireNom,
-      signataireQualite: req.body?.signataireQualite,
+      signataireNom: req.body?.signataireNom || base?.signataireNom,
+      signataireQualite: req.body?.signataireQualite || base?.signataireQualite,
       factures: factures.map((f) => ({ numero: f.numero, date: f.dateFacture, echeance: f.dateEcheance, montant: f.montant })),
       decompte: decompte.map((l) => ({ poste: l.poste, montant: l.montant })),
     };
@@ -489,6 +495,16 @@ contentieuxRouter.get('/avocats', async (req, res, next) => {
       orderBy: { nom: 'asc' },
     });
     res.json(avocats);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// --- Mentions légales pré-remplies d'une entité (pour l'entête, interne) ---
+contentieuxRouter.get('/mentions/:entite', async (req, res, next) => {
+  try {
+    if (bloquerSiCollaborateur(req, res)) return;
+    res.json(mentionsLegales(req.params.entite) ?? null);
   } catch (err) {
     next(err);
   }

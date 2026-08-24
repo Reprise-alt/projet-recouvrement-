@@ -894,6 +894,18 @@ export type TypeActe =
   | 'bordereau_de_pieces';
 export type StatutActe = 'brouillon' | 'valide' | 'signe';
 
+export interface MentionsLegales {
+  nom?: string;
+  formeJuridique?: string;
+  adresse?: string;
+  rccm?: string;
+  ninea?: string;
+  tel?: string;
+  email?: string;
+  signataireNom?: string;
+  signataireQualite?: string;
+}
+
 export interface AvocatRef {
   id: string;
   nom: string;
