@@ -11,7 +11,15 @@
 // Versions tracées pour l'audit (GABARIT_*_VERSION).
 // =====================================================================
 import PDFDocument from 'pdfkit';
-import { fmtDate, fmtFCFA } from '../dates';
+import { fmtDate } from '../dates';
+
+// Montant FCFA PDF-safe : toLocaleString('fr-FR') insère une espace fine
+// insécable (U+202F) que les polices standard de pdfkit (Helvetica AFM) ne
+// possèdent pas et rendent en « / ». On la remplace (ainsi que l'espace
+// insécable U+00A0) par une espace normale.
+function fmtFCFA(n: number): string {
+  return Math.round(n).toLocaleString("fr-FR").replace(/[\u202F\u00A0\u2009]/g, ' ') + ' FCFA';
+}
 
 export const GABARIT_COMMANDEMENT_SOCIETE_VERSION = 'commandement-societe/v0.1';
 export const GABARIT_COMMANDEMENT_VERSION = 'commandement-de-payer/v0.1';
@@ -53,6 +61,7 @@ export interface Societe {
   tel?: string;
   email?: string;
   representant?: string; // « représentée par M. … , Gérant »
+  logo?: Buffer; // logo PNG de l'entité, dessiné dans l'entête si présent
 }
 
 export interface DonneesCommandementSociete {
@@ -176,24 +185,39 @@ function bufferDePdf(doc: PDFKit.PDFDocument): Promise<Buffer> {
   });
 }
 
-// Entête de la société créancière (papier à en-tête textuel : nom en gras +
-// mentions légales, filet de séparation). L'acte « étape 1 » émane de la
-// société elle-même, pas d'une étude d'huissier.
+// Entête de la société créancière (papier à en-tête : logo à gauche + nom en
+// gras et mentions légales à droite, filet de séparation). L'acte « étape 1 »
+// émane de la société elle-même, pas d'une étude d'huissier.
 function enteteSociete(doc: PDFKit.PDFDocument, s: Societe) {
-  doc.fontSize(15).font('Helvetica-Bold').text(s.nom.toUpperCase());
+  const left = 56;
+  const logoSize = 54;
+  const textX = s.logo ? left + logoSize + 14 : left;
+  const top = doc.y;
+
+  if (s.logo) {
+    try {
+      doc.image(s.logo, left, top, { width: logoSize, height: logoSize });
+    } catch {
+      /* logo illisible : on continue sans, l'entête reste valable */
+    }
+  }
+
+  doc.fontSize(15).font('Helvetica-Bold').fillColor('#000').text(s.nom.toUpperCase(), textX, top + 2, { width: doc.page.width - 56 - textX });
   doc.fontSize(8.5).font('Helvetica').fillColor('#444');
-  if (s.formeJuridique) doc.text(s.formeJuridique);
+  if (s.formeJuridique) doc.text(s.formeJuridique, textX, doc.y, { width: doc.page.width - 56 - textX });
   const contact = [s.adresse, s.tel ? 'Tél : ' + s.tel : '', s.email ? 'Email : ' + s.email : '']
     .filter((x): x is string => Boolean(x))
     .join('  ·  ');
-  if (contact) doc.text(contact);
+  if (contact) doc.text(contact, textX, doc.y, { width: doc.page.width - 56 - textX });
   const legal = [s.rccm ? 'RCCM : ' + s.rccm : '', s.ninea ? 'NINEA : ' + s.ninea : '']
     .filter((x): x is string => Boolean(x))
     .join('  ·  ');
-  if (legal) doc.text(legal);
+  if (legal) doc.text(legal, textX, doc.y, { width: doc.page.width - 56 - textX });
   doc.fillColor('#000');
-  const y = doc.y + 4;
+  // Le filet passe sous l'élément le plus bas (logo ou bloc texte).
+  const y = Math.max(doc.y, top + (s.logo ? logoSize : 0)) + 6;
   doc.save().moveTo(56, y).lineTo(doc.page.width - 56, y).lineWidth(1).strokeColor('#222').stroke().restore();
+  doc.x = left;
   doc.y = y + 10;
 }
 
@@ -257,6 +281,7 @@ export function genererCommandementSocietePdf(d: DonneesCommandementSociete): Pr
     doc.font('Helvetica');
     doc.moveDown(0.8);
   }
+  doc.x = 56; // les colonnes du tableau ont déplacé le curseur : on le remet à la marge
 
   doc.font('Helvetica-Bold').text(
     `Par la présente, nous vous mettons en demeure et vous faisons COMMANDEMENT de régler la somme de ${fmtFCFA(d.montantPrincipal)} dans un délai de ${delai} (${enLettres(delai)}) jours à compter de la réception de ce courrier.`,
