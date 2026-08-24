@@ -18,6 +18,7 @@ import { parcImpressionRouter } from './routes/parcImpression';
 import { coursierPublicRouter } from './routes/coursierPublic';
 import { sallePublicRouter } from './routes/sallePublic';
 import { assistantRouter } from './routes/assistant';
+import { contentieuxRouter } from './routes/contentieux';
 import { errorHandler } from './middleware/errorHandler';
 
 export function createApp() {
@@ -51,6 +52,7 @@ export function createApp() {
   app.use('/api/coursier-public', coursierPublicRouter);
   app.use('/api/salle-public', sallePublicRouter);
   app.use('/api/assistant', assistantRouter);
+  app.use('/api/contentieux', contentieuxRouter);
 
   app.use(errorHandler);
   return app;
