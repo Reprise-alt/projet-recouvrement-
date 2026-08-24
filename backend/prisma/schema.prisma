@@ -278,9 +278,18 @@ model Utilisateur {
   // d'accès au Planning auparavant) : on ne retire l'accès à personne.
   accesPlanningCoursiers Boolean @default(false)
 
+  // Accès au SEUL onglet Contentieux, sans le reste de la console Recouvrement.
+  // Destiné aux collaborateurs juridiques externes (avocat / huissier) : ils ne
+  // voient que les dossiers qui LEUR sont assignés (cf. DossierContentieux.avocat)
+  // et ne peuvent que consulter + valider/signer les actes. Drapeau LOCAL (jamais
+  // miroir du socle SSO) : un admin l'attribue depuis Utilisateurs. Un interne
+  // garde son accès via accesRecouvrement ; ce booléen est le vecteur des externes.
+  accesContentieux Boolean @default(false)
+
   actions          ActionRecouvrement[]
   comptesOperation ClientOperations[]   @relation("ChargeDeCompte")
   dossiersContentieux DossierContentieux[] @relation("CreateurDossier")
+  dossiersAssignes    DossierContentieux[] @relation("AvocatDossier")
 }
 
 // Seuils de paliers de recouvrement (jours de retard), config unique du groupe.
@@ -949,8 +958,9 @@ enum TypePiece {
 //    des faits, « PAR CES MOTIFS », bordereau de pièces).
 enum TypeActe {
   mise_en_demeure
-  commandement_de_payer
-  assignation_en_paiement
+  commandement_societe     // étape 1 : commandement émis par la société créancière, sur son entête (≈ 90 j)
+  commandement_de_payer    // étape 2 : commandement de payer signifié par huissier
+  assignation_en_paiement  // étape 3 : commandement valant assignation devant le tribunal
   decompte_de_creance
   bordereau_de_pieces
 }
@@ -979,6 +989,12 @@ model DossierContentieux {
   createur   Utilisateur? @relation("CreateurDossier", fields: [createurId], references: [id], onDelete: SetNull)
   createurId String?
 
+  // Avocat / huissier assigné au dossier. Un collaborateur juridique externe
+  // (accesContentieux) ne voit QUE les dossiers où il figure ici. SetNull pour
+  // ne pas perdre le dossier si le compte est supprimé.
+  avocat   Utilisateur? @relation("AvocatDossier", fields: [avocatId], references: [id], onDelete: SetNull)
+  avocatId String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -989,6 +1005,7 @@ model DossierContentieux {
   actes    ActeContentieux[]
 
   @@index([clientId])
+  @@index([avocatId])
 }
 
 // Pièce versée au dossier. Le contenu binaire est stocké en base (bytea) pour
@@ -1064,9 +1081,16 @@ model ActeContentieux {
   mimeType       String     @default("application/pdf")
   statut         StatutActe @default(brouillon)
 
-  valideParId String?
-  signeLe     DateTime?
-  createdAt   DateTime @default(now())
+  // Cycle de validation humain-dans-la-boucle : un professionnel relit le
+  // PROJET (valideParId + valideLe), puis dépose la version signée scannée
+  // (contenuSigne) qui fait passer le statut à « signe ». On conserve toujours
+  // le projet d'origine dans `contenu` à côté de la version signée.
+  valideParId   String?
+  valideLe      DateTime?
+  contenuSigne  Bytes?
+  mimeTypeSigne String?
+  signeLe       DateTime?
+  createdAt     DateTime @default(now())
 
   @@index([dossierId])
 }

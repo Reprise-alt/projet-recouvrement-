@@ -39,7 +39,7 @@ function Badge({ v }: { v: VerdictRecevabilite }) {
   );
 }
 
-export function ContentieuxView({ entityFilter }: { entityFilter: string; role?: string }) {
+export function ContentieuxView({ entityFilter, avocat = false }: { entityFilter: string; role?: string; avocat?: boolean }) {
   const { data: dossiers, loading, error, refetch } = useResource<DossierContentieuxListItem[]>(
     '/api/contentieux/dossiers',
   );
@@ -58,13 +58,16 @@ export function ContentieuxView({ entityFilter }: { entityFilter: string; role?:
           <div>
             <h3 style={{ margin: 0 }}>Dossiers contentieux</h3>
             <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 2 }}>
-              Dépôt d’un dossier judiciaire, analyse de recevabilité (OHADA) et génération de projets d’actes pour
-              huissier / avocat.
+              {avocat
+                ? 'Dossiers qui vous sont assignés : consultez les pièces, validez et déposez la version signée des actes.'
+                : 'Dépôt d’un dossier judiciaire, analyse de recevabilité (OHADA) et génération de projets d’actes pour huissier / avocat.'}
             </div>
           </div>
-          <button className="primary" onClick={() => setCreating(true)}>
-            <FilePlus2 size={14} /> Nouveau dossier
-          </button>
+          {!avocat && (
+            <button className="primary" onClick={() => setCreating(true)}>
+              <FilePlus2 size={14} /> Nouveau dossier
+            </button>
+          )}
         </div>
 
         {loading ? (
@@ -74,10 +77,11 @@ export function ContentieuxView({ entityFilter }: { entityFilter: string; role?:
         ) : visibles.length === 0 ? (
           <div className="empty-state">
             <Scale size={26} style={{ opacity: 0.4, marginBottom: 10 }} />
-            <h3>Aucun dossier contentieux</h3>
+            <h3>{avocat ? 'Aucun dossier ne vous est assigné' : 'Aucun dossier contentieux'}</h3>
             <p>
-              Ouvrez un dossier à partir d’un client débiteur pour rassembler ses pièces, vérifier la recevabilité et
-              préparer les actes.
+              {avocat
+                ? 'Les dossiers que le recouvrement vous confie apparaîtront ici.'
+                : 'Ouvrez un dossier à partir d’un client débiteur pour rassembler ses pièces, vérifier la recevabilité et préparer les actes.'}
             </p>
           </div>
         ) : (
@@ -87,6 +91,7 @@ export function ContentieuxView({ entityFilter }: { entityFilter: string; role?:
                 <th style={{ padding: '10px 22px' }}>Client</th>
                 <th style={{ padding: '10px 12px' }}>Recevabilité</th>
                 <th style={{ padding: '10px 12px' }}>Statut</th>
+                {!avocat && <th style={{ padding: '10px 12px' }}>Avocat</th>}
                 <th style={{ padding: '10px 12px', textAlign: 'right' }}>Montant</th>
                 <th style={{ padding: '10px 12px', textAlign: 'right' }}>Pièces</th>
                 <th style={{ padding: '10px 22px', textAlign: 'right' }}>Ouvert le</th>
@@ -110,6 +115,11 @@ export function ContentieuxView({ entityFilter }: { entityFilter: string; role?:
                     <Badge v={d.verdict} />
                   </td>
                   <td style={{ padding: '13px 12px', fontSize: 12.5 }}>{STATUT_LABEL[d.statut]}</td>
+                  {!avocat && (
+                    <td style={{ padding: '13px 12px', fontSize: 12.5, color: d.avocat ? 'var(--ink)' : 'var(--ink-soft)' }}>
+                      {d.avocat ? d.avocat.nom : '—'}
+                    </td>
+                  )}
                   <td className="mono" style={{ padding: '13px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                     {d.montantReclame != null ? fmtFCFA(d.montantReclame) : '—'}
                   </td>
@@ -139,7 +149,7 @@ export function ContentieuxView({ entityFilter }: { entityFilter: string; role?:
       )}
 
       {selected && (
-        <ContentieuxDrawer dossierId={selected} onClose={() => setSelected(null)} onChanged={refetch} />
+        <ContentieuxDrawer dossierId={selected} avocat={avocat} onClose={() => setSelected(null)} onChanged={refetch} />
       )}
     </>
   );

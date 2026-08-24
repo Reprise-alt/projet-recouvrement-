@@ -24,7 +24,7 @@ usersRouter.get('/', async (_req, res, next) => {
 
 usersRouter.post('/', async (req, res, next) => {
   try {
-    const { nom, email, role, entite, estAgentRecouvrement, accesRecouvrement, roleOperations, accesPlanningCoursiers } =
+    const { nom, email, role, entite, estAgentRecouvrement, accesRecouvrement, roleOperations, accesPlanningCoursiers, accesContentieux } =
       req.body ?? {};
     if (!nom || !email || !VALID_ROLES.includes(role)) {
       return res.status(400).json({ error: 'nom, email et role (admin|manager_entite|comptable) sont requis' });
@@ -62,6 +62,9 @@ usersRouter.post('/', async (req, res, next) => {
             : typeof accesRecouvrement === 'boolean'
               ? accesRecouvrement
               : true,
+        // Contentieux — attribué explicitement (collaborateur juridique externe),
+        // jamais implicite. Défaut false.
+        accesContentieux: typeof accesContentieux === 'boolean' ? accesContentieux : false,
       },
     });
     res.status(201).json(created);
@@ -72,7 +75,7 @@ usersRouter.post('/', async (req, res, next) => {
 
 usersRouter.patch('/:id', async (req, res, next) => {
   try {
-    const { nom, role, entite, estAgentRecouvrement, accesRecouvrement, roleOperations, accesPlanningCoursiers } = req.body ?? {};
+    const { nom, role, entite, estAgentRecouvrement, accesRecouvrement, roleOperations, accesPlanningCoursiers, accesContentieux } = req.body ?? {};
     if (role && !VALID_ROLES.includes(role)) {
       return res.status(400).json({ error: 'role invalide' });
     }
@@ -92,6 +95,7 @@ usersRouter.patch('/:id', async (req, res, next) => {
         accesRecouvrement: typeof accesRecouvrement === 'boolean' ? accesRecouvrement : undefined,
         roleOperations: roleOperations !== undefined ? roleOperations || null : undefined,
         accesPlanningCoursiers: typeof accesPlanningCoursiers === 'boolean' ? accesPlanningCoursiers : undefined,
+        accesContentieux: typeof accesContentieux === 'boolean' ? accesContentieux : undefined,
       },
     });
     res.json(updated);

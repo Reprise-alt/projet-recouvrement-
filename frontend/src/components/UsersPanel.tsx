@@ -37,6 +37,7 @@ export function UsersPanel({ onClose }: { onClose: () => void }) {
         estAgentRecouvrement: form.get('estAgentRecouvrement') === 'on',
         accesRecouvrement: form.get('accesRecouvrement') === 'on',
         accesPlanningCoursiers: form.get('accesPlanningCoursiers') === 'on',
+        accesContentieux: form.get('accesContentieux') === 'on',
         roleOperations: form.get('roleOperations') || undefined,
       });
       showToast('Utilisateur créé');
@@ -77,6 +78,18 @@ export function UsersPanel({ onClose }: { onClose: () => void }) {
     setBusy(true);
     try {
       await api.patch(`/api/users/${u.id}`, { accesPlanningCoursiers: !u.accesPlanningCoursiers });
+      refetch();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggleContentieux(u: CurrentUser) {
+    setBusy(true);
+    try {
+      await api.patch(`/api/users/${u.id}`, { accesContentieux: !u.accesContentieux });
       refetch();
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Erreur');
@@ -161,6 +174,10 @@ export function UsersPanel({ onClose }: { onClose: () => void }) {
                   <input type="checkbox" checked={u.accesPlanningCoursiers} disabled={busy} onChange={() => togglePlanningCoursiers(u)} style={{ width: 'auto' }} />
                   Accès Planning coursiers
                 </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 5, textTransform: 'none', fontFamily: 'var(--font-body)', cursor: 'pointer' }} title="Collaborateur juridique externe : ne voit que l'onglet Contentieux, uniquement les dossiers qui lui sont assignés">
+                  <input type="checkbox" checked={u.accesContentieux} disabled={busy} onChange={() => toggleContentieux(u)} style={{ width: 'auto' }} />
+                  Accès Contentieux (avocat/huissier)
+                </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 5, textTransform: 'none', fontFamily: 'var(--font-body)' }}>
                   Accès Opérations :
                   <select
@@ -224,6 +241,10 @@ export function UsersPanel({ onClose }: { onClose: () => void }) {
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, textTransform: 'none', fontFamily: 'var(--font-body)', fontSize: 13, cursor: 'pointer' }}>
             <input type="checkbox" name="accesPlanningCoursiers" defaultChecked style={{ width: 'auto' }} />
             Accès à la console Planning des coursiers
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, textTransform: 'none', fontFamily: 'var(--font-body)', fontSize: 13, cursor: 'pointer' }}>
+            <input type="checkbox" name="accesContentieux" style={{ width: 'auto' }} />
+            Accès Contentieux seul (collaborateur juridique externe — avocat / huissier)
           </label>
           <div>
             <label>Accès Opérations (optionnel)</label>

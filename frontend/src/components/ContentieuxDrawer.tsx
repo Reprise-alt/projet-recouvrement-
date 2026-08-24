@@ -1,13 +1,16 @@
 import { useRef, useState } from 'react';
 import {
   AlertTriangle,
+  Building2,
   Check,
   Download,
   FileText,
   Gavel,
   Loader2,
   Scale,
+  ShieldCheck,
   Sparkles,
+  Stamp,
   Trash2,
   Upload,
   X,
@@ -19,8 +22,10 @@ import { fmtDate, fmtFCFA } from '../lib/constants';
 import {
   ActeContentieux,
   AnalyseResponse,
+  Avocat,
   DossierContentieuxDetail,
   PieceContentieux,
+  StatutActe,
   StatutDossierContentieux,
   TypeActe,
   TypePiece,
@@ -56,10 +61,17 @@ const TYPE_PIECE_LABEL: Record<TypePiece, string> = {
 
 const TYPE_ACTE_LABEL: Record<TypeActe, string> = {
   mise_en_demeure: 'Mise en demeure',
-  commandement_de_payer: 'Commandement de payer',
+  commandement_societe: 'Commandement de payer (société)',
+  commandement_de_payer: 'Commandement de payer (huissier)',
   assignation_en_paiement: 'Commandement valant assignation',
   decompte_de_creance: 'Décompte de créance',
   bordereau_de_pieces: 'Bordereau de pièces',
+};
+
+const STATUT_ACTE: Record<StatutActe, { label: string; color: string; bg: string }> = {
+  brouillon: { label: 'Projet', color: 'var(--ink-soft)', bg: 'var(--line-soft)' },
+  valide: { label: 'Validé', color: 'var(--accent-dark)', bg: 'var(--accent-soft)' },
+  signe: { label: 'Signé', color: 'var(--accent-dark)', bg: 'var(--accent-soft)' },
 };
 
 function poids(o: number): string {
@@ -68,10 +80,12 @@ function poids(o: number): string {
 
 export function ContentieuxDrawer({
   dossierId,
+  avocat = false,
   onClose,
   onChanged,
 }: {
   dossierId: string;
+  avocat?: boolean;
   onClose: () => void;
   onChanged: () => void;
 }) {
@@ -80,14 +94,45 @@ export function ContentieuxDrawer({
     `/api/contentieux/dossiers/${dossierId}`,
   );
   const fileRef = useRef<HTMLInputElement>(null);
+  const signeRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [analysing, setAnalysing] = useState(false);
   const [params, setParams] = useState({ tauxInteretAnnuel: '', penalite: '', frais: '' });
-  const [openForm, setOpenForm] = useState<null | 'commandement' | 'assignation'>(null);
+  const [openForm, setOpenForm] = useState<null | 'societe' | 'commandement' | 'assignation'>(null);
+  // Id de l'acte en cours de dépôt de version signée (déclenche le sélecteur de fichier).
+  const [acteSigneCible, setActeSigneCible] = useState<string | null>(null);
 
   function refreshAll() {
     refetch();
     onChanged();
+  }
+
+  async function handleValider(acte: ActeContentieux) {
+    if (!confirm(`Valider « ${TYPE_ACTE_LABEL[acte.type]} » ? Vous confirmez avoir relu ce projet.`)) return;
+    try {
+      await api.post(`/api/contentieux/dossiers/${dossierId}/actes/${acte.id}/valider`);
+      showToast('Acte validé');
+      refreshAll();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    }
+  }
+
+  async function handleDeposerSigne(files: FileList | null) {
+    const acteId = acteSigneCible;
+    setActeSigneCible(null);
+    if (!files || !files.length || !acteId) return;
+    try {
+      const fd = new FormData();
+      fd.append('fichier', files[0]);
+      await api.upload(`/api/contentieux/dossiers/${dossierId}/actes/${acteId}/signe`, fd);
+      showToast('Version signée déposée');
+      refreshAll();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Échec du dépôt');
+    } finally {
+      if (signeRef.current) signeRef.current.value = '';
+    }
   }
 
   async function handleUpload(files: FileList | null) {
@@ -135,7 +180,7 @@ export function ContentieuxDrawer({
     }
   }
 
-  async function genererActe(type: 'commandement' | 'assignation', body: Record<string, unknown>) {
+  async function genererActe(type: 'commandement-societe' | 'commandement' | 'assignation', body: Record<string, unknown>) {
     try {
       await api.post<ActeContentieux>(`/api/contentieux/dossiers/${dossierId}/actes/${type}`, body);
       showToast('Projet d’acte généré');
@@ -162,6 +207,9 @@ export function ContentieuxDrawer({
               Dossier contentieux · <span className="mono">{dossier.reference.slice(-8).toUpperCase()}</span> ·{' '}
               {STATUT_LABEL[dossier.statut]}
             </div>
+
+            {/* ---------- Avocat assigné (interne) ---------- */}
+            {!avocat && <AssignationAvocat dossierId={dossierId} avocatActuel={dossier.avocat} onChanged={refreshAll} />}
 
             {/* ---------- Verdict de recevabilité ---------- */}
             <VerdictBloc dossier={dossier} />
@@ -218,9 +266,11 @@ export function ContentieuxDrawer({
             {/* ---------- Pièces du dossier ---------- */}
             <div className="section-title">
               Pièces du dossier ({dossier.pieces.length})
-              <button onClick={() => fileRef.current?.click()} disabled={uploading}>
-                {uploading ? <Loader2 size={13} className="spin" /> : <Upload size={13} />} Ajouter
-              </button>
+              {!avocat && (
+                <button onClick={() => fileRef.current?.click()} disabled={uploading}>
+                  {uploading ? <Loader2 size={13} className="spin" /> : <Upload size={13} />} Ajouter
+                </button>
+              )}
             </div>
             <input
               ref={fileRef}
@@ -234,13 +284,14 @@ export function ContentieuxDrawer({
               <div
                 className="empty-state"
                 style={{ padding: '28px 20px', border: '1px dashed var(--line)', borderRadius: 12, marginBottom: 18 }}
-                onClick={() => fileRef.current?.click()}
-                role="button"
+                onClick={avocat ? undefined : () => fileRef.current?.click()}
+                role={avocat ? undefined : 'button'}
               >
                 <FileText size={22} style={{ opacity: 0.5, marginBottom: 8 }} />
                 <p style={{ margin: 0, fontSize: 12.5 }}>
-                  Déposez ici toutes les pièces du dossier (factures, bons de commande, contrat, mises en demeure,
-                  preuves de livraison, échanges…). PDF ou images.
+                  {avocat
+                    ? 'Aucune pièce déposée pour le moment.'
+                    : 'Déposez ici toutes les pièces du dossier (factures, bons de commande, contrat, mises en demeure, preuves de livraison, échanges…). PDF ou images.'}
                 </p>
               </div>
             ) : (
@@ -277,64 +328,72 @@ export function ContentieuxDrawer({
                     >
                       <Download size={13} />
                     </button>
-                    <button className="danger-btn" title="Retirer" onClick={() => handleDeletePiece(p)} style={{ padding: 6 }}>
-                      <Trash2 size={13} />
-                    </button>
+                    {!avocat && (
+                      <button className="danger-btn" title="Retirer" onClick={() => handleDeletePiece(p)} style={{ padding: 6 }}>
+                        <Trash2 size={13} />
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
             )}
 
-            {/* ---------- Analyse ---------- */}
-            <div className="section-title">Analyse</div>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-              <input
-                type="number"
-                placeholder="Taux intérêt % / an"
-                value={params.tauxInteretAnnuel}
-                onChange={(e) => setParams({ ...params, tauxInteretAnnuel: e.target.value })}
-                style={{ flex: '1 1 120px', minWidth: 0 }}
-              />
-              <input
-                type="number"
-                placeholder="Pénalité (FCFA)"
-                value={params.penalite}
-                onChange={(e) => setParams({ ...params, penalite: e.target.value })}
-                style={{ flex: '1 1 120px', minWidth: 0 }}
-              />
-              <input
-                type="number"
-                placeholder="Frais (FCFA)"
-                value={params.frais}
-                onChange={(e) => setParams({ ...params, frais: e.target.value })}
-                style={{ flex: '1 1 120px', minWidth: 0 }}
-              />
-            </div>
-            <button className="primary" onClick={handleAnalyser} disabled={analysing} style={{ width: '100%' }}>
-              {analysing ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />}{' '}
-              {dossier.analyse ? 'Relancer l’analyse' : 'Analyser le dossier'}
-            </button>
-            {dossier.analyse?.syntheseIa && (
-              <div
-                style={{
-                  marginTop: 12,
-                  padding: '12px 14px',
-                  background: 'var(--surface)',
-                  border: '1px solid var(--line)',
-                  borderRadius: 10,
-                  fontSize: 12.5,
-                  lineHeight: 1.55,
-                }}
-              >
-                <div className="mono" style={{ fontSize: 10, textTransform: 'uppercase', color: 'var(--ink-soft)', marginBottom: 6 }}>
-                  Synthèse IA {dossier.analyse.modeleIa ? `· ${dossier.analyse.modeleIa}` : ''}
+            {/* ---------- Analyse (interne uniquement) ---------- */}
+            {!avocat && (
+              <>
+                <div className="section-title">Analyse</div>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+                  <input
+                    type="number"
+                    placeholder="Taux intérêt % / an"
+                    value={params.tauxInteretAnnuel}
+                    onChange={(e) => setParams({ ...params, tauxInteretAnnuel: e.target.value })}
+                    style={{ flex: '1 1 120px', minWidth: 0 }}
+                  />
+                  <input
+                    type="number"
+                    placeholder="Pénalité (FCFA)"
+                    value={params.penalite}
+                    onChange={(e) => setParams({ ...params, penalite: e.target.value })}
+                    style={{ flex: '1 1 120px', minWidth: 0 }}
+                  />
+                  <input
+                    type="number"
+                    placeholder="Frais (FCFA)"
+                    value={params.frais}
+                    onChange={(e) => setParams({ ...params, frais: e.target.value })}
+                    style={{ flex: '1 1 120px', minWidth: 0 }}
+                  />
                 </div>
-                {dossier.analyse.syntheseIa}
-              </div>
+                <button className="primary" onClick={handleAnalyser} disabled={analysing} style={{ width: '100%' }}>
+                  {analysing ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />}{' '}
+                  {dossier.analyse ? 'Relancer l’analyse' : 'Analyser le dossier'}
+                </button>
+                {dossier.analyse?.syntheseIa && (
+                  <div
+                    style={{
+                      marginTop: 12,
+                      padding: '12px 14px',
+                      background: 'var(--surface)',
+                      border: '1px solid var(--line)',
+                      borderRadius: 10,
+                      fontSize: 12.5,
+                      lineHeight: 1.55,
+                    }}
+                  >
+                    <div className="mono" style={{ fontSize: 10, textTransform: 'uppercase', color: 'var(--ink-soft)', marginBottom: 6 }}>
+                      Synthèse IA {dossier.analyse.modeleIa ? `· ${dossier.analyse.modeleIa}` : ''}
+                    </div>
+                    {dossier.analyse.syntheseIa}
+                  </div>
+                )}
+              </>
             )}
 
-            {/* ---------- Actes (projets) ---------- */}
-            <div className="section-title" style={{ marginTop: 26 }}>Projets d’actes</div>
+            {/* ---------- Actes ---------- */}
+            <div className="section-title" style={{ marginTop: 26 }}>
+              {avocat ? 'Actes à valider / signer' : 'Projets d’actes'}
+            </div>
             <div
               style={{
                 fontSize: 11.5,
@@ -352,59 +411,130 @@ export function ContentieuxDrawer({
               un avocat avant tout dépôt. La plateforme ne dépose jamais d’acte.
             </div>
 
-            <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-              <button
-                onClick={() => setOpenForm(openForm === 'commandement' ? null : 'commandement')}
-                disabled={dossier.factures.length === 0}
-                style={{ flex: 1 }}
-              >
-                <Scale size={14} /> Commandement de payer
-              </button>
-              <button
-                onClick={() => setOpenForm(openForm === 'assignation' ? null : 'assignation')}
-                disabled={dossier.factures.length === 0}
-                style={{ flex: 1 }}
-              >
-                <Gavel size={14} /> Assignation en paiement
-              </button>
-            </div>
-
-            {openForm === 'commandement' && <CommandementForm onGenerer={(b) => genererActe('commandement', b)} />}
-            {openForm === 'assignation' && <AssignationForm onGenerer={(b) => genererActe('assignation', b)} />}
-
-            {dossier.actes.length > 0 && (
-              <div style={{ marginTop: 8 }}>
-                {dossier.actes.map((a) => (
-                  <div
-                    key={a.id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 10,
-                      padding: '9px 0',
-                      borderBottom: '1px solid var(--line-soft)',
-                    }}
+            {/* Génération : interne uniquement, dans l'ordre d'escalade. */}
+            {!avocat && (
+              <>
+                <div style={{ fontSize: 10.5, color: 'var(--ink-soft)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                  Escalade : ① société (≈ 90 j) → ② huissier → ③ assignation
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+                  <button
+                    onClick={() => setOpenForm(openForm === 'societe' ? null : 'societe')}
+                    disabled={dossier.factures.length === 0}
+                    style={{ flex: '1 1 180px' }}
                   >
-                    <Scale size={15} style={{ opacity: 0.6 }} />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 12.5 }}>{TYPE_ACTE_LABEL[a.type]}</div>
-                      <div style={{ fontSize: 10.5, color: 'var(--ink-soft)' }}>
-                        Projet · {a.gabaritVersion} · {fmtDate(a.createdAt)}
+                    <Building2 size={14} /> ① Commandement société
+                  </button>
+                  <button
+                    onClick={() => setOpenForm(openForm === 'commandement' ? null : 'commandement')}
+                    disabled={dossier.factures.length === 0}
+                    style={{ flex: '1 1 150px' }}
+                  >
+                    <Scale size={14} /> ② Huissier
+                  </button>
+                  <button
+                    onClick={() => setOpenForm(openForm === 'assignation' ? null : 'assignation')}
+                    disabled={dossier.factures.length === 0}
+                    style={{ flex: '1 1 150px' }}
+                  >
+                    <Gavel size={14} /> ③ Assignation
+                  </button>
+                </div>
+
+                {openForm === 'societe' && (
+                  <CommandementSocieteForm entite={dossier.client.entite} onGenerer={(b) => genererActe('commandement-societe', b)} />
+                )}
+                {openForm === 'commandement' && <CommandementForm onGenerer={(b) => genererActe('commandement', b)} />}
+                {openForm === 'assignation' && <AssignationForm onGenerer={(b) => genererActe('assignation', b)} />}
+              </>
+            )}
+
+            {/* Input caché : dépôt de la version signée. */}
+            <input
+              ref={signeRef}
+              type="file"
+              hidden
+              accept=".pdf,image/*"
+              onChange={(e) => handleDeposerSigne(e.target.files)}
+            />
+
+            {dossier.actes.length === 0 ? (
+              <p style={{ color: 'var(--ink-soft)', fontSize: 12.5, marginTop: 4 }}>
+                {avocat ? 'Aucun acte à traiter pour le moment.' : 'Aucun acte généré pour ce dossier.'}
+              </p>
+            ) : (
+              <div style={{ marginTop: 8 }}>
+                {dossier.actes.map((a) => {
+                  const st = STATUT_ACTE[a.statut];
+                  return (
+                    <div
+                      key={a.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        padding: '10px 0',
+                        borderBottom: '1px solid var(--line-soft)',
+                        flexWrap: 'wrap',
+                      }}
+                    >
+                      <Scale size={15} style={{ opacity: 0.6, flexShrink: 0 }} />
+                      <div style={{ flex: '1 1 180px', minWidth: 0 }}>
+                        <div style={{ fontSize: 12.5, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          {TYPE_ACTE_LABEL[a.type]}
+                          <span className="badge" style={{ color: st.color, background: st.bg }}>{st.label}</span>
+                        </div>
+                        <div style={{ fontSize: 10.5, color: 'var(--ink-soft)' }}>
+                          {a.gabaritVersion} · {fmtDate(a.createdAt)}
+                          {a.signeLe ? ` · signé le ${fmtDate(a.signeLe)}` : a.valideLe ? ` · validé le ${fmtDate(a.valideLe)}` : ''}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        <button
+                          title="Télécharger le projet"
+                          onClick={() =>
+                            downloadFile(
+                              `/api/contentieux/dossiers/${dossierId}/actes/${a.id}/pdf`,
+                              `projet-${a.type}.pdf`,
+                            ).catch(() => showToast('Échec du téléchargement'))
+                          }
+                        >
+                          <Download size={13} /> Projet
+                        </button>
+                        {a.statut === 'brouillon' && (
+                          <button className="primary" title="Valider (relu)" onClick={() => handleValider(a)}>
+                            <ShieldCheck size={13} /> Valider
+                          </button>
+                        )}
+                        {a.statut !== 'signe' && (
+                          <button
+                            title="Déposer la version signée"
+                            onClick={() => {
+                              setActeSigneCible(a.id);
+                              signeRef.current?.click();
+                            }}
+                          >
+                            <Stamp size={13} /> Déposer signé
+                          </button>
+                        )}
+                        {a.aVersionSignee && (
+                          <button
+                            className="primary"
+                            title="Télécharger la version signée"
+                            onClick={() =>
+                              downloadFile(
+                                `/api/contentieux/dossiers/${dossierId}/actes/${a.id}/signe/pdf`,
+                                `signe-${a.type}.pdf`,
+                              ).catch(() => showToast('Échec du téléchargement'))
+                            }
+                          >
+                            <Download size={13} /> Signé
+                          </button>
+                        )}
                       </div>
                     </div>
-                    <button
-                      className="primary"
-                      onClick={() =>
-                        downloadFile(
-                          `/api/contentieux/dossiers/${dossierId}/actes/${a.id}/pdf`,
-                          `projet-${a.type}.pdf`,
-                        ).catch(() => showToast('Échec du téléchargement'))
-                      }
-                    >
-                      <Download size={13} /> PDF
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </>
@@ -501,6 +631,148 @@ function Champ({
         style={{ width: '100%' }}
       />
     </label>
+  );
+}
+
+// ------------------------------------------------- Assignation d'un avocat
+function AssignationAvocat({
+  dossierId,
+  avocatActuel,
+  onChanged,
+}: {
+  dossierId: string;
+  avocatActuel: { id: string; nom: string } | null;
+  onChanged: () => void;
+}) {
+  const { showToast } = useToast();
+  const { data: avocats } = useResource<Avocat[]>('/api/contentieux/avocats');
+  const [saving, setSaving] = useState(false);
+
+  async function assigner(avocatId: string) {
+    setSaving(true);
+    try {
+      await api.patch(`/api/contentieux/dossiers/${dossierId}/avocat`, { avocatId: avocatId || null });
+      showToast(avocatId ? 'Avocat assigné' : 'Assignation retirée');
+      onChanged();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        margin: '4px 0 10px',
+        padding: '8px 12px',
+        border: '1px solid var(--line)',
+        borderRadius: 10,
+        flexWrap: 'wrap',
+      }}
+    >
+      <ShieldCheck size={14} style={{ opacity: 0.6 }} />
+      <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}>Avocat / huissier assigné</span>
+      <select
+        value={avocatActuel?.id || ''}
+        disabled={saving}
+        onChange={(e) => assigner(e.target.value)}
+        style={{ flex: '1 1 160px', minWidth: 0 }}
+      >
+        <option value="">— Aucun —</option>
+        {(avocats ?? []).map((a) => (
+          <option key={a.id} value={a.id}>
+            {a.nom}
+          </option>
+        ))}
+      </select>
+      {avocats && avocats.length === 0 && (
+        <span style={{ fontSize: 10.5, color: 'var(--ink-soft)' }}>
+          Aucun collaborateur juridique — activez « Accès Contentieux » sur un compte dans Utilisateurs.
+        </span>
+      )}
+    </div>
+  );
+}
+
+// --------------------------------- Commandement société (étape 1, entête)
+function CommandementSocieteForm({
+  entite,
+  onGenerer,
+}: {
+  entite: string;
+  onGenerer: (b: Record<string, unknown>) => void;
+}) {
+  const [f, setF] = useState({
+    nom: entite || '',
+    formeJuridique: '',
+    adresse: '',
+    rccm: '',
+    ninea: '',
+    tel: '',
+    email: '',
+    representant: '',
+    debiteurAdresse: '',
+    lieu: '',
+    delaiJours: '8',
+    signataireNom: '',
+    signataireQualite: '',
+  });
+  const set = (k: keyof typeof f) => (v: string) => setF({ ...f, [k]: v });
+  return (
+    <div style={{ border: '1px solid var(--line)', borderRadius: 10, padding: 14, marginBottom: 12 }}>
+      <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginBottom: 8 }}>
+        Entête de votre société (le nom est pré-rempli ; complétez les mentions légales pour l’en-tête).
+      </div>
+      <Champ label="Société (nom sur l’entête)" value={f.nom} onChange={set('nom')} />
+      <Champ label="Forme juridique / capital" value={f.formeJuridique} onChange={set('formeJuridique')} placeholder="SARL au capital de 10 000 000 FCFA" />
+      <Champ label="Adresse du siège" value={f.adresse} onChange={set('adresse')} />
+      <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ flex: 1 }}><Champ label="RCCM" value={f.rccm} onChange={set('rccm')} /></div>
+        <div style={{ flex: 1 }}><Champ label="NINEA" value={f.ninea} onChange={set('ninea')} /></div>
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ flex: 1 }}><Champ label="Téléphone" value={f.tel} onChange={set('tel')} /></div>
+        <div style={{ flex: 1 }}><Champ label="Email" value={f.email} onChange={set('email')} /></div>
+      </div>
+      <Champ label="Adresse du débiteur" value={f.debiteurAdresse} onChange={set('debiteurAdresse')} />
+      <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ flex: 1 }}><Champ label="Lieu" value={f.lieu} onChange={set('lieu')} placeholder="Dakar" /></div>
+        <div style={{ flex: 1 }}><Champ label="Délai de paiement (jours)" type="number" value={f.delaiJours} onChange={set('delaiJours')} /></div>
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ flex: 1 }}><Champ label="Signataire (nom)" value={f.signataireNom} onChange={set('signataireNom')} /></div>
+        <div style={{ flex: 1 }}><Champ label="Qualité" value={f.signataireQualite} onChange={set('signataireQualite')} placeholder="Directeur du recouvrement" /></div>
+      </div>
+      <button
+        className="primary"
+        style={{ width: '100%', marginTop: 4 }}
+        onClick={() =>
+          onGenerer({
+            societe: {
+              nom: f.nom || undefined,
+              formeJuridique: f.formeJuridique || undefined,
+              adresse: f.adresse || undefined,
+              rccm: f.rccm || undefined,
+              ninea: f.ninea || undefined,
+              tel: f.tel || undefined,
+              email: f.email || undefined,
+              representant: f.representant || undefined,
+            },
+            debiteurAdresse: f.debiteurAdresse || undefined,
+            lieu: f.lieu || undefined,
+            delaiJours: f.delaiJours ? Number(f.delaiJours) : undefined,
+            signataireNom: f.signataireNom || undefined,
+            signataireQualite: f.signataireQualite || undefined,
+          })
+        }
+      >
+        Générer le commandement (société)
+      </button>
+    </div>
   );
 }
 

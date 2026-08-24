@@ -13,11 +13,15 @@
 import PDFDocument from 'pdfkit';
 import { fmtDate, fmtFCFA } from '../dates';
 
+export const GABARIT_COMMANDEMENT_SOCIETE_VERSION = 'commandement-societe/v0.1';
 export const GABARIT_COMMANDEMENT_VERSION = 'commandement-de-payer/v0.1';
 export const GABARIT_ASSIGNATION_VERSION = 'assignation-en-paiement/v0.1';
 
 const MENTION_PROJET =
   "PROJET établi par assistance IA — à vérifier, compléter et signer par un huissier de justice ou un avocat avant tout usage. Ne constitue pas un acte juridique en l'état.";
+
+const MENTION_PROJET_SOCIETE =
+  "PROJET — à vérifier et à signer par un représentant habilité de la société avant envoi au débiteur. Étape amiable préalable à la voie d'huissier.";
 
 export interface Huissier {
   nom: string; // « Maître Abdoulaye BA »
@@ -35,6 +39,36 @@ export interface FactureActe {
 export interface LigneActe {
   poste: string;
   montant: number;
+}
+
+// Entête de la société créancière (SORAM / IRIS / SIS) pour le commandement
+// « étape 1 ». Toutes les mentions sont éditables côté formulaire faute d'être
+// stockées en base ; seul le nom est obligatoire.
+export interface Societe {
+  nom: string;
+  formeJuridique?: string; // « SARL au capital de … »
+  adresse?: string;
+  rccm?: string; // Registre du commerce
+  ninea?: string; // Identifiant fiscal (Sénégal)
+  tel?: string;
+  email?: string;
+  representant?: string; // « représentée par M. … , Gérant »
+}
+
+export interface DonneesCommandementSociete {
+  societe: Societe;
+  lieu?: string;
+  date?: Date;
+  reference?: string; // référence lisible du dossier
+  debiteurNom: string;
+  debiteurAdresse?: string;
+  debiteurRepresentant?: string;
+  montantPrincipal: number;
+  delaiJours?: number; // délai de paiement laissé (défaut 8 j)
+  signataireNom?: string; // qui signe (nom)
+  signataireQualite?: string; // « Directeur du recouvrement »
+  factures?: FactureActe[];
+  decompte?: LigneActe[];
 }
 
 export interface DonneesCommandement {
@@ -140,6 +174,125 @@ function bufferDePdf(doc: PDFKit.PDFDocument): Promise<Buffer> {
     doc.on('error', reject);
     doc.end();
   });
+}
+
+// Entête de la société créancière (papier à en-tête textuel : nom en gras +
+// mentions légales, filet de séparation). L'acte « étape 1 » émane de la
+// société elle-même, pas d'une étude d'huissier.
+function enteteSociete(doc: PDFKit.PDFDocument, s: Societe) {
+  doc.fontSize(15).font('Helvetica-Bold').text(s.nom.toUpperCase());
+  doc.fontSize(8.5).font('Helvetica').fillColor('#444');
+  if (s.formeJuridique) doc.text(s.formeJuridique);
+  const contact = [s.adresse, s.tel ? 'Tél : ' + s.tel : '', s.email ? 'Email : ' + s.email : '']
+    .filter((x): x is string => Boolean(x))
+    .join('  ·  ');
+  if (contact) doc.text(contact);
+  const legal = [s.rccm ? 'RCCM : ' + s.rccm : '', s.ninea ? 'NINEA : ' + s.ninea : '']
+    .filter((x): x is string => Boolean(x))
+    .join('  ·  ');
+  if (legal) doc.text(legal);
+  doc.fillColor('#000');
+  const y = doc.y + 4;
+  doc.save().moveTo(56, y).lineTo(doc.page.width - 56, y).lineWidth(1).strokeColor('#222').stroke().restore();
+  doc.y = y + 10;
+}
+
+// ---------------------------------------------------------------------
+// 0. COMMANDEMENT DE PAYER — ÉMIS PAR LA SOCIÉTÉ (étape 1, ~90 j)
+// Lettre comminatoire sur entête du créancier, sommant le débiteur de payer
+// sous un délai, préalable amiable avant la voie d'huissier. Juridiquement,
+// c'est une mise en demeure renforcée : elle fait courir les intérêts et
+// constitue la preuve d'une tentative de recouvrement amiable.
+// ---------------------------------------------------------------------
+export function genererCommandementSocietePdf(d: DonneesCommandementSociete): Promise<Buffer> {
+  const doc = new PDFDocument({ size: 'A4', margin: 56 });
+  const date = d.date || new Date();
+  const lieu = d.lieu || 'Dakar';
+  const delai = d.delaiJours && d.delaiJours > 0 ? Math.round(d.delaiJours) : 8;
+
+  enteteSociete(doc, d.societe);
+
+  // Coordonnées destinataire + lieu/date (aligné à droite comme un courrier).
+  doc.fontSize(10).font('Helvetica');
+  const yRef = doc.y;
+  doc.font('Helvetica-Bold').text(d.debiteurNom, 320, yRef, { width: doc.page.width - 56 - 320, align: 'left' });
+  doc.font('Helvetica');
+  if (d.debiteurAdresse) doc.text(d.debiteurAdresse, { width: doc.page.width - 56 - 320 });
+  if (d.debiteurRepresentant) doc.text('À l\'attention de ' + d.debiteurRepresentant, { width: doc.page.width - 56 - 320 });
+  doc.moveDown(0.5);
+  doc.text(`${lieu}, le ${fmtDate(date)}`, 320, doc.y, { width: doc.page.width - 56 - 320 });
+  doc.moveDown(1.2);
+  doc.x = 56;
+
+  // Objet + LR/AR.
+  doc.font('Helvetica-Bold').fontSize(10.5).text(
+    `Objet : COMMANDEMENT DE PAYER${d.reference ? ' — dossier ' + d.reference : ''}`,
+  );
+  doc.font('Helvetica').fontSize(9).fillColor('#555').text('Lettre recommandée avec accusé de réception');
+  doc.fillColor('#000').fontSize(10.5);
+  doc.moveDown(0.9);
+
+  doc.text('Madame, Monsieur,');
+  doc.moveDown(0.5);
+  doc.text(
+    `Sauf erreur ou omission de notre part, nos écritures font apparaître à ce jour, à votre charge, une créance impayée d'un montant de ${fmtFCFA(d.montantPrincipal)} (${enLettres(d.montantPrincipal)} francs CFA) au titre des factures échues et non réglées ci-après détaillées.`,
+    { align: 'justify' },
+  );
+  doc.moveDown(0.6);
+
+  // Tableau des factures / décompte.
+  const lignes: LigneActe[] = d.decompte && d.decompte.length
+    ? d.decompte
+    : (d.factures || []).map((f) => ({ poste: `Facture ${f.numero}${f.echeance ? ' — éch. ' + fmtDate(f.echeance) : ''}`, montant: f.montant }));
+  if (lignes.length) {
+    for (const l of lignes) {
+      const y = doc.y;
+      doc.text('•  ' + l.poste, 62, y, { width: 360 });
+      doc.text(fmtFCFA(l.montant), 422, y, { width: doc.page.width - 56 - 422, align: 'right' });
+    }
+    doc.moveDown(0.3);
+    const yt = doc.y;
+    doc.font('Helvetica-Bold').text('TOTAL DÛ', 62, yt, { width: 360 });
+    doc.text(fmtFCFA(d.montantPrincipal), 422, yt, { width: doc.page.width - 56 - 422, align: 'right' });
+    doc.font('Helvetica');
+    doc.moveDown(0.8);
+  }
+
+  doc.font('Helvetica-Bold').text(
+    `Par la présente, nous vous mettons en demeure et vous faisons COMMANDEMENT de régler la somme de ${fmtFCFA(d.montantPrincipal)} dans un délai de ${delai} (${enLettres(delai)}) jours à compter de la réception de ce courrier.`,
+    { align: 'justify' },
+  );
+  doc.font('Helvetica');
+  doc.moveDown(0.6);
+  doc.text(
+    `À défaut de paiement dans ce délai, et sans autre avis de notre part, nous nous verrons contraints de confier le dossier à un huissier de justice aux fins de signification d'un commandement de payer puis, le cas échéant, d'une assignation en paiement devant la juridiction compétente, l'ensemble des frais et intérêts de retard restant à votre charge.`,
+    { align: 'justify' },
+  );
+  doc.moveDown(0.6);
+  doc.text(
+    "Si le règlement de cette somme s'est croisé avec le présent courrier, nous vous prions de ne pas tenir compte de cette demande.",
+    { align: 'justify' },
+  );
+  doc.moveDown(0.6);
+  doc.text('Dans l\'attente de votre règlement, nous vous prions d\'agréer, Madame, Monsieur, l\'expression de nos salutations distinguées.');
+  doc.moveDown(1.4);
+
+  // Signature (société).
+  const sig = doc.y;
+  doc.text(d.signataireNom || d.societe.representant || d.societe.nom, 320, sig, { width: doc.page.width - 56 - 320 });
+  if (d.signataireQualite) doc.font('Helvetica').fontSize(9).fillColor('#555').text(d.signataireQualite, { width: doc.page.width - 56 - 320 });
+  doc.fillColor('#000').fontSize(10.5);
+  doc.moveDown(2.2);
+  doc.x = 56;
+
+  // Bandeau projet (léger, spécifique société).
+  const yb = doc.y;
+  doc.save();
+  doc.rect(56, yb, doc.page.width - 112, 24).fill('#FFF6E5');
+  doc.fill('#8A5A00').fontSize(7.5).font('Helvetica-Oblique').text(MENTION_PROJET_SOCIETE, 62, yb + 6, { width: doc.page.width - 124 });
+  doc.restore();
+  doc.fill('#000');
+  return bufferDePdf(doc);
 }
 
 // ---------------------------------------------------------------------
