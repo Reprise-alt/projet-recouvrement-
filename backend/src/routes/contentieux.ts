@@ -402,8 +402,8 @@ contentieuxRouter.post('/dossiers/:id/actes/commandement-societe', async (req, r
       debiteurRepresentant: req.body?.debiteurRepresentant,
       montantPrincipal: total,
       delaiJours: num(req.body?.delaiJours),
-      signataireNom: req.body?.signataireNom,
-      signataireQualite: req.body?.signataireQualite,
+      signataireNom: req.body?.signataireNom || base?.signataireNom,
+      signataireQualite: req.body?.signataireQualite || base?.signataireQualite,
       factures: factures.map((f) => ({ numero: f.numero, date: f.dateFacture, echeance: f.dateEcheance, montant: f.montant })),
       decompte: decompte.map((l) => ({ poste: l.poste, montant: l.montant })),
     };

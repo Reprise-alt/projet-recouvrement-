@@ -895,13 +895,15 @@ export type TypeActe =
 export type StatutActe = 'brouillon' | 'valide' | 'signe';
 
 export interface MentionsLegales {
-  nom: string;
+  nom?: string;
   formeJuridique?: string;
   adresse?: string;
   rccm?: string;
   ninea?: string;
   tel?: string;
   email?: string;
+  signataireNom?: string;
+  signataireQualite?: string;
 }
 
 export interface AvocatRef {
