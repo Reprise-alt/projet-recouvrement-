@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
   Building2,
@@ -24,6 +24,7 @@ import {
   AnalyseResponse,
   Avocat,
   DossierContentieuxDetail,
+  MentionsLegales,
   PieceContentieux,
   StatutActe,
   StatutDossierContentieux,
@@ -721,11 +722,29 @@ function CommandementSocieteForm({
     signataireNom: '',
     signataireQualite: '',
   });
+  // Pré-remplit l'entête depuis les mentions légales officielles de l'entité
+  // (SORAM, IRIS…). Reste éditable. SIS renvoie null → rien à pré-remplir.
+  const { data: mentions } = useResource<MentionsLegales | null>(
+    entite ? `/api/contentieux/mentions/${encodeURIComponent(entite)}` : null,
+  );
+  useEffect(() => {
+    if (!mentions) return;
+    setF((prev) => ({
+      ...prev,
+      nom: mentions.nom || prev.nom,
+      formeJuridique: prev.formeJuridique || mentions.formeJuridique || '',
+      adresse: prev.adresse || mentions.adresse || '',
+      rccm: prev.rccm || mentions.rccm || '',
+      ninea: prev.ninea || mentions.ninea || '',
+      tel: prev.tel || mentions.tel || '',
+      email: prev.email || mentions.email || '',
+    }));
+  }, [mentions]);
   const set = (k: keyof typeof f) => (v: string) => setF({ ...f, [k]: v });
   return (
     <div style={{ border: '1px solid var(--line)', borderRadius: 10, padding: 14, marginBottom: 12 }}>
       <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginBottom: 8 }}>
-        Entête de votre société (le nom est pré-rempli ; complétez les mentions légales pour l’en-tête).
+        Entête de votre société — pré-remplie automatiquement (RCCM, NINEA…) et modifiable. Le logo est ajouté au PDF.
       </div>
       <Champ label="Société (nom sur l’entête)" value={f.nom} onChange={set('nom')} />
       <Champ label="Forme juridique / capital" value={f.formeJuridique} onChange={set('formeJuridique')} placeholder="SARL au capital de 10 000 000 FCFA" />
