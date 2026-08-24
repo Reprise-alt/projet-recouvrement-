@@ -137,6 +137,15 @@ export async function sendViaGmail(
     if (message.includes('invalid_grant')) {
       throw new Error("La connexion Gmail a été révoquée côté Google — reconnecte le compte dans Utilisateurs/Intégrations.");
     }
+    // Jeton émis avant l'ajout du scope d'envoi (gmail.send) : Google fige les
+    // permissions sur le refresh token au moment du consentement, donc le
+    // rajouter dans le code ne suffit pas — il faut déconnecter puis reconnecter
+    // le compte pour réémettre un jeton qui porte le bon scope.
+    if (message.includes('insufficient authentication scopes') || message.includes('ACCESS_TOKEN_SCOPE_INSUFFICIENT')) {
+      throw new Error(
+        "La connexion Gmail n'autorise pas l'envoi (scope manquant) — déconnecte puis reconnecte le compte dans Intégrations, et accepte bien la permission « Envoyer des e-mails en votre nom ».",
+      );
+    }
     throw err;
   }
 }
