@@ -10,14 +10,20 @@
 import { LOGOS_PNG_BASE64 } from './logosData';
 
 export interface MentionsLegales {
-  nom: string;
+  nom?: string; // optionnel : SIS n'a pas encore ses mentions -> repli sur le code d'entité
   formeJuridique?: string;
   adresse?: string;
   rccm?: string;
   ninea?: string;
   tel?: string;
   email?: string;
+  signataireNom?: string; // signataire par défaut du commandement société
+  signataireQualite?: string;
 }
+
+// Signataire par défaut commun aux trois sociétés (le représentant qui signe le
+// commandement « étape 1 »).
+const SIGNATAIRE = { signataireNom: 'Florian BAUDOIN', signataireQualite: 'Co-actionnaire, Président', tel: '+221 77 099 89 52' };
 
 export const MENTIONS_LEGALES: Record<string, MentionsLegales> = {
   SORAM: {
@@ -26,6 +32,8 @@ export const MENTIONS_LEGALES: Record<string, MentionsLegales> = {
     adresse: 'Cité Urbanisme, Ouakam, n° 35, Dakar (Sénégal)',
     rccm: 'SN-DKR-2015-B-14769',
     ninea: '005578804',
+    email: 'f.baudoin@soram-afrique.com',
+    ...SIGNATAIRE,
   },
   IRIS: {
     nom: 'IRIS AFRIQUE',
@@ -33,6 +41,13 @@ export const MENTIONS_LEGALES: Record<string, MentionsLegales> = {
     adresse: 'Almadies, Lot A1, Dakar (Sénégal)',
     rccm: 'SN-DKR-2020-B-13445',
     ninea: '007914931',
+    email: 'f.baudoin@iris-afrique.com',
+    ...SIGNATAIRE,
+  },
+  // SIS : mentions société non encore fournies (RCCM/NINEA/adresse vides) —
+  // seul le signataire par défaut est connu.
+  SIS: {
+    ...SIGNATAIRE,
   },
 };
 

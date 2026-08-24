@@ -738,6 +738,8 @@ function CommandementSocieteForm({
       ninea: prev.ninea || mentions.ninea || '',
       tel: prev.tel || mentions.tel || '',
       email: prev.email || mentions.email || '',
+      signataireNom: prev.signataireNom || mentions.signataireNom || '',
+      signataireQualite: prev.signataireQualite || mentions.signataireQualite || '',
     }));
   }, [mentions]);
   const set = (k: keyof typeof f) => (v: string) => setF({ ...f, [k]: v });
