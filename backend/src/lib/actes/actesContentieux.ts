@@ -22,6 +22,7 @@ function fmtFCFA(n: number): string {
 }
 
 export const GABARIT_COMMANDEMENT_SOCIETE_VERSION = 'commandement-societe/v0.1';
+export const GABARIT_INJONCTION_VERSION = 'requete-injonction-de-payer/v0.1';
 export const GABARIT_COMMANDEMENT_VERSION = 'commandement-de-payer/v0.1';
 export const GABARIT_ASSIGNATION_VERSION = 'assignation-en-paiement/v0.1';
 
@@ -93,6 +94,29 @@ export interface DonneesCommandement {
   montantPrincipal: number; // 1°) La somme de …
   coutActe?: number; // 2°) le coût du présent commandement
   factures?: FactureActe[];
+}
+
+// Requête aux fins d'injonction de payer (AUPSRVE) — émane du créancier
+// (éventuellement via son avocat), adressée au président du tribunal.
+export interface DonneesInjonction {
+  societe: Societe; // le requérant (créancier)
+  lieu?: string;
+  date?: Date;
+  reference?: string;
+  tribunal?: string; // « Tribunal de Commerce Hors Classe de Dakar »
+  debiteurNom: string;
+  debiteurAdresse?: string;
+  debiteurFormeJuridique?: string;
+  montantPrincipal: number;
+  interets?: number; // intérêts de droit demandés (optionnel)
+  fraisRecouvrement?: number;
+  fondement?: string; // origine de la créance (bon de commande, contrat, factures…)
+  factures?: FactureActe[];
+  decompte?: LigneActe[];
+  bordereau?: string[];
+  signataireNom?: string;
+  signataireQualite?: string;
+  avocatNom?: string; // si déposée par un avocat (nom + barreau)
 }
 
 export interface DonneesAssignation extends DonneesCommandement {
@@ -315,6 +339,107 @@ export function genererCommandementSocietePdf(d: DonneesCommandementSociete): Pr
   doc.save();
   doc.rect(56, yb, doc.page.width - 112, 24).fill('#FFF6E5');
   doc.fill('#8A5A00').fontSize(7.5).font('Helvetica-Oblique').text(MENTION_PROJET_SOCIETE, 62, yb + 6, { width: doc.page.width - 124 });
+  doc.restore();
+  doc.fill('#000');
+  return bufferDePdf(doc);
+}
+
+// ---------------------------------------------------------------------
+// 0-bis. REQUÊTE AUX FINS D'INJONCTION DE PAYER (voie rapide OHADA)
+// Procédure simplifiée de l'AUPSRVE (art. 1 et s.) : le créancier saisit par
+// requête le président de la juridiction compétente, qui rend une ordonnance
+// d'injonction de payer. Signifiée au débiteur, elle lui ouvre 15 jours pour
+// former opposition ; à défaut, elle devient exécutoire.
+// ---------------------------------------------------------------------
+export function genererRequeteInjonctionPdf(d: DonneesInjonction): Promise<Buffer> {
+  const doc = new PDFDocument({ size: 'A4', margin: 56 });
+  const date = d.date || new Date();
+  const lieu = d.lieu || 'Dakar';
+  const tribunal = d.tribunal || 'Tribunal de Commerce Hors Classe de Dakar';
+  const interets = d.interets && d.interets > 0 ? d.interets : 0;
+  const frais = d.fraisRecouvrement && d.fraisRecouvrement > 0 ? d.fraisRecouvrement : 0;
+  const total = d.montantPrincipal + interets + frais;
+
+  enteteSociete(doc, d.societe);
+  doc.fontSize(13.5).font('Helvetica-Bold').text('REQUÊTE AUX FINS D\'INJONCTION DE PAYER', { align: 'center' });
+  doc.fontSize(9).font('Helvetica-Oblique').fillColor('#555').text('(Articles 1 et suivants de l\'Acte uniforme OHADA portant organisation des procédures simplifiées de recouvrement et des voies d\'exécution)', { align: 'center' });
+  doc.fillColor('#000');
+  doc.moveDown(1);
+
+  doc.fontSize(10.5).font('Helvetica-Bold').text(`À Monsieur le Président du ${tribunal},`);
+  doc.font('Helvetica');
+  doc.moveDown(0.6);
+
+  // Le requérant.
+  const s = d.societe;
+  const identiteReq = [s.nom, s.formeJuridique, s.adresse && 'sise à ' + s.adresse, s.rccm && 'RCCM ' + s.rccm, s.ninea && 'NINEA ' + s.ninea]
+    .filter(Boolean)
+    .join(', ');
+  doc.text(`A l'honneur de vous exposer que la société ${identiteReq}, ${d.signataireNom ? 'représentée par ' + d.signataireNom + (d.signataireQualite ? ', ' + d.signataireQualite : '') + ', ' : ''}ci-après « la requérante » ;`, { align: 'justify' });
+  doc.moveDown(0.5);
+
+  // Le débiteur.
+  doc.text(`Est créancière de ${d.debiteurNom}${d.debiteurFormeJuridique ? ', ' + d.debiteurFormeJuridique : ''}${d.debiteurAdresse ? ', sise à ' + d.debiteurAdresse : ''}, ci-après « la débitrice » ;`, { align: 'justify' });
+  doc.moveDown(0.5);
+
+  // La créance.
+  doc.text(
+    `D'une créance certaine, liquide et exigible d'un montant en principal de ${fmtFCFA(d.montantPrincipal)} (${enLettres(d.montantPrincipal)} francs CFA)${d.fondement ? ', ' + d.fondement : ', résultant des factures impayées ci-après'} ;`,
+    { align: 'justify' },
+  );
+  doc.moveDown(0.5);
+
+  // Tableau factures / décompte.
+  const lignes: LigneActe[] = d.decompte && d.decompte.length
+    ? d.decompte
+    : (d.factures || []).map((f) => ({ poste: `Facture ${f.numero}${f.echeance ? ' — éch. ' + fmtDate(f.echeance) : ''}`, montant: f.montant }));
+  if (lignes.length) {
+    for (const l of lignes) {
+      const y = doc.y;
+      doc.text('•  ' + l.poste, 62, y, { width: 360 });
+      doc.text(fmtFCFA(l.montant), 422, y, { width: doc.page.width - 56 - 422, align: 'right' });
+    }
+    doc.moveDown(0.2);
+  }
+  if (interets > 0) doc.text(`Intérêts de droit : ${fmtFCFA(interets)}`, 62);
+  if (frais > 0) doc.text(`Frais de recouvrement : ${fmtFCFA(frais)}`, 62);
+  const yt = doc.y + 2;
+  doc.font('Helvetica-Bold').text('TOTAL RÉCLAMÉ', 62, yt, { width: 360 });
+  doc.text(fmtFCFA(total), 422, yt, { width: doc.page.width - 56 - 422, align: 'right' });
+  doc.font('Helvetica').text('', 56, doc.y);
+  doc.moveDown(0.6);
+
+  doc.text('Attendu que la débitrice, malgré les relances et mises en demeure, s\'est abstenue de régler sa dette ; Que la créance réunit les caractères requis pour la mise en œuvre de la procédure d\'injonction de payer ;', { align: 'justify' });
+  doc.moveDown(0.8);
+
+  doc.font('Helvetica-Bold').text('PAR CES MOTIFS', { align: 'center' });
+  doc.font('Helvetica');
+  doc.text('Vous plaise, Monsieur le Président :', { align: 'justify' });
+  doc.text(`— Rendre une ordonnance d'injonction de payer enjoignant à ${d.debiteurNom} de payer à la requérante la somme de ${fmtFCFA(total)} (${enLettres(total)} francs CFA) ;`, { indent: 8, align: 'justify' });
+  doc.text('— Condamner la débitrice aux entiers dépens ;', { indent: 8 });
+  doc.text('— Dire que la présente ordonnance sera signifiée à la débitrice, laquelle disposera d\'un délai de quinze (15) jours pour former opposition.', { indent: 8, align: 'justify' });
+  doc.moveDown(0.6);
+
+  // Bordereau.
+  doc.font('Helvetica-Bold').text('Bordereau des pièces jointes');
+  doc.font('Helvetica').fontSize(9.5);
+  const pieces = d.bordereau && d.bordereau.length ? d.bordereau : ['Factures impayées', 'Bons de commande / contrat', 'Relevé de compte', 'Mise en demeure / commandement de payer'];
+  pieces.forEach((p, i) => doc.text(`${i + 1}. ${p}`));
+  doc.fontSize(10.5);
+  doc.moveDown(0.8);
+
+  doc.text(`Fait à ${lieu}, le ${fmtDate(date)}.`);
+  doc.moveDown(0.4);
+  doc.text(d.avocatNom ? `Pour la requérante, son conseil : ${d.avocatNom}` : `Pour la requérante : ${d.signataireNom || s.representant || s.nom}${d.signataireQualite ? ', ' + d.signataireQualite : ''}`);
+  doc.moveDown(2);
+  doc.text('______________________________');
+  doc.moveDown(1);
+
+  // Bandeau projet.
+  const yb = doc.y;
+  doc.save();
+  doc.rect(56, yb, doc.page.width - 112, 30).fill('#FBEAE9');
+  doc.fill('#B0322A').fontSize(7.5).font('Helvetica-Oblique').text(MENTION_PROJET, 62, yb + 7, { width: doc.page.width - 124 });
   doc.restore();
   doc.fill('#000');
   return bufferDePdf(doc);

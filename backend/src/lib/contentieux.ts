@@ -288,3 +288,18 @@ export function evaluerRecevabilite(
 }
 
 export const CONTENTIEUX_PRESCRIPTION_ANNEES = PRESCRIPTION_ANNEES;
+
+// Date limite de prescription (créance la plus ancienne + délai) et jours
+// restants — négatif si déjà prescrit. null si aucune facture datée.
+export function infoPrescription(
+  factures: { dateEcheance: Date | string | null }[],
+): { dateLimite: string; joursRestants: number } | null {
+  const times = factures
+    .map((f) => (f.dateEcheance ? new Date(f.dateEcheance).getTime() : NaN))
+    .filter((t) => Number.isFinite(t));
+  if (!times.length) return null;
+  const limite = new Date(Math.min(...times));
+  limite.setFullYear(limite.getFullYear() + PRESCRIPTION_ANNEES);
+  const joursRestants = Math.ceil((limite.getTime() - Date.now()) / 86_400_000);
+  return { dateLimite: limite.toISOString(), joursRestants };
+}

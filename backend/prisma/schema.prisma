@@ -969,9 +969,10 @@ enum IssueDossier {
 //    des faits, « PAR CES MOTIFS », bordereau de pièces).
 enum TypeActe {
   mise_en_demeure
-  commandement_societe     // étape 1 : commandement émis par la société créancière, sur son entête (≈ 90 j)
-  commandement_de_payer    // étape 2 : commandement de payer signifié par huissier
-  assignation_en_paiement  // étape 3 : commandement valant assignation devant le tribunal
+  commandement_societe        // étape 1 : commandement émis par la société créancière, sur son entête (≈ 90 j)
+  requete_injonction_de_payer // voie rapide OHADA (AUPSRVE) : requête au président du tribunal
+  commandement_de_payer       // étape 2 : commandement de payer signifié par huissier
+  assignation_en_paiement     // étape 3 : commandement valant assignation devant le tribunal
   decompte_de_creance
   bordereau_de_pieces
 }

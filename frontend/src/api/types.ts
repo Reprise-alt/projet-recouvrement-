@@ -896,10 +896,16 @@ export type IssueDossier =
 export type TypeActe =
   | 'mise_en_demeure'
   | 'commandement_societe'
+  | 'requete_injonction_de_payer'
   | 'commandement_de_payer'
   | 'assignation_en_paiement'
   | 'decompte_de_creance'
   | 'bordereau_de_pieces';
+
+export interface InfoPrescription {
+  dateLimite: string;
+  joursRestants: number;
+}
 export type StatutActe = 'brouillon' | 'valide' | 'signe';
 
 export interface MentionsLegales {
@@ -984,6 +990,7 @@ export interface DossierContentieuxListItem {
   issue: IssueDossier | null;
   clotureLe: string | null;
   montantRecouvre: number | null;
+  prescription: InfoPrescription | null;
   _count: { pieces: number; factures: number };
 }
 
@@ -1000,6 +1007,7 @@ export interface DossierContentieuxDetail {
   clotureLe: string | null;
   montantRecouvre: number | null;
   noteCloture: string | null;
+  prescription: InfoPrescription | null;
   factures: Facture[];
   pieces: PieceContentieux[];
   analyse: AnalyseContentieux | null;

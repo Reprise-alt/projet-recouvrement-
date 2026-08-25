@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FilePlus2, Loader2, Scale, Search } from 'lucide-react';
+import { Clock, FilePlus2, Loader2, Scale, Search } from 'lucide-react';
 import { api, ApiError } from '../api/client';
 import { useResource } from '../hooks/useResource';
 import { useToast } from '../hooks/useToast';
@@ -173,9 +173,25 @@ export function ContentieuxView({ entityFilter, avocat = false }: { entityFilter
                   <td style={{ padding: '13px 22px' }}>
                     <div style={{ fontWeight: 600 }}>{d.client.nom}</div>
                     <div className="mono" style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 1 }}>{d.reference}</div>
-                    <span className="entity-tag" style={{ marginTop: 3 }}>
-                      <EntityLogo entite={d.client.entite} size={11} /> {d.client.entite}
-                    </span>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 3, flexWrap: 'wrap' }}>
+                      <span className="entity-tag">
+                        <EntityLogo entite={d.client.entite} size={11} /> {d.client.entite}
+                      </span>
+                      {d.statut !== 'clos' && d.prescription && d.prescription.joursRestants <= 180 && (
+                        <span
+                          className="badge"
+                          title={`Prescription au plus tard le ${fmtDate(d.prescription.dateLimite)}`}
+                          style={
+                            d.prescription.joursRestants <= 0
+                              ? { color: 'var(--danger)', background: 'var(--danger-soft)' }
+                              : { color: 'var(--amber-dark)', background: 'var(--amber-soft)' }
+                          }
+                        >
+                          <Clock size={10} style={{ verticalAlign: -1, marginRight: 3 }} />
+                          {d.prescription.joursRestants <= 0 ? 'Prescrit' : `Prescr. ${d.prescription.joursRestants} j`}
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td style={{ padding: '13px 12px' }}>
                     <Badge v={d.verdict} />
