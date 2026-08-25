@@ -38,7 +38,7 @@ import {
   type Huissier,
 } from '../lib/actes/actesContentieux';
 import { logoEntite, mentionsLegales } from '../lib/actes/mentionsLegales';
-import { StatutActe, StatutDossierContentieux, TypePiece, TypeActe } from '@prisma/client';
+import { IssueDossier, StatutActe, StatutDossierContentieux, TypePiece, TypeActe } from '@prisma/client';
 
 export const contentieuxRouter = Router();
 contentieuxRouter.use(requireAuth, requireAccesContentieux);
@@ -610,6 +610,54 @@ contentieuxRouter.get('/dossiers/:id/actes/:acteId/signe/pdf', async (req, res, 
     res.setHeader('Content-Type', acte.mimeTypeSigne || 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="signe-${acte.type}-${dossier.id}"`);
     res.send(Buffer.from(acte.contenuSigne));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// --- Clôturer un dossier (dénouement) ---
+// Issue positive (recouvré / transigé), résiliation volontaire, ou issue
+// judiciaire (jugement favorable / défavorable, irrécouvrable). Le compte rendu
+// de jugement se dépose séparément comme pièce de type « jugement ». Interne.
+contentieuxRouter.post('/dossiers/:id/cloturer', async (req, res, next) => {
+  try {
+    if (bloquerSiCollaborateur(req, res)) return;
+    const dossier = await chargerDossierScope(req, res);
+    if (!dossier) return;
+    const issue = String(req.body?.issue || '');
+    if (!(Object.values(IssueDossier) as string[]).includes(issue)) {
+      return res.status(400).json({ error: 'Dénouement (issue) invalide' });
+    }
+    const maj = await prisma.dossierContentieux.update({
+      where: { id: dossier.id },
+      data: {
+        statut: StatutDossierContentieux.clos,
+        issue: issue as IssueDossier,
+        clotureLe: new Date(),
+        clotureParId: req.user!.id,
+        montantRecouvre: num(req.body?.montantRecouvre) ?? null,
+        noteCloture: req.body?.note ? String(req.body.note).slice(0, 2000) : null,
+      },
+      select: { id: true, statut: true, issue: true, clotureLe: true, montantRecouvre: true, noteCloture: true },
+    });
+    res.json(maj);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// --- Rouvrir un dossier clôturé ---
+contentieuxRouter.post('/dossiers/:id/rouvrir', async (req, res, next) => {
+  try {
+    if (bloquerSiCollaborateur(req, res)) return;
+    const dossier = await chargerDossierScope(req, res);
+    if (!dossier) return;
+    const maj = await prisma.dossierContentieux.update({
+      where: { id: dossier.id },
+      data: { statut: StatutDossierContentieux.analyse, issue: null, clotureLe: null, clotureParId: null, montantRecouvre: null, noteCloture: null },
+      select: { id: true, statut: true },
+    });
+    res.json(maj);
   } catch (err) {
     next(err);
   }
