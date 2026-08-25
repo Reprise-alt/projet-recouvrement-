@@ -942,6 +942,7 @@ export interface PortailPublic {
   debiteurNom: string;
   montantDu: number;
   clos: boolean;
+  procedureEngagee: boolean;
   commandementDisponible: boolean;
   factures: { numero: string; montant: number; dateEcheance: string | null }[];
   derniereProposition: { statut: StatutProposition; createdAt: string } | null;
@@ -1031,6 +1032,7 @@ export interface DossierContentieuxListItem {
   clotureLe: string | null;
   montantRecouvre: number | null;
   prescription: InfoPrescription | null;
+  nbPropositionsEnAttente: number;
   _count: { pieces: number; factures: number };
 }
 
