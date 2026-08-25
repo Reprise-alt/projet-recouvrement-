@@ -88,6 +88,7 @@ const TYPE_ACTE_LABEL: Record<TypeActe, string> = {
   requete_injonction_de_payer: 'Requête en injonction de payer',
   commandement_de_payer: 'Commandement de payer (huissier)',
   assignation_en_paiement: 'Commandement valant assignation',
+  protocole_accord: 'Protocole d’accord (transaction)',
   decompte_de_creance: 'Décompte de créance',
   bordereau_de_pieces: 'Bordereau de pièces',
 };
@@ -122,7 +123,7 @@ export function ContentieuxDrawer({
   const [uploading, setUploading] = useState(false);
   const [analysing, setAnalysing] = useState(false);
   const [params, setParams] = useState({ tauxInteretAnnuel: '', penalite: '', frais: '' });
-  const [openForm, setOpenForm] = useState<null | 'societe' | 'injonction' | 'commandement' | 'assignation'>(null);
+  const [openForm, setOpenForm] = useState<null | 'societe' | 'injonction' | 'commandement' | 'assignation' | 'protocole'>(null);
   // Id de l'acte en cours de dépôt de version signée (déclenche le sélecteur de fichier).
   const [acteSigneCible, setActeSigneCible] = useState<string | null>(null);
   const jugementRef = useRef<HTMLInputElement>(null);
@@ -224,8 +225,14 @@ export function ContentieuxDrawer({
 
   async function handleProposition(pid: string, statut: 'acceptee' | 'refusee') {
     try {
-      await api.post(`/api/contentieux/dossiers/${dossierId}/propositions/${pid}/statut`, { statut });
-      showToast(statut === 'acceptee' ? 'Proposition acceptée' : 'Proposition refusée');
+      const r = await api.post<{ acte: unknown }>(`/api/contentieux/dossiers/${dossierId}/propositions/${pid}/statut`, { statut });
+      showToast(
+        statut === 'acceptee'
+          ? r.acte
+            ? 'Proposition acceptée — brouillon de protocole d’accord généré'
+            : 'Proposition acceptée'
+          : 'Proposition refusée',
+      );
       refreshAll();
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Erreur');
@@ -277,7 +284,7 @@ export function ContentieuxDrawer({
     }
   }
 
-  async function genererActe(type: 'commandement-societe' | 'injonction' | 'commandement' | 'assignation', body: Record<string, unknown>) {
+  async function genererActe(type: 'commandement-societe' | 'injonction' | 'commandement' | 'assignation' | 'protocole', body: Record<string, unknown>) {
     try {
       await api.post<ActeContentieux>(`/api/contentieux/dossiers/${dossierId}/actes/${type}`, body);
       showToast('Projet d’acte généré');
@@ -618,12 +625,28 @@ export function ContentieuxDrawer({
                   </div>
                 </div>
 
+                {/* Accord amiable — protocole / transaction (peut clôturer le litige) */}
+                <div style={{ fontSize: 10.5, color: 'var(--ink-soft)', margin: '2px 0 6px', textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                  En cas d’accord
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                  <button
+                    onClick={() => setOpenForm(openForm === 'protocole' ? null : 'protocole')}
+                    disabled={dossier.factures.length === 0}
+                    style={{ flex: 1 }}
+                    title="Protocole d'accord transactionnel : échéancier signé des deux parties qui met fin au litige s'il est respecté"
+                  >
+                    <ShieldCheck size={14} /> Protocole d’accord (échéancier)
+                  </button>
+                </div>
+
                 {openForm === 'societe' && (
                   <CommandementSocieteForm entite={dossier.client.entite} onGenerer={(b) => genererActe('commandement-societe', b)} />
                 )}
                 {openForm === 'injonction' && <InjonctionForm onGenerer={(b) => genererActe('injonction', b)} />}
                 {openForm === 'commandement' && <CommandementForm onGenerer={(b) => genererActe('commandement', b)} />}
                 {openForm === 'assignation' && <AssignationForm onGenerer={(b) => genererActe('assignation', b)} />}
+                {openForm === 'protocole' && <ProtocoleForm onGenerer={(b) => genererActe('protocole', b)} />}
               </>
             )}
 
@@ -1534,6 +1557,40 @@ function InjonctionForm({ onGenerer }: { onGenerer: (b: Record<string, unknown>)
         }
       >
         Générer la requête en injonction de payer
+      </button>
+    </div>
+  );
+}
+
+function ProtocoleForm({ onGenerer }: { onGenerer: (b: Record<string, unknown>) => void }) {
+  const [f, setF] = useState({ montant: '', nbEcheances: '3', premierPaiement: '', debiteurAdresse: '', lieu: '' });
+  const set = (k: keyof typeof f) => (v: string) => setF({ ...f, [k]: v });
+  return (
+    <div style={{ border: '1px solid var(--line)', borderRadius: 10, padding: 14, marginBottom: 12 }}>
+      <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginBottom: 8 }}>
+        Accord de règlement échelonné signé des deux parties. Le montant reconnu est pré-rempli au solde du dossier si laissé vide.
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ flex: 1 }}><Champ label="Montant reconnu (FCFA)" type="number" value={f.montant} onChange={set('montant')} placeholder="solde du dossier" /></div>
+        <div style={{ flex: 1 }}><Champ label="Nb. d’échéances" type="number" value={f.nbEcheances} onChange={set('nbEcheances')} /></div>
+      </div>
+      <Champ label="Premier paiement" type="date" value={f.premierPaiement} onChange={set('premierPaiement')} />
+      <Champ label="Adresse du débiteur" value={f.debiteurAdresse} onChange={set('debiteurAdresse')} />
+      <Champ label="Lieu" value={f.lieu} onChange={set('lieu')} placeholder="Dakar" />
+      <button
+        className="primary"
+        style={{ width: '100%', marginTop: 4 }}
+        onClick={() =>
+          onGenerer({
+            montant: f.montant ? Number(f.montant) : undefined,
+            nbEcheances: f.nbEcheances ? Number(f.nbEcheances) : undefined,
+            premierPaiement: f.premierPaiement || undefined,
+            debiteurAdresse: f.debiteurAdresse || undefined,
+            lieu: f.lieu || undefined,
+          })
+        }
+      >
+        Générer le protocole d’accord
       </button>
     </div>
   );

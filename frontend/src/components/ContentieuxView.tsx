@@ -82,7 +82,7 @@ export function ContentieuxView({ entityFilter, avocat = false }: { entityFilter
         <div
           style={{
             display: 'flex',
-            alignItems: 'center',
+            alignItems: 'flex-start',
             gap: 10,
             marginBottom: 12,
             padding: '11px 16px',
@@ -93,26 +93,24 @@ export function ContentieuxView({ entityFilter, avocat = false }: { entityFilter
             fontSize: 13,
           }}
         >
-          <Bell size={17} />
+          <Bell size={17} style={{ flexShrink: 0, marginTop: 1 }} />
           <div style={{ flex: 1 }}>
             <strong>
-              {dossiersAvecProposition.length} dossier{dossiersAvecProposition.length > 1 ? 's' : ''} avec une proposition de
-              règlement en attente
+              {dossiersAvecProposition.length} proposition{dossiersAvecProposition.length > 1 ? 's' : ''} de règlement en attente
             </strong>{' '}
-            — un débiteur vous a répondu via le portail.
+            — un débiteur vous a répondu via le portail. Ouvrir&nbsp;:
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+              {dossiersAvecProposition.map((d) => (
+                <button
+                  key={d.id}
+                  onClick={() => setSelected(d.id)}
+                  style={{ fontSize: 12, padding: '3px 10px', background: 'var(--surface)', border: '1px solid var(--amber)', color: 'var(--amber-dark)' }}
+                >
+                  {d.client.nom} <span className="mono" style={{ opacity: 0.7 }}>· {d.reference}</span>
+                </button>
+              ))}
+            </div>
           </div>
-          {(q || verdictFilter !== 'ALL' || statutFilter !== 'ALL') && (
-            <button
-              onClick={() => {
-                setQ('');
-                setVerdictFilter('ALL');
-                setStatutFilter('ALL');
-              }}
-              style={{ whiteSpace: 'nowrap' }}
-            >
-              Voir tout
-            </button>
-          )}
         </div>
       )}
       <div className="table-card">
