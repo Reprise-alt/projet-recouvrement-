@@ -22,18 +22,22 @@ import {
   evaluerRecevabilite,
   extraireAvecIa,
   iaDisponible,
+  infoPrescription,
   totalDecompte,
   type ParamsDecompte,
 } from '../lib/contentieux';
 import {
   GABARIT_COMMANDEMENT_SOCIETE_VERSION,
+  GABARIT_INJONCTION_VERSION,
   GABARIT_COMMANDEMENT_VERSION,
   GABARIT_ASSIGNATION_VERSION,
   genererCommandementSocietePdf,
+  genererRequeteInjonctionPdf,
   genererCommandementDePayerPdf,
   genererAssignationEnPaiementPdf,
   type DonneesCommandement,
   type DonneesCommandementSociete,
+  type DonneesInjonction,
   type DonneesAssignation,
   type Huissier,
 } from '../lib/actes/actesContentieux';
@@ -149,6 +153,7 @@ contentieuxRouter.get('/dossiers', async (req, res, next) => {
       include: {
         client: { select: { id: true, nom: true, entite: true } },
         avocat: { select: { id: true, nom: true } },
+        factures: { select: { dateEcheance: true } },
         _count: { select: { pieces: true, factures: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -156,9 +161,11 @@ contentieuxRouter.get('/dossiers', async (req, res, next) => {
     // Interne : portée par entité (le collaborateur est déjà filtré ci-dessus,
     // et n'a pas forcément d'entité de rattachement).
     const entite = req.user!.entite;
-    const visibles = !estCollaborateurJuridique(req.user!) && entite
+    const dansScope = !estCollaborateurJuridique(req.user!) && entite
       ? dossiers.filter((d) => d.client.entite === entite)
       : dossiers;
+    // Calcule la prescription par dossier et retire le détail des factures.
+    const visibles = dansScope.map(({ factures, ...d }) => ({ ...d, prescription: infoPrescription(factures) }));
     res.json(visibles);
   } catch (err) {
     next(err);
@@ -188,10 +195,11 @@ contentieuxRouter.get('/dossiers/:id', async (req, res, next) => {
         },
       },
     });
-    // Expose « a une version signée » sans sortir le binaire.
+    // Expose « a une version signée » sans sortir le binaire, + info prescription.
     const enrichi = dossier && {
       ...dossier,
       actes: dossier.actes.map((a) => ({ ...a, aVersionSignee: Boolean(a.mimeTypeSigne) })),
+      prescription: infoPrescription(dossier.factures),
     };
     res.json(enrichi);
   } catch (err) {
@@ -433,6 +441,58 @@ contentieuxRouter.post('/dossiers/:id/actes/commandement-societe', async (req, r
     const pdf = await genererCommandementSocietePdf(donnees);
     const acte = await prisma.acteContentieux.create({
       data: { dossierId: dossier.id, type: TypeActe.commandement_societe, gabaritVersion: GABARIT_COMMANDEMENT_SOCIETE_VERSION, contenu: pdf, mimeType: 'application/pdf' },
+      select: acteSelect,
+    });
+    res.status(201).json(acte);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// --- Générer un PROJET : requête aux fins d'injonction de payer (voie rapide OHADA) ---
+contentieuxRouter.post('/dossiers/:id/actes/injonction', async (req, res, next) => {
+  try {
+    if (bloquerSiCollaborateur(req, res)) return;
+    const dossier = await chargerDossierScope(req, res);
+    if (!dossier) return;
+    const { factures, decompte, client } = await preparerDonneesActe(dossier, req.body);
+    if (!factures.length) return res.status(400).json({ error: 'Aucune facture rattachée : décompte impossible.' });
+    const total = dossier.montantReclame ?? decompte.reduce((s, l) => s + l.montant, 0);
+    const base = mentionsLegales(client?.entite);
+    const b = req.body?.societe || {};
+
+    const donnees: DonneesInjonction = {
+      societe: {
+        nom: String(b.nom || base?.nom || client?.entite || 'La société créancière'),
+        formeJuridique: b.formeJuridique || base?.formeJuridique,
+        adresse: b.adresse || base?.adresse,
+        rccm: b.rccm || base?.rccm,
+        ninea: b.ninea || base?.ninea,
+        tel: b.tel || base?.tel,
+        email: b.email || base?.email,
+        logo: logoEntite(client?.entite),
+      },
+      lieu: req.body?.lieu,
+      date: new Date(),
+      reference: dossier.reference,
+      tribunal: req.body?.tribunal,
+      debiteurNom: client?.nom || 'La débitrice',
+      debiteurAdresse: req.body?.debiteurAdresse,
+      debiteurFormeJuridique: req.body?.debiteurFormeJuridique,
+      montantPrincipal: total,
+      interets: num(req.body?.interets),
+      fraisRecouvrement: num(req.body?.fraisRecouvrement),
+      fondement: req.body?.fondement,
+      signataireNom: req.body?.signataireNom || base?.signataireNom,
+      signataireQualite: req.body?.signataireQualite || base?.signataireQualite,
+      avocatNom: req.body?.avocatNom,
+      factures: factures.map((f) => ({ numero: f.numero, date: f.dateFacture, echeance: f.dateEcheance, montant: f.montant })),
+      decompte: decompte.map((l) => ({ poste: l.poste, montant: l.montant })),
+      bordereau: Array.isArray(req.body?.bordereau) ? req.body.bordereau : undefined,
+    };
+    const pdf = await genererRequeteInjonctionPdf(donnees);
+    const acte = await prisma.acteContentieux.create({
+      data: { dossierId: dossier.id, type: TypeActe.requete_injonction_de_payer, gabaritVersion: GABARIT_INJONCTION_VERSION, contenu: pdf, mimeType: 'application/pdf' },
       select: acteSelect,
     });
     res.status(201).json(acte);

@@ -5,6 +5,7 @@ import {
   Building2,
   Check,
   CheckCircle2,
+  Clock,
   Download,
   FileText,
   Gavel,
@@ -28,6 +29,7 @@ import {
   AnalyseResponse,
   Avocat,
   DossierContentieuxDetail,
+  InfoPrescription,
   IssueDossier,
   MentionsLegales,
   PieceContentieux,
@@ -78,6 +80,7 @@ const ISSUE: Record<IssueDossier, { label: string; positif: boolean }> = {
 const TYPE_ACTE_LABEL: Record<TypeActe, string> = {
   mise_en_demeure: 'Mise en demeure',
   commandement_societe: 'Commandement de payer (société)',
+  requete_injonction_de_payer: 'Requête en injonction de payer',
   commandement_de_payer: 'Commandement de payer (huissier)',
   assignation_en_paiement: 'Commandement valant assignation',
   decompte_de_creance: 'Décompte de créance',
@@ -114,7 +117,7 @@ export function ContentieuxDrawer({
   const [uploading, setUploading] = useState(false);
   const [analysing, setAnalysing] = useState(false);
   const [params, setParams] = useState({ tauxInteretAnnuel: '', penalite: '', frais: '' });
-  const [openForm, setOpenForm] = useState<null | 'societe' | 'commandement' | 'assignation'>(null);
+  const [openForm, setOpenForm] = useState<null | 'societe' | 'injonction' | 'commandement' | 'assignation'>(null);
   // Id de l'acte en cours de dépôt de version signée (déclenche le sélecteur de fichier).
   const [acteSigneCible, setActeSigneCible] = useState<string | null>(null);
   const jugementRef = useRef<HTMLInputElement>(null);
@@ -248,7 +251,7 @@ export function ContentieuxDrawer({
     }
   }
 
-  async function genererActe(type: 'commandement-societe' | 'commandement' | 'assignation', body: Record<string, unknown>) {
+  async function genererActe(type: 'commandement-societe' | 'injonction' | 'commandement' | 'assignation', body: Record<string, unknown>) {
     try {
       await api.post<ActeContentieux>(`/api/contentieux/dossiers/${dossierId}/actes/${type}`, body);
       showToast('Projet d’acte généré');
@@ -311,6 +314,9 @@ export function ContentieuxDrawer({
 
             {/* ---------- Verdict de recevabilité ---------- */}
             <VerdictBloc dossier={dossier} />
+
+            {/* ---------- Alerte de prescription ---------- */}
+            {dossier.statut !== 'clos' && <BandeauPrescription info={dossier.prescription} />}
 
             {/* ---------- Frise d'escalade ---------- */}
             <FriseEscalade dossier={dossier} />
@@ -518,7 +524,7 @@ export function ContentieuxDrawer({
                 <div style={{ fontSize: 10.5, color: 'var(--ink-soft)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.3 }}>
                   Escalade : ① société (≈ 90 j) → ② huissier → ③ assignation
                 </div>
-                <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
                   <button
                     onClick={() => setOpenForm(openForm === 'societe' ? null : 'societe')}
                     disabled={dossier.factures.length === 0}
@@ -541,10 +547,24 @@ export function ContentieuxDrawer({
                     <Gavel size={14} /> ③ Assignation
                   </button>
                 </div>
+                <div style={{ fontSize: 10.5, color: 'var(--ink-soft)', margin: '2px 0 6px', textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                  Voie rapide (alternative au judiciaire long)
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                  <button
+                    onClick={() => setOpenForm(openForm === 'injonction' ? null : 'injonction')}
+                    disabled={dossier.factures.length === 0}
+                    style={{ flex: 1 }}
+                    title="Procédure simplifiée OHADA (AUPSRVE) : requête au président du tribunal → ordonnance d'injonction de payer"
+                  >
+                    <Sparkles size={14} /> ⚡ Injonction de payer (OHADA)
+                  </button>
+                </div>
 
                 {openForm === 'societe' && (
                   <CommandementSocieteForm entite={dossier.client.entite} onGenerer={(b) => genererActe('commandement-societe', b)} />
                 )}
+                {openForm === 'injonction' && <InjonctionForm onGenerer={(b) => genererActe('injonction', b)} />}
                 {openForm === 'commandement' && <CommandementForm onGenerer={(b) => genererActe('commandement', b)} />}
                 {openForm === 'assignation' && <AssignationForm onGenerer={(b) => genererActe('assignation', b)} />}
               </>
@@ -700,6 +720,42 @@ export function ContentieuxDrawer({
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+// --------------------------------------------------------- Alerte prescription
+function BandeauPrescription({ info }: { info: InfoPrescription | null }) {
+  if (!info) return null;
+  const j = info.joursRestants;
+  // Rouge = prescrit ; ambre = échéance proche (≤ 180 j) ; gris = informatif (≤ 365 j) ; masqué au-delà.
+  if (j > 365) return null;
+  const prescrit = j <= 0;
+  const proche = j > 0 && j <= 180;
+  const couleur = prescrit ? 'var(--danger)' : proche ? 'var(--amber-dark)' : 'var(--ink-soft)';
+  const fond = prescrit ? 'var(--danger-soft)' : proche ? 'var(--amber-soft)' : 'var(--surface)';
+  const bord = prescrit ? 'var(--danger)' : proche ? 'var(--amber)' : 'var(--line)';
+  const texte = prescrit
+    ? `Créance PRESCRITE depuis ${Math.abs(j)} j (délai atteint le ${fmtDate(info.dateLimite)}).`
+    : `Prescription dans ${j} j — au plus tard le ${fmtDate(info.dateLimite)}.${proche ? ' Agir sans tarder.' : ''}`;
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        margin: '2px 0 10px',
+        padding: '9px 12px',
+        borderRadius: 10,
+        border: `1px solid ${bord}`,
+        background: fond,
+        color: couleur,
+        fontSize: 12.5,
+        fontWeight: prescrit || proche ? 600 : 400,
+      }}
+    >
+      <Clock size={15} style={{ flexShrink: 0 }} />
+      <span>{texte}</span>
     </div>
   );
 }
@@ -1111,6 +1167,53 @@ function AssignationForm({ onGenerer }: { onGenerer: (b: Record<string, unknown>
         }
       >
         Générer le projet d’assignation
+      </button>
+    </div>
+  );
+}
+
+function InjonctionForm({ onGenerer }: { onGenerer: (b: Record<string, unknown>) => void }) {
+  const [f, setF] = useState({
+    tribunal: '',
+    lieu: '',
+    interets: '',
+    fraisRecouvrement: '',
+    fondement: '',
+    debiteurAdresse: '',
+    avocatNom: '',
+  });
+  const set = (k: keyof typeof f) => (v: string) => setF({ ...f, [k]: v });
+  return (
+    <div style={{ border: '1px solid var(--line)', borderRadius: 10, padding: 14, marginBottom: 12 }}>
+      <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginBottom: 8 }}>
+        Requête au président du tribunal (voie rapide OHADA). L’entête et le signataire de votre société sont pré-remplis
+        automatiquement.
+      </div>
+      <Champ label="Tribunal" value={f.tribunal} onChange={set('tribunal')} placeholder="Tribunal de Commerce Hors Classe de Dakar" />
+      <Champ label="Adresse du débiteur" value={f.debiteurAdresse} onChange={set('debiteurAdresse')} />
+      <Champ label="Fondement de la créance (optionnel)" value={f.fondement} onChange={set('fondement')} placeholder="résultant du contrat / des bons de commande du…" />
+      <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ flex: 1 }}><Champ label="Intérêts de droit (FCFA)" type="number" value={f.interets} onChange={set('interets')} /></div>
+        <div style={{ flex: 1 }}><Champ label="Frais de recouvrement (FCFA)" type="number" value={f.fraisRecouvrement} onChange={set('fraisRecouvrement')} /></div>
+      </div>
+      <Champ label="Avocat / conseil (optionnel)" value={f.avocatNom} onChange={set('avocatNom')} placeholder="Maître …" />
+      <Champ label="Lieu" value={f.lieu} onChange={set('lieu')} placeholder="Dakar" />
+      <button
+        className="primary"
+        style={{ width: '100%', marginTop: 4 }}
+        onClick={() =>
+          onGenerer({
+            tribunal: f.tribunal || undefined,
+            debiteurAdresse: f.debiteurAdresse || undefined,
+            fondement: f.fondement || undefined,
+            interets: f.interets ? Number(f.interets) : undefined,
+            fraisRecouvrement: f.fraisRecouvrement ? Number(f.fraisRecouvrement) : undefined,
+            avocatNom: f.avocatNom || undefined,
+            lieu: f.lieu || undefined,
+          })
+        }
+      >
+        Générer la requête en injonction de payer
       </button>
     </div>
   );
