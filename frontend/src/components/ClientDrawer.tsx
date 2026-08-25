@@ -403,30 +403,6 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
               </div>
             )}
 
-            {client.palier >= 6 &&
-              (dossierContentieux ? (
-                <div
-                  className="signal-banner"
-                  style={{ margin: '12px 0', background: 'var(--accent-soft)', borderColor: 'var(--accent)', color: 'var(--accent-dark)' }}
-                >
-                  <Scale size={17} />
-                  <div>
-                    En contentieux : <strong>{dossierContentieux.reference}</strong> — le suivi se fait dans l’onglet <strong>Contentieux</strong>.
-                  </div>
-                </div>
-              ) : (
-                <div className="signal-banner" style={{ margin: '12px 0', display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <Scale size={17} />
-                  <div style={{ flex: 1 }}>
-                    Palier <strong>Commandement (société)</strong> atteint. La plateforme peut préparer le dossier contentieux et le
-                    brouillon de commandement — l’envoi restera à valider.
-                  </div>
-                  <button className="primary" disabled={busy} onClick={handleBasculer} style={{ whiteSpace: 'nowrap' }}>
-                    <Scale size={14} /> Basculer en contentieux
-                  </button>
-                </div>
-              ))}
-
             <div className="section-title">
               <span>Contact</span>
               {canEditContact && !editingContact && <button onClick={() => setEditingContact(true)}>Modifier</button>}
@@ -880,6 +856,28 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
               <div className="action-box">
                 <div style={{ fontWeight: 600, marginBottom: 4 }}>Action recommandée</div>
                 <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginBottom: 12 }}>{PALIERS[client.palier].desc}</div>
+                {client.palier >= 6 ? (
+                  dossierContentieux ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                      <Scale size={16} style={{ color: 'var(--accent-dark)', flexShrink: 0 }} />
+                      <div>
+                        En contentieux : <strong>{dossierContentieux.reference}</strong>. Poursuivez dans l’onglet{' '}
+                        <strong>Contentieux</strong> (commandement société, huissier, assignation).
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginBottom: 10 }}>
+                        À ce palier on ne rédige plus de courrier amiable : le commandement de payer (société) se prépare dans le
+                        contentieux — l’envoi restera à valider.
+                      </div>
+                      <button className="primary" disabled={busy} onClick={handleBasculer}>
+                        <Scale size={14} /> Basculer en contentieux
+                      </button>
+                    </div>
+                  )
+                ) : (
+                <>
                 {canRecordAction && (
                   <textarea
                     rows={2}
@@ -946,6 +944,8 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
                     </div>
                     {sendStatus && <div className={`send-status ${sendStatus.kind === 'ok' ? 'ok' : 'err'}`}>{sendStatus.message}</div>}
                   </>
+                )}
+                </>
                 )}
               </div>
             ) : (
