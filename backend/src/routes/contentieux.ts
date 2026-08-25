@@ -34,18 +34,21 @@ import {
   GABARIT_INJONCTION_VERSION,
   GABARIT_COMMANDEMENT_VERSION,
   GABARIT_ASSIGNATION_VERSION,
+  GABARIT_PROTOCOLE_VERSION,
   genererCommandementSocietePdf,
   genererRequeteInjonctionPdf,
   genererCommandementDePayerPdf,
   genererAssignationEnPaiementPdf,
+  genererProtocoleAccordPdf,
   type DonneesCommandement,
   type DonneesCommandementSociete,
   type DonneesInjonction,
   type DonneesAssignation,
+  type DonneesProtocole,
   type Huissier,
 } from '../lib/actes/actesContentieux';
 import { logoEntite, mentionsLegales } from '../lib/actes/mentionsLegales';
-import { IssueDossier, StatutActe, StatutDossierContentieux, TypePiece, TypeActe } from '@prisma/client';
+import { IssueDossier, StatutActe, StatutDossierContentieux, StatutProposition, TypePiece, TypeActe } from '@prisma/client';
 
 export const contentieuxRouter = Router();
 contentieuxRouter.use(requireAuth, requireAccesContentieux);
@@ -473,6 +476,70 @@ function construireCommandementSociete(
   };
 }
 
+// Génère et enregistre un projet de protocole d'accord (transaction) pour un
+// dossier. Partagé par l'endpoint manuel et l'acceptation d'une proposition.
+async function genererProtocolePourDossier(
+  dossier: { id: string; clientId: string; reference: string; montantReclame: number | null },
+  params: { montant?: number; nbEcheances?: number; premierPaiement?: Date },
+  body: any = {},
+) {
+  const { decompte, factures, client } = await preparerDonneesActe(dossier, body);
+  const total =
+    params.montant ??
+    dossier.montantReclame ??
+    (decompte.length ? decompte.reduce((s, l) => s + l.montant, 0) : factures.reduce((s, f) => s + f.montant, 0));
+  const base = mentionsLegales(client?.entite);
+  const donnees: DonneesProtocole = {
+    societe: {
+      nom: String(base?.nom || client?.entite || 'La société créancière'),
+      formeJuridique: base?.formeJuridique,
+      adresse: base?.adresse,
+      rccm: base?.rccm,
+      ninea: base?.ninea,
+      tel: base?.tel,
+      email: base?.email,
+      logo: logoEntite(client?.entite),
+    },
+    lieu: body?.lieu,
+    date: new Date(),
+    reference: dossier.reference,
+    debiteurNom: client?.nom || 'Le débiteur',
+    debiteurAdresse: body?.debiteurAdresse,
+    debiteurRepresentant: body?.debiteurRepresentant,
+    montantReconnu: total,
+    nbEcheances: params.nbEcheances,
+    premierPaiement: params.premierPaiement,
+    signataireNom: body?.signataireNom || base?.signataireNom,
+    signataireQualite: body?.signataireQualite || base?.signataireQualite,
+  };
+  const pdf = await genererProtocoleAccordPdf(donnees);
+  return prisma.acteContentieux.create({
+    data: { dossierId: dossier.id, type: TypeActe.protocole_accord, gabaritVersion: GABARIT_PROTOCOLE_VERSION, contenu: pdf, mimeType: 'application/pdf' },
+    select: acteSelect,
+  });
+}
+
+// --- Générer un PROJET : protocole d'accord (transaction / échéancier) ---
+contentieuxRouter.post('/dossiers/:id/actes/protocole', async (req, res, next) => {
+  try {
+    if (bloquerSiCollaborateur(req, res)) return;
+    const dossier = await chargerDossierScope(req, res);
+    if (!dossier) return;
+    const acte = await genererProtocolePourDossier(
+      dossier,
+      {
+        montant: num(req.body?.montant),
+        nbEcheances: Number.isFinite(Number(req.body?.nbEcheances)) && Number(req.body?.nbEcheances) > 0 ? Math.round(Number(req.body.nbEcheances)) : undefined,
+        premierPaiement: req.body?.premierPaiement ? new Date(req.body.premierPaiement) : undefined,
+      },
+      req.body,
+    );
+    res.status(201).json(acte);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // --- Générer un PROJET : commandement de payer ÉMIS PAR LA SOCIÉTÉ (étape 1) ---
 contentieuxRouter.post('/dossiers/:id/actes/commandement-societe', async (req, res, next) => {
   try {
@@ -862,8 +929,25 @@ contentieuxRouter.post('/dossiers/:id/propositions/:pid/statut', async (req, res
     if (!dossier) return;
     const statut = String(req.body?.statut || '');
     if (statut !== 'acceptee' && statut !== 'refusee') return res.status(400).json({ error: 'statut invalide' });
-    await prisma.propositionPaiement.updateMany({ where: { id: req.params.pid, dossierId: dossier.id }, data: { statut: statut as any } });
-    res.json({ ok: true });
+    const prop = await prisma.propositionPaiement.findFirst({ where: { id: req.params.pid, dossierId: dossier.id } });
+    if (!prop) return res.status(404).json({ error: 'Proposition introuvable' });
+    await prisma.propositionPaiement.update({ where: { id: prop.id }, data: { statut: statut as StatutProposition } });
+
+    // À l'acceptation : génère automatiquement un BROUILLON de protocole d'accord
+    // reprenant les termes proposés (best-effort — n'échoue pas l'acceptation).
+    let acte = null;
+    if (statut === 'acceptee') {
+      try {
+        acte = await genererProtocolePourDossier(dossier, {
+          montant: prop.montantPropose ?? undefined,
+          nbEcheances: prop.nbEcheances ?? undefined,
+          premierPaiement: prop.premierPaiement ?? undefined,
+        });
+      } catch (e) {
+        acte = null;
+      }
+    }
+    res.json({ ok: true, acte });
   } catch (err) {
     next(err);
   }

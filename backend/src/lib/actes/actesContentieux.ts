@@ -21,6 +21,7 @@ function fmtFCFA(n: number): string {
   return Math.round(n).toLocaleString("fr-FR").replace(/[\u202F\u00A0\u2009]/g, ' ') + ' FCFA';
 }
 
+export const GABARIT_PROTOCOLE_VERSION = 'protocole-accord/v0.1';
 export const GABARIT_COMMANDEMENT_SOCIETE_VERSION = 'commandement-societe/v0.1';
 export const GABARIT_INJONCTION_VERSION = 'requete-injonction-de-payer/v0.1';
 export const GABARIT_COMMANDEMENT_VERSION = 'commandement-de-payer/v0.1';
@@ -98,6 +99,23 @@ export interface DonneesCommandement {
 
 // Requête aux fins d'injonction de payer (AUPSRVE) — émane du créancier
 // (éventuellement via son avocat), adressée au président du tribunal.
+// Protocole d'accord (transaction) — accord de règlement échelonné signé des
+// deux parties. Met fin à la procédure si le débiteur respecte l'échéancier.
+export interface DonneesProtocole {
+  societe: Societe; // le créancier
+  lieu?: string;
+  date?: Date;
+  reference?: string;
+  debiteurNom: string;
+  debiteurAdresse?: string;
+  debiteurRepresentant?: string;
+  montantReconnu: number; // solde reconnu dû
+  nbEcheances?: number; // nombre de mensualités (défaut 1)
+  premierPaiement?: Date;
+  signataireNom?: string;
+  signataireQualite?: string;
+}
+
 export interface DonneesInjonction {
   societe: Societe; // le requérant (créancier)
   lieu?: string;
@@ -335,6 +353,84 @@ export function genererCommandementSocietePdf(d: DonneesCommandementSociete): Pr
   doc.x = 56;
 
   // Bandeau projet (léger, spécifique société).
+  const yb = doc.y;
+  doc.save();
+  doc.rect(56, yb, doc.page.width - 112, 24).fill('#FFF6E5');
+  doc.fill('#8A5A00').fontSize(7.5).font('Helvetica-Oblique').text(MENTION_PROJET_SOCIETE, 62, yb + 6, { width: doc.page.width - 124 });
+  doc.restore();
+  doc.fill('#000');
+  return bufferDePdf(doc);
+}
+
+// ---------------------------------------------------------------------
+// 0-ter. PROTOCOLE D'ACCORD (transaction — échéancier)
+// Émis par le créancier sur son entête ; signé des deux parties. Le créancier
+// suspend/renonce aux poursuites tant que l'échéancier est respecté ; à défaut,
+// la totalité redevient exigible et les poursuites reprennent.
+// ---------------------------------------------------------------------
+export function genererProtocoleAccordPdf(d: DonneesProtocole): Promise<Buffer> {
+  const doc = new PDFDocument({ size: 'A4', margin: 56 });
+  const date = d.date || new Date();
+  const lieu = d.lieu || 'Dakar';
+  const n = d.nbEcheances && d.nbEcheances > 0 ? Math.round(d.nbEcheances) : 1;
+  const parEcheance = Math.ceil(d.montantReconnu / n);
+
+  enteteSociete(doc, d.societe);
+  doc.fontSize(14).font('Helvetica-Bold').text('PROTOCOLE D\'ACCORD TRANSACTIONNEL', { align: 'center' });
+  doc.moveDown(1);
+
+  doc.fontSize(10.5).font('Helvetica');
+  doc.text('ENTRE LES SOUSSIGNÉS :', { continued: false });
+  doc.font('Helvetica-Bold').text(d.societe.nom);
+  doc.font('Helvetica').text(`${[d.societe.formeJuridique, d.societe.adresse && 'sise à ' + d.societe.adresse, d.societe.rccm && 'RCCM ' + d.societe.rccm].filter(Boolean).join(', ')}${d.signataireNom ? ', représentée par ' + d.signataireNom + (d.signataireQualite ? ', ' + d.signataireQualite : '') : ''}, ci-après « le Créancier », d'une part ;`, { align: 'justify' });
+  doc.moveDown(0.4);
+  doc.text('ET');
+  doc.font('Helvetica-Bold').text(d.debiteurNom);
+  doc.font('Helvetica').text(`${[d.debiteurAdresse && 'sise à ' + d.debiteurAdresse, d.debiteurRepresentant && 'représentée par ' + d.debiteurRepresentant].filter(Boolean).join(', ')}, ci-après « le Débiteur », d'autre part ;`, { align: 'justify' });
+  doc.moveDown(0.7);
+
+  doc.font('Helvetica-Bold').text('IL A ÉTÉ CONVENU CE QUI SUIT :');
+  doc.font('Helvetica');
+  doc.moveDown(0.4);
+  doc.font('Helvetica-Bold').text('Article 1 — Reconnaissance de dette');
+  doc.font('Helvetica').text(`Le Débiteur reconnaît devoir au Créancier la somme de ${fmtFCFA(d.montantReconnu)} (${enLettres(d.montantReconnu)} francs CFA), au titre des factures impayées objet du dossier${d.reference ? ' ' + d.reference : ''}.`, { align: 'justify' });
+  doc.moveDown(0.4);
+
+  doc.font('Helvetica-Bold').text('Article 2 — Modalités de règlement');
+  if (n <= 1) {
+    doc.font('Helvetica').text(`Le Débiteur s'engage à régler l'intégralité de cette somme, soit ${fmtFCFA(d.montantReconnu)}, au plus tard le ${d.premierPaiement ? fmtDate(d.premierPaiement) : '________________'}.`, { align: 'justify' });
+  } else {
+    doc.font('Helvetica').text(`Le Débiteur s'engage à régler cette somme en ${n} (${enLettres(n)}) mensualités de ${fmtFCFA(parEcheance)} chacune (la dernière ajustée au solde), la première le ${d.premierPaiement ? fmtDate(d.premierPaiement) : '________________'}, puis à date fixe chaque mois.`, { align: 'justify' });
+  }
+  doc.moveDown(0.4);
+
+  doc.font('Helvetica-Bold').text('Article 3 — Suspension des poursuites');
+  doc.font('Helvetica').text('Le Créancier suspend toute mesure de recouvrement forcé tant que le présent échéancier est respecté. Il se réserve le droit de reprendre les poursuites en cas de défaillance.', { align: 'justify' });
+  doc.moveDown(0.4);
+
+  doc.font('Helvetica-Bold').text('Article 4 — Déchéance du terme');
+  doc.font('Helvetica').text('À défaut de paiement d\'une seule échéance à son terme, l\'intégralité du solde restant dû deviendra immédiatement exigible, sans mise en demeure préalable, et le Créancier pourra reprendre toutes voies de droit.', { align: 'justify' });
+  doc.moveDown(0.4);
+
+  doc.font('Helvetica-Bold').text('Article 5 — Transaction');
+  doc.font('Helvetica').text('Le présent protocole constitue une transaction au sens de la loi. Sous réserve de sa complète exécution, les parties renoncent à toute instance et action relatives à la créance objet des présentes.', { align: 'justify' });
+  doc.moveDown(1);
+
+  doc.text(`Fait à ${lieu}, le ${fmtDate(date)}, en deux exemplaires originaux.`);
+  doc.moveDown(1.5);
+
+  // Deux blocs signature côte à côte.
+  const y = doc.y;
+  doc.font('Helvetica-Bold').text('Le Créancier', 56, y);
+  doc.font('Helvetica').fontSize(9).text(d.signataireNom || d.societe.nom, 56, doc.y);
+  doc.fontSize(10.5).text('______________________________', 56, y + 34);
+  doc.font('Helvetica-Bold').fontSize(10.5).text('Le Débiteur', 320, y);
+  doc.font('Helvetica').fontSize(9).text(d.debiteurNom, 320, y + 13, { width: doc.page.width - 56 - 320 });
+  doc.fontSize(10.5).text('______________________________', 320, y + 34);
+  doc.y = y + 60;
+  doc.x = 56;
+  doc.moveDown(1);
+
   const yb = doc.y;
   doc.save();
   doc.rect(56, yb, doc.page.width - 112, 24).fill('#FFF6E5');

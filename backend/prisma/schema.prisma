@@ -973,6 +973,7 @@ enum TypeActe {
   requete_injonction_de_payer // voie rapide OHADA (AUPSRVE) : requête au président du tribunal
   commandement_de_payer       // étape 2 : commandement de payer signifié par huissier
   assignation_en_paiement     // étape 3 : commandement valant assignation devant le tribunal
+  protocole_accord            // transaction : accord de règlement (échéancier) signé des deux parties
   decompte_de_creance
   bordereau_de_pieces
 }

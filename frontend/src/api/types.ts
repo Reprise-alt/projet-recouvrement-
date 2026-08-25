@@ -899,6 +899,7 @@ export type TypeActe =
   | 'requete_injonction_de_payer'
   | 'commandement_de_payer'
   | 'assignation_en_paiement'
+  | 'protocole_accord'
   | 'decompte_de_creance'
   | 'bordereau_de_pieces';
 
