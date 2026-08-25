@@ -26,6 +26,8 @@ import {
   totalDecompte,
   type ParamsDecompte,
 } from '../lib/contentieux';
+import { scorerRecouvrabilite } from '../lib/scoringContentieux';
+import { construireContexte, copiloteDisponible, repondreCopilote, type MessageCopilote } from '../lib/copiloteContentieux';
 import {
   GABARIT_COMMANDEMENT_SOCIETE_VERSION,
   GABARIT_INJONCTION_VERSION,
@@ -195,12 +197,34 @@ contentieuxRouter.get('/dossiers/:id', async (req, res, next) => {
         },
       },
     });
-    // Expose « a une version signée » sans sortir le binaire, + info prescription.
-    const enrichi = dossier && {
-      ...dossier,
-      actes: dossier.actes.map((a) => ({ ...a, aVersionSignee: Boolean(a.mimeTypeSigne) })),
-      prescription: infoPrescription(dossier.factures),
-    };
+    // Expose « a une version signée » sans sortir le binaire, + prescription + scoring.
+    let enrichi = null;
+    if (dossier) {
+      const prescription = infoPrescription(dossier.factures);
+      const echeances = dossier.factures.map((f) => (f.dateEcheance ? new Date(f.dateEcheance).getTime() : NaN)).filter((t) => Number.isFinite(t));
+      const joursDepuisEcheance = echeances.length ? Math.floor((Date.now() - Math.min(...echeances)) / 86_400_000) : null;
+      const scoring = scorerRecouvrabilite({
+        montant: dossier.montantReclame,
+        analyse: dossier.analyse
+          ? {
+              certaine: dossier.analyse.certaine,
+              liquide: dossier.analyse.liquide,
+              exigible: dossier.analyse.exigible,
+              prescriptionOk: dossier.analyse.prescriptionOk,
+              manquants: dossier.analyse.manquants,
+            }
+          : null,
+        prescriptionJoursRestants: prescription?.joursRestants ?? null,
+        joursDepuisEcheance,
+        nbFactures: dossier.factures.length,
+      });
+      enrichi = {
+        ...dossier,
+        actes: dossier.actes.map((a) => ({ ...a, aVersionSignee: Boolean(a.mimeTypeSigne) })),
+        prescription,
+        scoring,
+      };
+    }
     res.json(enrichi);
   } catch (err) {
     next(err);
@@ -670,6 +694,62 @@ contentieuxRouter.get('/dossiers/:id/actes/:acteId/signe/pdf', async (req, res, 
     res.setHeader('Content-Type', acte.mimeTypeSigne || 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="signe-${acte.type}-${dossier.id}"`);
     res.send(Buffer.from(acte.contenuSigne));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// --- Copilote juridique conversationnel (ancré sur le dossier) ---
+// Lecture seule → ouvert à l'interne ET au collaborateur assigné.
+contentieuxRouter.post('/dossiers/:id/copilote', async (req, res, next) => {
+  try {
+    const dossier = await chargerDossierScope(req, res);
+    if (!dossier) return;
+    if (!copiloteDisponible()) return res.status(503).json({ error: 'Copilote indisponible (clé IA non configurée côté serveur).' });
+    const question = String(req.body?.question || '').trim();
+    if (!question) return res.status(400).json({ error: 'question requise' });
+    const historique: MessageCopilote[] = Array.isArray(req.body?.historique)
+      ? req.body.historique
+          .filter((m: any) => (m?.role === 'user' || m?.role === 'assistant') && typeof m?.content === 'string')
+          .map((m: any) => ({ role: m.role, content: String(m.content).slice(0, 4000) }))
+      : [];
+
+    const [complet, client] = await Promise.all([
+      prisma.dossierContentieux.findUnique({
+        where: { id: dossier.id },
+        include: { analyse: true, factures: true, decompte: true, actes: { select: { type: true, statut: true } } },
+      }),
+      prisma.client.findUnique({ where: { id: dossier.clientId } }),
+    ]);
+    if (!complet) return res.status(404).json({ error: 'Dossier introuvable' });
+
+    const prescription = infoPrescription(complet.factures);
+    const contexte = construireContexte({
+      reference: complet.reference,
+      statut: complet.statut,
+      clientNom: client?.nom || 'le débiteur',
+      entite: client?.entite || '',
+      montantReclame: complet.montantReclame,
+      verdict: complet.verdict,
+      analyse: complet.analyse
+        ? {
+            certaine: complet.analyse.certaine,
+            liquide: complet.analyse.liquide,
+            exigible: complet.analyse.exigible,
+            prescriptionOk: complet.analyse.prescriptionOk,
+            manquants: complet.analyse.manquants,
+            competence: complet.analyse.competence,
+            syntheseIa: complet.analyse.syntheseIa,
+          }
+        : null,
+      prescription,
+      factures: complet.factures.map((f) => ({ numero: f.numero, montant: f.montant, dateEcheance: f.dateEcheance ? new Date(f.dateEcheance).toISOString() : null, statut: f.statut })),
+      decompte: complet.decompte.map((x) => ({ poste: x.poste, montant: x.montant })),
+      actes: complet.actes.map((x) => ({ type: x.type, statut: x.statut })),
+      issue: complet.issue,
+    });
+    const { reponse, modele } = await repondreCopilote(contexte, historique, question);
+    res.json({ reponse, modele });
   } catch (err) {
     next(err);
   }

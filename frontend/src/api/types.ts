@@ -906,6 +906,22 @@ export interface InfoPrescription {
   dateLimite: string;
   joursRestants: number;
 }
+
+export interface FacteurScore {
+  label: string;
+  effet: 'positif' | 'negatif' | 'neutre';
+}
+export interface ScoreRecouvrabilite {
+  score: number;
+  niveau: 'eleve' | 'moyen' | 'faible';
+  facteurs: FacteurScore[];
+  strategie: string;
+}
+
+export interface MessageCopilote {
+  role: 'user' | 'assistant';
+  content: string;
+}
 export type StatutActe = 'brouillon' | 'valide' | 'signe';
 
 export interface MentionsLegales {
@@ -1008,6 +1024,7 @@ export interface DossierContentieuxDetail {
   montantRecouvre: number | null;
   noteCloture: string | null;
   prescription: InfoPrescription | null;
+  scoring: ScoreRecouvrabilite | null;
   factures: Facture[];
   pieces: PieceContentieux[];
   analyse: AnalyseContentieux | null;

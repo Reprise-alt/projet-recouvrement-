@@ -8,10 +8,13 @@ import {
   Clock,
   Download,
   FileText,
+  Gauge,
   Gavel,
   Loader2,
+  MessageSquare,
   RotateCcw,
   Scale,
+  Send,
   ShieldCheck,
   Sparkles,
   Stamp,
@@ -32,6 +35,8 @@ import {
   InfoPrescription,
   IssueDossier,
   MentionsLegales,
+  MessageCopilote,
+  ScoreRecouvrabilite,
   PieceContentieux,
   StatutActe,
   StatutDossierContentieux,
@@ -318,8 +323,15 @@ export function ContentieuxDrawer({
             {/* ---------- Alerte de prescription ---------- */}
             {dossier.statut !== 'clos' && <BandeauPrescription info={dossier.prescription} />}
 
+            {/* ---------- Score de recouvrabilité ---------- */}
+            {dossier.statut !== 'clos' && dossier.scoring && <ScoreCard s={dossier.scoring} />}
+
             {/* ---------- Frise d'escalade ---------- */}
             <FriseEscalade dossier={dossier} />
+
+            {/* ---------- Copilote juridique ---------- */}
+            <CopiloteJuridique dossierId={dossierId} />
+
 
             {/* ---------- Décompte ---------- */}
             {dossier.decompte.length > 0 && (
@@ -721,6 +733,142 @@ export function ContentieuxDrawer({
         )}
       </div>
     </div>
+  );
+}
+
+// ------------------------------------------------- Score de recouvrabilité
+function ScoreCard({ s }: { s: ScoreRecouvrabilite }) {
+  const couleur = s.niveau === 'eleve' ? 'var(--accent-dark)' : s.niveau === 'moyen' ? 'var(--amber-dark)' : 'var(--danger)';
+  const fond = s.niveau === 'eleve' ? 'var(--accent-soft)' : s.niveau === 'moyen' ? 'var(--amber-soft)' : 'var(--danger-soft)';
+  const niveauLabel = s.niveau === 'eleve' ? 'élevée' : s.niveau === 'moyen' ? 'moyenne' : 'faible';
+  return (
+    <div style={{ border: `1px solid ${couleur}`, background: fond, borderRadius: 12, padding: '12px 14px', margin: '4px 0 12px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <Gauge size={18} style={{ color: couleur, flexShrink: 0 }} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+            <strong style={{ color: couleur }}>Recouvrabilité {niveauLabel}</strong>
+            <span className="mono" style={{ fontSize: 18, fontWeight: 700, color: couleur }}>
+              {s.score}
+              <span style={{ fontSize: 11, fontWeight: 400 }}>/100</span>
+            </span>
+          </div>
+          <div style={{ height: 6, background: 'var(--line)', borderRadius: 3, marginTop: 5, overflow: 'hidden' }}>
+            <div style={{ width: `${s.score}%`, height: '100%', background: couleur }} />
+          </div>
+        </div>
+      </div>
+      <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        {s.facteurs.map((f, i) => (
+          <span
+            key={i}
+            className="badge"
+            style={{
+              fontSize: 10.5,
+              color: f.effet === 'positif' ? 'var(--accent-dark)' : f.effet === 'negatif' ? 'var(--danger)' : 'var(--ink-soft)',
+              background: 'var(--surface)',
+              border: '1px solid var(--line)',
+            }}
+          >
+            {f.effet === 'positif' ? '+' : f.effet === 'negatif' ? '–' : '·'} {f.label}
+          </span>
+        ))}
+      </div>
+      <div style={{ marginTop: 10, fontSize: 12.5, lineHeight: 1.5 }}>
+        <div className="mono" style={{ fontSize: 10, textTransform: 'uppercase', color: 'var(--ink-soft)', marginBottom: 2 }}>Stratégie recommandée</div>
+        {s.strategie}
+      </div>
+    </div>
+  );
+}
+
+// ------------------------------------------------- Copilote juridique (chat)
+function CopiloteJuridique({ dossierId }: { dossierId: string }) {
+  const { showToast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [messages, setMessages] = useState<MessageCopilote[]>([]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  async function envoyer() {
+    const q = input.trim();
+    if (!q || loading) return;
+    const histo = messages;
+    setMessages((m) => [...m, { role: 'user', content: q }]);
+    setInput('');
+    setLoading(true);
+    try {
+      const r = await api.post<{ reponse: string }>(`/api/contentieux/dossiers/${dossierId}/copilote`, { question: q, historique: histo });
+      setMessages((m) => [...m, { role: 'assistant', content: r.reponse }]);
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'Erreur';
+      setMessages((m) => [...m, { role: 'assistant', content: '⚠️ ' + msg }]);
+      if (err instanceof ApiError && err.status === 503) showToast(msg);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <>
+      <div className="section-title" style={{ marginTop: 26 }}>
+        Copilote juridique
+        <button onClick={() => setOpen((o) => !o)}>
+          <MessageSquare size={13} /> {open ? 'Masquer' : 'Poser une question'}
+        </button>
+      </div>
+      {open && (
+        <div style={{ border: '1px solid var(--line)', borderRadius: 10, padding: 12 }}>
+          <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginBottom: 8 }}>
+            Réponses indicatives, ancrées sur ce dossier — à faire valider par un huissier ou un avocat.
+          </div>
+          <div style={{ maxHeight: 260, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
+            {messages.length === 0 && (
+              <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
+                Ex. : « Quelle est ma meilleure option&nbsp;? », « La prescription est-elle un risque&nbsp;? », « Rédige une relance ferme. »
+              </div>
+            )}
+            {messages.map((m, i) => (
+              <div
+                key={i}
+                style={{
+                  alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
+                  maxWidth: '85%',
+                  padding: '8px 11px',
+                  borderRadius: 10,
+                  fontSize: 12.5,
+                  lineHeight: 1.5,
+                  whiteSpace: 'pre-wrap',
+                  background: m.role === 'user' ? 'var(--accent-soft)' : 'var(--surface)',
+                  border: '1px solid var(--line)',
+                }}
+              >
+                {m.content}
+              </div>
+            ))}
+            {loading && (
+              <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
+                <Loader2 size={13} className="spin" /> Le copilote réfléchit…
+              </div>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') envoyer();
+              }}
+              placeholder="Votre question sur ce dossier…"
+              style={{ flex: 1 }}
+            />
+            <button className="primary" disabled={loading || !input.trim()} onClick={envoyer}>
+              <Send size={14} />
+            </button>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
