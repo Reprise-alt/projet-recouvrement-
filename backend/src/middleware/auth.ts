@@ -109,6 +109,7 @@ async function requireAuthSso(req: Request, res: Response, next: NextFunction) {
       accesRecouvrement: acc.accesRecouvrement,
       roleOperations: acc.roleOperations,
       accesPlanningCoursiers: acc.accesPlanningCoursiers,
+      accesContentieux: acc.accesContentieux,
     },
     update: {
       nom: acc.nom,
@@ -117,6 +118,8 @@ async function requireAuthSso(req: Request, res: Response, next: NextFunction) {
       accesRecouvrement: acc.accesRecouvrement,
       roleOperations: acc.roleOperations,
       accesPlanningCoursiers: acc.accesPlanningCoursiers,
+      // Désormais piloté par le socle (grant « contentieux »).
+      accesContentieux: acc.accesContentieux,
     },
   });
 

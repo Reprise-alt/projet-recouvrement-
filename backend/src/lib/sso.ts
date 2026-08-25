@@ -67,6 +67,9 @@ export interface AccesConsole {
   accesRecouvrement: boolean;
   roleOperations: 'directrice_operations' | 'charge_compte' | 'direction_generale' | null;
   accesPlanningCoursiers: boolean;
+  // Accès au SEUL onglet Contentieux (prestataire externe : avocat / huissier),
+  // accordé par société dans le socle. Source de vérité = socle.
+  accesContentieux: boolean;
   estAgentRecouvrement: boolean;
 }
 
@@ -90,8 +93,19 @@ export function accesDepuisMoi(moi: SocleMoi): AccesConsole {
 
   // Recouvrement
   const accesRecouvrement = superAdmin || of('recouvrement').length > 0;
+  // Contentieux : console à part, accordée par société (avocats / huissiers).
+  const accesContentieux = superAdmin || of('contentieux').length > 0;
   const recoTenants = tenantsOf('recouvrement');
-  const entite = superAdmin ? null : recoTenants.size === 1 ? [...recoTenants][0] : null;
+  const contentieuxTenants = tenantsOf('contentieux');
+  // Entité de rattachement : celle du recouvrement si unique ; sinon, pour un
+  // prestataire contentieux pur, celle de son grant contentieux si unique.
+  const entite = superAdmin
+    ? null
+    : recoTenants.size === 1
+      ? [...recoTenants][0]
+      : !accesRecouvrement && contentieuxTenants.size === 1
+        ? [...contentieuxTenants][0]
+        : null;
   const role: AccesConsole['role'] = hasAdmin('recouvrement') ? 'admin' : entite ? 'manager_entite' : 'comptable';
 
   // Opérations (SORAM / IRIS)
@@ -117,6 +131,7 @@ export function accesDepuisMoi(moi: SocleMoi): AccesConsole {
     accesRecouvrement,
     roleOperations,
     accesPlanningCoursiers,
+    accesContentieux,
     // Un admin/super-admin consulte sans faire de relance de terrain : il ne
     // figure pas dans le reporting « performance par agent ».
     estAgentRecouvrement: !hasAdmin('recouvrement'),
