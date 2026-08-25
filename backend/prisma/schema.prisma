@@ -947,7 +947,18 @@ enum TypePiece {
   preuve_livraison
   echange           // e-mail / WhatsApp / courrier
   releve_de_compte
+  jugement          // décision de justice / compte rendu d'audience
   autre
+}
+
+// Dénouement d'un dossier contentieux à sa clôture.
+enum IssueDossier {
+  recouvre             // créance payée / recouvrée (issue positive)
+  transige             // accord amiable / transaction
+  resilie              // clôturé volontairement (résiliation, abandon de la poursuite)
+  jugement_favorable   // condamnation obtenue
+  jugement_defavorable // débouté
+  irrecouvrable        // perdu / passé en pertes
 }
 
 // Actes réellement pratiqués par les huissiers au Sénégal (calqués sur les
@@ -983,6 +994,14 @@ model DossierContentieux {
   // Montant réclamé = somme des postes du décompte (principal + intérêts +
   // pénalités + frais). Recalculé à chaque analyse, jamais saisi à la main.
   montantReclame Float?
+
+  // Clôture (dénouement du dossier). issue null tant que le dossier est ouvert.
+  // montantRecouvre = ce qui a effectivement été encaissé (issue positive).
+  issue           IssueDossier?
+  clotureLe       DateTime?
+  clotureParId    String?
+  montantRecouvre Float?
+  noteCloture     String?
 
   // Créé par (auteur du dossier) — SetNull pour conserver l'historique si le
   // compte est supprimé, comme ActionRecouvrement.

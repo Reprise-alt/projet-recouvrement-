@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
+  Archive,
   Building2,
   Check,
+  CheckCircle2,
   Download,
   FileText,
   Gavel,
   Loader2,
+  RotateCcw,
   Scale,
   ShieldCheck,
   Sparkles,
@@ -14,6 +17,7 @@ import {
   Trash2,
   Upload,
   X,
+  XCircle,
 } from 'lucide-react';
 import { api, ApiError, downloadFile } from '../api/client';
 import { useResource } from '../hooks/useResource';
@@ -24,6 +28,7 @@ import {
   AnalyseResponse,
   Avocat,
   DossierContentieuxDetail,
+  IssueDossier,
   MentionsLegales,
   PieceContentieux,
   StatutActe,
@@ -57,7 +62,17 @@ const TYPE_PIECE_LABEL: Record<TypePiece, string> = {
   preuve_livraison: 'Preuve de livraison',
   echange: 'Correspondance',
   releve_de_compte: 'Relevé de compte',
+  jugement: 'Décision de justice',
   autre: 'Autre',
+};
+
+const ISSUE: Record<IssueDossier, { label: string; positif: boolean }> = {
+  recouvre: { label: 'Créance recouvrée (payée)', positif: true },
+  transige: { label: 'Transaction / accord amiable', positif: true },
+  resilie: { label: 'Clôturé (résiliation / abandon)', positif: true },
+  jugement_favorable: { label: 'Jugement favorable', positif: true },
+  jugement_defavorable: { label: 'Jugement défavorable', positif: false },
+  irrecouvrable: { label: 'Irrécouvrable / passé en pertes', positif: false },
 };
 
 const TYPE_ACTE_LABEL: Record<TypeActe, string> = {
@@ -102,6 +117,11 @@ export function ContentieuxDrawer({
   const [openForm, setOpenForm] = useState<null | 'societe' | 'commandement' | 'assignation'>(null);
   // Id de l'acte en cours de dépôt de version signée (déclenche le sélecteur de fichier).
   const [acteSigneCible, setActeSigneCible] = useState<string | null>(null);
+  const jugementRef = useRef<HTMLInputElement>(null);
+  const [cloturer, setCloturer] = useState(false);
+  const [issueSel, setIssueSel] = useState<IssueDossier | ''>('');
+  const [montantRec, setMontantRec] = useState('');
+  const [noteClot, setNoteClot] = useState('');
 
   function refreshAll() {
     refetch();
@@ -133,6 +153,53 @@ export function ContentieuxDrawer({
       showToast(err instanceof ApiError ? err.message : 'Échec du dépôt');
     } finally {
       if (signeRef.current) signeRef.current.value = '';
+    }
+  }
+
+  // Dépôt du compte rendu de jugement (pièce typée « jugement »).
+  async function handleUploadJugement(files: FileList | null) {
+    if (!files || !files.length) return;
+    try {
+      const fd = new FormData();
+      Array.from(files).forEach((f) => fd.append('fichiers', f));
+      fd.append('type', 'jugement');
+      await api.upload(`/api/contentieux/dossiers/${dossierId}/pieces`, fd);
+      showToast('Décision de justice déposée');
+      refreshAll();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Échec du dépôt');
+    } finally {
+      if (jugementRef.current) jugementRef.current.value = '';
+    }
+  }
+
+  async function handleCloturer() {
+    if (!issueSel) return;
+    try {
+      await api.post(`/api/contentieux/dossiers/${dossierId}/cloturer`, {
+        issue: issueSel,
+        montantRecouvre: montantRec ? Number(montantRec) : undefined,
+        note: noteClot || undefined,
+      });
+      showToast('Dossier clôturé');
+      setCloturer(false);
+      setIssueSel('');
+      setMontantRec('');
+      setNoteClot('');
+      refreshAll();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Échec de la clôture');
+    }
+  }
+
+  async function handleRouvrir() {
+    if (!confirm('Rouvrir ce dossier clôturé ?')) return;
+    try {
+      await api.post(`/api/contentieux/dossiers/${dossierId}/rouvrir`);
+      showToast('Dossier rouvert');
+      refreshAll();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
     }
   }
 
@@ -208,6 +275,36 @@ export function ContentieuxDrawer({
               Dossier contentieux · <span className="mono">{dossier.reference}</span> ·{' '}
               {STATUT_LABEL[dossier.statut]}
             </div>
+
+            {/* ---------- Bandeau dossier clôturé ---------- */}
+            {dossier.statut === 'clos' && dossier.issue && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  margin: '10px 0',
+                  padding: '10px 14px',
+                  borderRadius: 10,
+                  border: `1px solid ${ISSUE[dossier.issue].positif ? 'var(--accent)' : 'var(--danger)'}`,
+                  background: ISSUE[dossier.issue].positif ? 'var(--accent-soft)' : 'var(--danger-soft)',
+                  color: ISSUE[dossier.issue].positif ? 'var(--accent-dark)' : 'var(--danger)',
+                }}
+              >
+                {ISSUE[dossier.issue].positif ? <CheckCircle2 size={17} /> : <XCircle size={17} />}
+                <div style={{ flex: 1, fontSize: 12.5 }}>
+                  <strong>Dossier clôturé — {ISSUE[dossier.issue].label}</strong>
+                  {dossier.clotureLe ? ` · le ${fmtDate(dossier.clotureLe)}` : ''}
+                  {dossier.montantRecouvre != null ? ` · recouvré ${fmtFCFA(dossier.montantRecouvre)}` : ''}
+                  {dossier.noteCloture ? <div style={{ color: 'var(--ink-soft)', marginTop: 3 }}>{dossier.noteCloture}</div> : null}
+                </div>
+                {!avocat && (
+                  <button onClick={handleRouvrir} title="Rouvrir le dossier">
+                    <RotateCcw size={13} /> Rouvrir
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* ---------- Avocat assigné (interne) ---------- */}
             {!avocat && <AssignationAvocat dossierId={dossierId} avocatActuel={dossier.avocat} onChanged={refreshAll} />}
@@ -541,6 +638,65 @@ export function ContentieuxDrawer({
                 })}
               </div>
             )}
+
+            {/* ---------- Clôture du dossier (interne) ---------- */}
+            {!avocat && dossier.statut !== 'clos' && (
+              <>
+                <div className="section-title" style={{ marginTop: 26 }}>Clôture du dossier</div>
+                <input ref={jugementRef} type="file" hidden multiple accept=".pdf,image/*" onChange={(e) => handleUploadJugement(e.target.files)} />
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+                  <button onClick={() => jugementRef.current?.click()}>
+                    <Gavel size={14} /> Déposer le compte rendu de jugement
+                  </button>
+                  {!cloturer && (
+                    <button className="primary" onClick={() => setCloturer(true)}>
+                      <Archive size={14} /> Clôturer le dossier
+                    </button>
+                  )}
+                </div>
+
+                {dossier.factures.length > 0 && dossier.factures.every((f) => f.statut === 'payee') && !cloturer && (
+                  <div style={{ fontSize: 11.5, color: 'var(--accent-dark)', marginBottom: 8 }}>
+                    ✓ Toutes les factures rattachées sont réglées — vous pouvez clôturer en « recouvré ».
+                  </div>
+                )}
+
+                {cloturer && (
+                  <div style={{ border: '1px solid var(--line)', borderRadius: 10, padding: 14 }}>
+                    <label style={{ display: 'block', marginBottom: 9 }}>
+                      <span style={{ display: 'block', fontSize: 11, color: 'var(--ink-soft)', marginBottom: 3 }}>Dénouement</span>
+                      <select value={issueSel} onChange={(e) => setIssueSel(e.target.value as IssueDossier)} style={{ width: '100%' }}>
+                        <option value="">— Choisir —</option>
+                        {(Object.keys(ISSUE) as IssueDossier[]).map((k) => (
+                          <option key={k} value={k}>
+                            {ISSUE[k].label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label style={{ display: 'block', marginBottom: 9 }}>
+                      <span style={{ display: 'block', fontSize: 11, color: 'var(--ink-soft)', marginBottom: 3 }}>Montant recouvré (FCFA, optionnel)</span>
+                      <input type="number" value={montantRec} onChange={(e) => setMontantRec(e.target.value)} style={{ width: '100%' }} />
+                    </label>
+                    <label style={{ display: 'block', marginBottom: 9 }}>
+                      <span style={{ display: 'block', fontSize: 11, color: 'var(--ink-soft)', marginBottom: 3 }}>Note (optionnel)</span>
+                      <textarea rows={2} value={noteClot} onChange={(e) => setNoteClot(e.target.value)} style={{ width: '100%', fontFamily: 'inherit', fontSize: 13, resize: 'vertical' }} />
+                    </label>
+                    {(issueSel === 'jugement_favorable' || issueSel === 'jugement_defavorable') && (
+                      <div style={{ fontSize: 11.5, color: 'var(--amber-dark)', marginBottom: 8 }}>
+                        Pensez à déposer le compte rendu de jugement (bouton ci-dessus) pour l’archiver dans le dossier.
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                      <button onClick={() => setCloturer(false)}>Annuler</button>
+                      <button className="primary" disabled={!issueSel} onClick={handleCloturer}>
+                        Confirmer la clôture
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </>
         )}
       </div>
@@ -563,7 +719,9 @@ function FriseEscalade({ dossier }: { dossier: DossierContentieuxDetail }) {
     { label: '① Commandement société', sub: cs ? sousTitre(cs) : 'à préparer', done: !!cs },
     { label: '② Commandement huissier', sub: ch ? sousTitre(ch) : 'à venir', done: !!ch },
     { label: '③ Assignation en paiement', sub: as ? sousTitre(as) : 'à venir', done: !!as },
-    { label: 'Jugement & exécution', sub: 'à venir', done: false },
+    dossier.statut === 'clos' && dossier.issue
+      ? { label: 'Clôturé', sub: `${ISSUE[dossier.issue].label}${dossier.clotureLe ? ' · ' + fmtDate(dossier.clotureLe) : ''}`, done: true }
+      : { label: 'Jugement & clôture', sub: 'à venir', done: false },
   ];
   const idxCourant = etapes.findIndex((e) => !e.done);
 

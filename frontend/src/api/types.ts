@@ -884,7 +884,15 @@ export type TypePiece =
   | 'preuve_livraison'
   | 'echange'
   | 'releve_de_compte'
+  | 'jugement'
   | 'autre';
+export type IssueDossier =
+  | 'recouvre'
+  | 'transige'
+  | 'resilie'
+  | 'jugement_favorable'
+  | 'jugement_defavorable'
+  | 'irrecouvrable';
 export type TypeActe =
   | 'mise_en_demeure'
   | 'commandement_societe'
@@ -973,6 +981,9 @@ export interface DossierContentieuxListItem {
   createdAt: string;
   client: { id: string; nom: string; entite: Entite };
   avocat: AvocatRef | null;
+  issue: IssueDossier | null;
+  clotureLe: string | null;
+  montantRecouvre: number | null;
   _count: { pieces: number; factures: number };
 }
 
@@ -985,6 +996,10 @@ export interface DossierContentieuxDetail {
   createdAt: string;
   client: { id: string; nom: string; entite: Entite };
   avocat: AvocatRef | null;
+  issue: IssueDossier | null;
+  clotureLe: string | null;
+  montantRecouvre: number | null;
+  noteCloture: string | null;
   factures: Facture[];
   pieces: PieceContentieux[];
   analyse: AnalyseContentieux | null;
