@@ -46,8 +46,8 @@ export const PALIERS: Palier[] = [
     desc: "Lettre annonçant la suspension du service (livraisons, interventions ou accès plateforme) jusqu'à régularisation",
   },
   { id: 5, label: 'Pénalités', tone: 'danger', key: 'j5', desc: 'Application des pénalités de retard contractuelles' },
-  { id: 6, label: 'Mise en demeure', tone: 'danger', key: 'j6', desc: 'Mise en demeure formelle (LRAR)' },
-  { id: 7, label: 'Huissier', tone: 'danger', key: 'j7', desc: 'Transmission au contentieux / huissier de justice' },
+  { id: 6, label: 'Commandement (société)', tone: 'danger', key: 'j6', desc: 'Commandement de payer sur entête société (LRAR) — vaut mise en demeure et bascule le dossier en contentieux' },
+  { id: 7, label: 'Huissier', tone: 'danger', key: 'j7', desc: 'Signification par huissier puis assignation (suivi dans l’onglet Contentieux)' },
 ];
 
 export function computePalier(joursRetard: number, config: PalierConfig = DEFAULT_CONFIG, multiplier = 1): number {

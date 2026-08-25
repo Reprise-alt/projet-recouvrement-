@@ -1,7 +1,7 @@
 import { FormEvent, useState } from 'react';
-import { AlertTriangle, CheckCircle2, TrendingUp, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Scale, TrendingUp, X } from 'lucide-react';
 import { api, ApiError } from '../api/client';
-import { ClientDetail, Contact, EcheancierPaiement, RoleUtilisateur, SignalOperations } from '../api/types';
+import { ClientDetail, Contact, DossierRef, EcheancierPaiement, RoleUtilisateur, SignalOperations } from '../api/types';
 import { useResource } from '../hooks/useResource';
 import { useToast } from '../hooks/useToast';
 import { fmtDate, fmtFCFA, PALIERS } from '../lib/constants';
@@ -21,6 +21,10 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
   // "vide" qui laisserait croire que le module a été consulté sans rien y
   // trouver.
   const { data: signalOperations } = useResource<SignalOperations>(`/api/clients/${clientId}/signal-operations`);
+  // Dossier contentieux du client — chargé seulement à partir du palier 6
+  // (« Commandement société »), pour proposer la bascule ou renvoyer au dossier.
+  const dossierContentieuxPath = client && client.palier >= 6 ? `/api/contentieux/client/${clientId}/dossier` : null;
+  const { data: dossierContentieux, refetch: refetchDossier } = useResource<DossierRef | null>(dossierContentieuxPath);
 
   const [editingContact, setEditingContact] = useState(false);
   const [editingNote, setEditingNote] = useState(false);
@@ -348,6 +352,24 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
     );
   }
 
+  async function handleBasculer() {
+    if (!confirm('Basculer ce client en contentieux ?\n\nUn dossier contentieux et un brouillon de commandement de payer (société) seront préparés automatiquement. L’envoi restera à valider dans l’onglet Contentieux.')) return;
+    setBusy(true);
+    try {
+      const r = await api.post<{ dossier: DossierRef; existant: boolean }>('/api/contentieux/basculer', { clientId });
+      showToast(
+        r.existant
+          ? `Déjà en contentieux : ${r.dossier.reference}`
+          : `Basculé en contentieux : ${r.dossier.reference} — brouillon de commandement prêt dans l’onglet Contentieux`,
+      );
+      refetchDossier();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="overlay open" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="drawer">
@@ -380,6 +402,30 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
                 </div>
               </div>
             )}
+
+            {client.palier >= 6 &&
+              (dossierContentieux ? (
+                <div
+                  className="signal-banner"
+                  style={{ margin: '12px 0', background: 'var(--accent-soft)', borderColor: 'var(--accent)', color: 'var(--accent-dark)' }}
+                >
+                  <Scale size={17} />
+                  <div>
+                    En contentieux : <strong>{dossierContentieux.reference}</strong> — le suivi se fait dans l’onglet <strong>Contentieux</strong>.
+                  </div>
+                </div>
+              ) : (
+                <div className="signal-banner" style={{ margin: '12px 0', display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <Scale size={17} />
+                  <div style={{ flex: 1 }}>
+                    Palier <strong>Commandement (société)</strong> atteint. La plateforme peut préparer le dossier contentieux et le
+                    brouillon de commandement — l’envoi restera à valider.
+                  </div>
+                  <button className="primary" disabled={busy} onClick={handleBasculer} style={{ whiteSpace: 'nowrap' }}>
+                    <Scale size={14} /> Basculer en contentieux
+                  </button>
+                </div>
+              ))}
 
             <div className="section-title">
               <span>Contact</span>

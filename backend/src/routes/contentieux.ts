@@ -380,6 +380,46 @@ async function preparerDonneesActe(dossier: { id: string; clientId: string; mont
   return { commun, decompte, factures, client };
 }
 
+// Construit les données du commandement société : pré-remplissage depuis les
+// mentions légales officielles de l'entité (une valeur saisie prime), logo de
+// l'entité. Partagé par l'endpoint manuel et la bascule automatique (palier 6).
+function construireCommandementSociete(
+  dossier: { reference: string; montantReclame: number | null },
+  factures: { numero: string; dateFacture: Date | null; dateEcheance: Date; montant: number }[],
+  decompte: { poste: string; montant: number }[],
+  client: { nom: string; entite: string } | null,
+  body: any,
+): DonneesCommandementSociete {
+  const total = dossier.montantReclame ?? decompte.reduce((s, l) => s + l.montant, 0);
+  const base = mentionsLegales(client?.entite);
+  const b = body?.societe || {};
+  return {
+    societe: {
+      nom: String(b.nom || base?.nom || client?.entite || 'La société créancière'),
+      formeJuridique: b.formeJuridique || base?.formeJuridique,
+      adresse: b.adresse || base?.adresse,
+      rccm: b.rccm || base?.rccm,
+      ninea: b.ninea || base?.ninea,
+      tel: b.tel || base?.tel,
+      email: b.email || base?.email,
+      representant: b.representant,
+      logo: logoEntite(client?.entite),
+    },
+    lieu: body?.lieu,
+    date: new Date(),
+    reference: dossier.reference,
+    debiteurNom: client?.nom || 'Le débiteur',
+    debiteurAdresse: body?.debiteurAdresse,
+    debiteurRepresentant: body?.debiteurRepresentant,
+    montantPrincipal: total,
+    delaiJours: num(body?.delaiJours),
+    signataireNom: body?.signataireNom || base?.signataireNom,
+    signataireQualite: body?.signataireQualite || base?.signataireQualite,
+    factures: factures.map((f) => ({ numero: f.numero, date: f.dateFacture, echeance: f.dateEcheance, montant: f.montant })),
+    decompte: decompte.map((l) => ({ poste: l.poste, montant: l.montant })),
+  };
+}
+
 // --- Générer un PROJET : commandement de payer ÉMIS PAR LA SOCIÉTÉ (étape 1) ---
 contentieuxRouter.post('/dossiers/:id/actes/commandement-societe', async (req, res, next) => {
   try {
@@ -388,37 +428,8 @@ contentieuxRouter.post('/dossiers/:id/actes/commandement-societe', async (req, r
     if (!dossier) return;
     const { factures, decompte, client } = await preparerDonneesActe(dossier, req.body);
     if (!factures.length) return res.status(400).json({ error: 'Aucune facture rattachée : décompte impossible.' });
-    const total = dossier.montantReclame ?? decompte.reduce((s, l) => s + l.montant, 0);
 
-    // Pré-remplissage depuis les mentions légales officielles de l'entité ; une
-    // valeur saisie dans le formulaire prime toujours. Logo de l'entité si connu.
-    const base = mentionsLegales(client?.entite);
-    const b = req.body?.societe || {};
-    const donnees: DonneesCommandementSociete = {
-      societe: {
-        nom: String(b.nom || base?.nom || client?.entite || 'La société créancière'),
-        formeJuridique: b.formeJuridique || base?.formeJuridique,
-        adresse: b.adresse || base?.adresse,
-        rccm: b.rccm || base?.rccm,
-        ninea: b.ninea || base?.ninea,
-        tel: b.tel || base?.tel,
-        email: b.email || base?.email,
-        representant: b.representant,
-        logo: logoEntite(client?.entite),
-      },
-      lieu: req.body?.lieu,
-      date: new Date(),
-      reference: dossier.reference?.slice(-8).toUpperCase(),
-      debiteurNom: client?.nom || 'Le débiteur',
-      debiteurAdresse: req.body?.debiteurAdresse,
-      debiteurRepresentant: req.body?.debiteurRepresentant,
-      montantPrincipal: total,
-      delaiJours: num(req.body?.delaiJours),
-      signataireNom: req.body?.signataireNom || base?.signataireNom,
-      signataireQualite: req.body?.signataireQualite || base?.signataireQualite,
-      factures: factures.map((f) => ({ numero: f.numero, date: f.dateFacture, echeance: f.dateEcheance, montant: f.montant })),
-      decompte: decompte.map((l) => ({ poste: l.poste, montant: l.montant })),
-    };
+    const donnees = construireCommandementSociete(dossier, factures, decompte, client, req.body);
     const pdf = await genererCommandementSocietePdf(donnees);
     const acte = await prisma.acteContentieux.create({
       data: { dossierId: dossier.id, type: TypeActe.commandement_societe, gabaritVersion: GABARIT_COMMANDEMENT_SOCIETE_VERSION, contenu: pdf, mimeType: 'application/pdf' },
@@ -599,6 +610,85 @@ contentieuxRouter.get('/dossiers/:id/actes/:acteId/signe/pdf', async (req, res, 
     res.setHeader('Content-Type', acte.mimeTypeSigne || 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="signe-${acte.type}-${dossier.id}"`);
     res.send(Buffer.from(acte.contenuSigne));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// --- Bascule amiable -> contentieux (palier 6) ---
+// Prépare TOUT automatiquement, l'envoi restant validé par un humain : crée le
+// dossier contentieux, rattache les factures impayées, et génère le BROUILLON
+// de commandement société (entête auto). Idempotent : si un dossier non clos
+// existe déjà pour ce client, on le renvoie sans rien recréer. Interne seulement.
+contentieuxRouter.post('/basculer', async (req, res, next) => {
+  try {
+    if (bloquerSiCollaborateur(req, res)) return;
+    const clientId = String(req.body?.clientId || '');
+    if (!clientId) return res.status(400).json({ error: 'clientId requis' });
+    const client = await prisma.client.findUnique({ where: { id: clientId } });
+    if (!client) return res.status(404).json({ error: 'Client introuvable' });
+    if (!assertEntiteInScope(req, res, client.entite as Entite)) return;
+
+    const existant = await prisma.dossierContentieux.findFirst({
+      where: { clientId, statut: { not: StatutDossierContentieux.clos } },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, reference: true, statut: true },
+    });
+    if (existant) return res.json({ dossier: existant, existant: true, acteId: null });
+
+    const impayees = await prisma.facture.findMany({ where: { clientId, statut: 'impayee' } });
+    let dossier;
+    for (let essai = 0; ; essai++) {
+      const reference = await genererReferenceDossier();
+      try {
+        dossier = await prisma.dossierContentieux.create({ data: { clientId, createurId: req.user!.id, reference } });
+        break;
+      } catch (e: any) {
+        if (e?.code === 'P2002' && essai < 5) continue;
+        throw e;
+      }
+    }
+    if (impayees.length) {
+      await prisma.facture.updateMany({ where: { id: { in: impayees.map((f) => f.id) }, clientId }, data: { dossierContentieuxId: dossier.id } });
+    }
+
+    // Brouillon de commandement société — best-effort (n'échoue jamais la bascule).
+    let acteId: string | null = null;
+    if (impayees.length) {
+      try {
+        const decompte = impayees.map((f) => ({ poste: `Facture ${f.numero}`, montant: f.montant }));
+        const donnees = construireCommandementSociete({ reference: dossier.reference, montantReclame: null }, impayees, decompte, client, {});
+        const pdf = await genererCommandementSocietePdf(donnees);
+        const acte = await prisma.acteContentieux.create({
+          data: { dossierId: dossier.id, type: TypeActe.commandement_societe, gabaritVersion: GABARIT_COMMANDEMENT_SOCIETE_VERSION, contenu: pdf, mimeType: 'application/pdf' },
+          select: { id: true },
+        });
+        acteId = acte.id;
+      } catch (e) {
+        acteId = null; // le dossier est créé ; le commandement pourra être généré depuis l'onglet
+      }
+    }
+    res.status(201).json({ dossier: { id: dossier.id, reference: dossier.reference, statut: dossier.statut }, existant: false, acteId });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// --- Dossier contentieux (le plus récent) d'un client, ou null. Interne. ---
+// Sert à la fiche client (console recouvrement) pour savoir si le client est
+// déjà basculé et proposer « Voir le dossier » plutôt que « Basculer ».
+contentieuxRouter.get('/client/:clientId/dossier', async (req, res, next) => {
+  try {
+    if (bloquerSiCollaborateur(req, res)) return;
+    const client = await prisma.client.findUnique({ where: { id: req.params.clientId } });
+    if (!client) return res.status(404).json({ error: 'Client introuvable' });
+    if (!assertEntiteInScope(req, res, client.entite as Entite)) return;
+    const dossier = await prisma.dossierContentieux.findFirst({
+      where: { clientId: req.params.clientId },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, reference: true, statut: true },
+    });
+    res.json(dossier);
   } catch (err) {
     next(err);
   }
