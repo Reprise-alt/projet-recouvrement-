@@ -157,6 +157,7 @@ contentieuxRouter.get('/dossiers', async (req, res, next) => {
         client: { select: { id: true, nom: true, entite: true } },
         avocat: { select: { id: true, nom: true } },
         factures: { select: { dateEcheance: true } },
+        propositions: { where: { statut: 'en_attente' }, select: { id: true } },
         _count: { select: { pieces: true, factures: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -167,9 +168,27 @@ contentieuxRouter.get('/dossiers', async (req, res, next) => {
     const dansScope = !estCollaborateurJuridique(req.user!) && entite
       ? dossiers.filter((d) => d.client.entite === entite)
       : dossiers;
-    // Calcule la prescription par dossier et retire le détail des factures.
-    const visibles = dansScope.map(({ factures, ...d }) => ({ ...d, prescription: infoPrescription(factures) }));
+    // Calcule prescription + nb de propositions débiteur en attente, et retire
+    // le détail des factures/propositions.
+    const visibles = dansScope.map(({ factures, propositions, ...d }) => ({
+      ...d,
+      prescription: infoPrescription(factures),
+      nbPropositionsEnAttente: propositions.length,
+    }));
     res.json(visibles);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// --- Compteur d'alertes (propositions débiteur en attente), scopé ---
+contentieuxRouter.get('/alertes', async (req, res, next) => {
+  try {
+    const where: any = { statut: 'en_attente' };
+    if (estCollaborateurJuridique(req.user!)) where.dossier = { avocatId: req.user!.id };
+    else if (req.user!.entite) where.dossier = { client: { entite: req.user!.entite } };
+    const propositionsEnAttente = await prisma.propositionPaiement.count({ where });
+    res.json({ propositionsEnAttente });
   } catch (err) {
     next(err);
   }

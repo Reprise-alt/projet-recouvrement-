@@ -77,6 +77,13 @@ export function App() {
 
   const { data: entreprises, refetch: refetchEntreprises } = useResource<Entreprise[]>(user ? '/api/entreprises' : null);
 
+  // Alerte onglet Contentieux : nombre de propositions débiteur en attente.
+  const { data: alertesContentieux } = useResource<{ propositionsEnAttente: number }>(
+    user && CONSOLE === 'recouvrement' && (user.accesRecouvrement || user.accesContentieux) ? '/api/contentieux/alertes' : null,
+    dataVersion,
+  );
+  const nbAlertesContentieux = alertesContentieux?.propositionsEnAttente ?? 0;
+
   // Périmètre du sélecteur d'entités selon la console. Pour le groupe
   // (recouvrement, coursier) : toutes les entités hors "COMMUN" (pseudo-groupe
   // partagé, jamais un onglet sélectionnable). Pour les opérations : SORAM et
@@ -210,6 +217,27 @@ export function App() {
                   onClick={() => setRecouvrementTab('contentieux')}
                 >
                   Contentieux
+                  {nbAlertesContentieux > 0 && (
+                    <span
+                      title={`${nbAlertesContentieux} proposition(s) de règlement en attente`}
+                      style={{
+                        marginLeft: 6,
+                        minWidth: 16,
+                        height: 16,
+                        padding: '0 4px',
+                        borderRadius: 8,
+                        background: 'var(--danger)',
+                        color: '#fff',
+                        fontSize: 10.5,
+                        fontWeight: 700,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      {nbAlertesContentieux}
+                    </span>
+                  )}
                 </button>
               </>
             ) : CONSOLE === 'operations' ? (

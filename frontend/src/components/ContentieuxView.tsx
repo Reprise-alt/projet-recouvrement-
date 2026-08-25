@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Clock, FilePlus2, Loader2, Scale, Search } from 'lucide-react';
+import { Bell, Clock, FilePlus2, Loader2, MessageSquare, Scale, Search } from 'lucide-react';
 import { api, ApiError } from '../api/client';
 import { useResource } from '../hooks/useResource';
 import { useToast } from '../hooks/useToast';
@@ -66,8 +66,55 @@ export function ContentieuxView({ entityFilter, avocat = false }: { entityFilter
     [dossiers, entityFilter],
   );
 
+  // Alerte : nombre de dossiers (dans le périmètre) avec au moins une
+  // proposition débiteur en attente de traitement.
+  const dossiersAvecProposition = useMemo(
+    () =>
+      (dossiers ?? []).filter(
+        (d) => (entityFilter === 'ALL' || d.client.entite === entityFilter) && d.nbPropositionsEnAttente > 0,
+      ),
+    [dossiers, entityFilter],
+  );
+
   return (
     <>
+      {dossiersAvecProposition.length > 0 && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            marginBottom: 12,
+            padding: '11px 16px',
+            borderRadius: 10,
+            border: '1px solid var(--amber)',
+            background: 'var(--amber-soft)',
+            color: 'var(--amber-dark)',
+            fontSize: 13,
+          }}
+        >
+          <Bell size={17} />
+          <div style={{ flex: 1 }}>
+            <strong>
+              {dossiersAvecProposition.length} dossier{dossiersAvecProposition.length > 1 ? 's' : ''} avec une proposition de
+              règlement en attente
+            </strong>{' '}
+            — un débiteur vous a répondu via le portail.
+          </div>
+          {(q || verdictFilter !== 'ALL' || statutFilter !== 'ALL') && (
+            <button
+              onClick={() => {
+                setQ('');
+                setVerdictFilter('ALL');
+                setStatutFilter('ALL');
+              }}
+              style={{ whiteSpace: 'nowrap' }}
+            >
+              Voir tout
+            </button>
+          )}
+        </div>
+      )}
       <div className="table-card">
         <div className="table-head">
           <div>
@@ -177,6 +224,16 @@ export function ContentieuxView({ entityFilter, avocat = false }: { entityFilter
                       <span className="entity-tag">
                         <EntityLogo entite={d.client.entite} size={11} /> {d.client.entite}
                       </span>
+                      {d.nbPropositionsEnAttente > 0 && (
+                        <span
+                          className="badge"
+                          title="Proposition de règlement du débiteur en attente"
+                          style={{ color: 'var(--amber-dark)', background: 'var(--amber-soft)' }}
+                        >
+                          <MessageSquare size={10} style={{ verticalAlign: -1, marginRight: 3 }} />
+                          {d.nbPropositionsEnAttente} propo.
+                        </span>
+                      )}
                       {d.statut !== 'clos' && d.prescription && d.prescription.joursRestants <= 180 && (
                         <span
                           className="badge"

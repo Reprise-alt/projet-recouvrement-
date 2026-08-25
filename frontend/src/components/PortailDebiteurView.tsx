@@ -77,6 +77,26 @@ export function PortailDebiteurView({ token }: { token: string }) {
             </div>
           ) : (
             <>
+              {data.procedureEngagee && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    marginTop: 12,
+                    padding: '9px 12px',
+                    borderRadius: 8,
+                    border: '1px solid var(--amber)',
+                    background: 'var(--amber-soft)',
+                    color: 'var(--amber-dark)',
+                    fontSize: 12.5,
+                  }}
+                >
+                  <AlertTriangle size={16} style={{ flexShrink: 0 }} />
+                  Une procédure de recouvrement est engagée. Un règlement — même échelonné — reste possible et
+                  mettrait fin à la procédure.
+                </div>
+              )}
               <div style={{ marginTop: 12, fontSize: 13, lineHeight: 1.5 }}>
                 Nos écritures font apparaître à ce jour un solde impayé de :
               </div>
@@ -127,9 +147,13 @@ export function PortailDebiteurView({ token }: { token: string }) {
         {/* Formulaire de proposition */}
         {!data.clos && (
           <div className="table-card" style={{ padding: 20, marginTop: 16 }}>
-            <div style={{ fontWeight: 700, marginBottom: 4 }}>Régler ou proposer un échéancier</div>
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>
+              {data.procedureEngagee ? 'Proposer un accord de règlement' : 'Régler ou proposer un échéancier'}
+            </div>
             <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginBottom: 14 }}>
-              Vous pouvez proposer un plan de paiement ou nous laisser un message. Notre équipe recouvrement vous recontactera.
+              {data.procedureEngagee
+                ? 'Proposez un règlement (immédiat ou échelonné). En cas d’accord, la procédure en cours sera arrêtée.'
+                : 'Vous pouvez proposer un plan de paiement ou nous laisser un message. Notre équipe recouvrement vous recontactera.'}
             </div>
             {envoye ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--accent-dark)' }}>

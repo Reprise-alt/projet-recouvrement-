@@ -44,6 +44,9 @@ contentieuxPortailRouter.get('/:token', async (req, res, next) => {
       debiteurNom: d.client.nom,
       montantDu,
       clos: d.statut === 'clos',
+      // Une procédure est engagée auprès de l'huissier / du tribunal : le
+      // règlement reste possible mais mettra fin à la procédure (transaction).
+      procedureEngagee: d.statut === 'transmis' || d.statut === 'depose',
       commandementDisponible: commandement,
       factures: d.factures.map((f) => ({ numero: f.numero, montant: f.montant, dateEcheance: f.dateEcheance })),
       derniereProposition: derniere,
