@@ -19,6 +19,7 @@ import { coursierPublicRouter } from './routes/coursierPublic';
 import { sallePublicRouter } from './routes/sallePublic';
 import { assistantRouter } from './routes/assistant';
 import { contentieuxRouter } from './routes/contentieux';
+import { contentieuxPortailRouter } from './routes/contentieuxPortail';
 import { errorHandler } from './middleware/errorHandler';
 
 export function createApp() {
@@ -53,6 +54,7 @@ export function createApp() {
   app.use('/api/salle-public', sallePublicRouter);
   app.use('/api/assistant', assistantRouter);
   app.use('/api/contentieux', contentieuxRouter);
+  app.use('/api/contentieux-portail', contentieuxPortailRouter);
 
   app.use(errorHandler);
   return app;

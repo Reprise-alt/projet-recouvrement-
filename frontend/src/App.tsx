@@ -8,6 +8,7 @@ import { PlanningView } from './components/PlanningView';
 import { OperationsView } from './components/OperationsView';
 import { CoursierPublicView } from './components/CoursierPublicView';
 import { SalleCoursierView } from './components/SalleCoursierView';
+import { PortailDebiteurView } from './components/PortailDebiteurView';
 import { SettingsModal } from './components/SettingsModal';
 import { ImportPanel } from './components/ImportPanel';
 import { UsersPanel } from './components/UsersPanel';
@@ -50,6 +51,11 @@ export function App() {
   if (window.location.pathname.startsWith('/salle/')) {
     const token = window.location.pathname.slice('/salle/'.length);
     return <SalleCoursierView token={token} />;
+  }
+  // Portail débiteur — lien public à token partagé au débiteur (contentieux).
+  if (window.location.pathname.startsWith('/portail/')) {
+    const token = window.location.pathname.slice('/portail/'.length);
+    return <PortailDebiteurView token={token} />;
   }
 
   const [recouvrementTab, setRecouvrementTab] = useState<RecouvrementTab>('recouvrement');
