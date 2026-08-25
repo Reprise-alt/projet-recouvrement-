@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FilePlus2, Loader2, Scale } from 'lucide-react';
+import { FilePlus2, Loader2, Scale, Search } from 'lucide-react';
 import { api, ApiError } from '../api/client';
 import { useResource } from '../hooks/useResource';
 import { useToast } from '../hooks/useToast';
@@ -45,11 +45,26 @@ export function ContentieuxView({ entityFilter, avocat = false }: { entityFilter
   );
   const [selected, setSelected] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [q, setQ] = useState('');
+  const [verdictFilter, setVerdictFilter] = useState<VerdictRecevabilite | 'ALL'>('ALL');
+  const [statutFilter, setStatutFilter] = useState<StatutDossierContentieux | 'ALL'>('ALL');
 
   const visibles = useMemo(() => {
     if (!dossiers) return [];
-    return entityFilter === 'ALL' ? dossiers : dossiers.filter((d) => d.client.entite === entityFilter);
-  }, [dossiers, entityFilter]);
+    const terme = q.trim().toLowerCase();
+    return dossiers.filter((d) => {
+      if (entityFilter !== 'ALL' && d.client.entite !== entityFilter) return false;
+      if (verdictFilter !== 'ALL' && d.verdict !== verdictFilter) return false;
+      if (statutFilter !== 'ALL' && d.statut !== statutFilter) return false;
+      if (terme && !`${d.client.nom} ${d.reference}`.toLowerCase().includes(terme)) return false;
+      return true;
+    });
+  }, [dossiers, entityFilter, q, verdictFilter, statutFilter]);
+
+  const totalVisibleSansRecherche = useMemo(
+    () => (dossiers ?? []).filter((d) => entityFilter === 'ALL' || d.client.entite === entityFilter).length,
+    [dossiers, entityFilter],
+  );
 
   return (
     <>
@@ -70,6 +85,47 @@ export function ContentieuxView({ entityFilter, avocat = false }: { entityFilter
           )}
         </div>
 
+        {totalVisibleSansRecherche > 0 && (
+          <div
+            style={{
+              display: 'flex',
+              gap: 8,
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              padding: '10px 22px',
+              borderTop: '1px solid var(--line-soft)',
+            }}
+          >
+            <div style={{ position: 'relative', flex: '1 1 220px', minWidth: 0 }}>
+              <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }} />
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Rechercher (client, référence CONT-…)"
+                style={{ width: '100%', paddingLeft: 30 }}
+              />
+            </div>
+            <select value={verdictFilter} onChange={(e) => setVerdictFilter(e.target.value as VerdictRecevabilite | 'ALL')} style={{ width: 'auto' }}>
+              <option value="ALL">Toute recevabilité</option>
+              <option value="pret">Prêt à agir</option>
+              <option value="a_completer">À compléter</option>
+              <option value="risque">Risque</option>
+              <option value="non_evalue">À analyser</option>
+            </select>
+            <select value={statutFilter} onChange={(e) => setStatutFilter(e.target.value as StatutDossierContentieux | 'ALL')} style={{ width: 'auto' }}>
+              <option value="ALL">Tout statut</option>
+              {Object.entries(STATUT_LABEL).map(([v, l]) => (
+                <option key={v} value={v}>
+                  {l}
+                </option>
+              ))}
+            </select>
+            <span style={{ fontSize: 12, color: 'var(--ink-soft)', marginLeft: 'auto' }}>
+              {visibles.length} / {totalVisibleSansRecherche}
+            </span>
+          </div>
+        )}
+
         {loading ? (
           <div style={{ padding: 40, textAlign: 'center', color: 'var(--ink-soft)' }}>Chargement…</div>
         ) : error ? (
@@ -77,12 +133,21 @@ export function ContentieuxView({ entityFilter, avocat = false }: { entityFilter
         ) : visibles.length === 0 ? (
           <div className="empty-state">
             <Scale size={26} style={{ opacity: 0.4, marginBottom: 10 }} />
-            <h3>{avocat ? 'Aucun dossier ne vous est assigné' : 'Aucun dossier contentieux'}</h3>
-            <p>
-              {avocat
-                ? 'Les dossiers que le recouvrement vous confie apparaîtront ici.'
-                : 'Ouvrez un dossier à partir d’un client débiteur pour rassembler ses pièces, vérifier la recevabilité et préparer les actes.'}
-            </p>
+            {totalVisibleSansRecherche > 0 ? (
+              <>
+                <h3>Aucun dossier ne correspond</h3>
+                <p>Aucun dossier ne correspond à votre recherche ou à vos filtres.</p>
+              </>
+            ) : (
+              <>
+                <h3>{avocat ? 'Aucun dossier ne vous est assigné' : 'Aucun dossier contentieux'}</h3>
+                <p>
+                  {avocat
+                    ? 'Les dossiers que le recouvrement vous confie apparaîtront ici.'
+                    : 'Ouvrez un dossier à partir d’un client débiteur pour rassembler ses pièces, vérifier la recevabilité et préparer les actes.'}
+                </p>
+              </>
+            )}
           </div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -107,6 +172,7 @@ export function ContentieuxView({ entityFilter, avocat = false }: { entityFilter
                 >
                   <td style={{ padding: '13px 22px' }}>
                     <div style={{ fontWeight: 600 }}>{d.client.nom}</div>
+                    <div className="mono" style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 1 }}>{d.reference}</div>
                     <span className="entity-tag" style={{ marginTop: 3 }}>
                       <EntityLogo entite={d.client.entite} size={11} /> {d.client.entite}
                     </span>
