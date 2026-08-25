@@ -1015,17 +1015,45 @@ model DossierContentieux {
   avocat   Utilisateur? @relation("AvocatDossier", fields: [avocatId], references: [id], onDelete: SetNull)
   avocatId String?
 
+  // Portail débiteur : lien public (token imprévisible) que le créancier
+  // partage au débiteur pour qu'il consulte sa dette et propose un échéancier.
+  // null = portail non activé. Jamais renvoyé sur les routes publiques.
+  portailToken String? @unique
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  factures Facture[]
-  pieces   PieceContentieux[]
-  analyse  AnalyseContentieux?
-  decompte LigneDecompte[]
-  actes    ActeContentieux[]
+  factures     Facture[]
+  pieces       PieceContentieux[]
+  analyse      AnalyseContentieux?
+  decompte     LigneDecompte[]
+  actes        ActeContentieux[]
+  propositions PropositionPaiement[]
 
   @@index([clientId])
   @@index([avocatId])
+}
+
+// Proposition de règlement soumise par le débiteur via le portail public
+// (message libre et/ou échéancier proposé). Le créancier l'accepte ou la refuse.
+model PropositionPaiement {
+  id              String             @id @default(cuid())
+  dossier         DossierContentieux @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  dossierId       String
+  message         String?
+  montantPropose  Float?
+  nbEcheances     Int?
+  premierPaiement DateTime?
+  statut          StatutProposition  @default(en_attente)
+  createdAt       DateTime           @default(now())
+
+  @@index([dossierId])
+}
+
+enum StatutProposition {
+  en_attente
+  acceptee
+  refusee
 }
 
 // Pièce versée au dossier. Le contenu binaire est stocké en base (bytea) pour

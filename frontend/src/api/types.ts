@@ -922,6 +922,30 @@ export interface MessageCopilote {
   role: 'user' | 'assistant';
   content: string;
 }
+
+export type StatutProposition = 'en_attente' | 'acceptee' | 'refusee';
+export interface PropositionPaiement {
+  id: string;
+  message: string | null;
+  montantPropose: number | null;
+  nbEcheances: number | null;
+  premierPaiement: string | null;
+  statut: StatutProposition;
+  createdAt: string;
+}
+
+// Réponse publique du portail débiteur (GET /api/contentieux-portail/:token).
+export interface PortailPublic {
+  reference: string;
+  entite: string;
+  creancierNom: string;
+  debiteurNom: string;
+  montantDu: number;
+  clos: boolean;
+  commandementDisponible: boolean;
+  factures: { numero: string; montant: number; dateEcheance: string | null }[];
+  derniereProposition: { statut: StatutProposition; createdAt: string } | null;
+}
 export type StatutActe = 'brouillon' | 'valide' | 'signe';
 
 export interface MentionsLegales {
@@ -1025,6 +1049,8 @@ export interface DossierContentieuxDetail {
   noteCloture: string | null;
   prescription: InfoPrescription | null;
   scoring: ScoreRecouvrabilite | null;
+  portailToken: string | null;
+  propositions: PropositionPaiement[];
   factures: Facture[];
   pieces: PieceContentieux[];
   analyse: AnalyseContentieux | null;

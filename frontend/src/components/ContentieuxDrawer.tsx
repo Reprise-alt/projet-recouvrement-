@@ -211,6 +211,27 @@ export function ContentieuxDrawer({
     }
   }
 
+  async function handlePortail(action: 'activer' | 'desactiver') {
+    if (action === 'desactiver' && !confirm('Désactiver le portail ? Le lien deviendra inutilisable.')) return;
+    try {
+      await api.post(`/api/contentieux/dossiers/${dossierId}/portail/${action}`);
+      showToast(action === 'activer' ? 'Portail activé' : 'Portail désactivé');
+      refreshAll();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    }
+  }
+
+  async function handleProposition(pid: string, statut: 'acceptee' | 'refusee') {
+    try {
+      await api.post(`/api/contentieux/dossiers/${dossierId}/propositions/${pid}/statut`, { statut });
+      showToast(statut === 'acceptee' ? 'Proposition acceptée' : 'Proposition refusée');
+      refreshAll();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    }
+  }
+
   async function handleUpload(files: FileList | null) {
     if (!files || !files.length) return;
     setUploading(true);
@@ -695,10 +716,88 @@ export function ContentieuxDrawer({
               </div>
             )}
 
+            {/* ---------- Portail débiteur (interne) ---------- */}
+            {!avocat && (
+              <>
+                <div className="section-title" style={{ marginTop: 26 }}>Portail débiteur</div>
+                {dossier.portailToken ? (
+                  <div style={{ border: '1px solid var(--line)', borderRadius: 10, padding: 12 }}>
+                    <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginBottom: 6 }}>
+                      Lien à communiquer au débiteur — il consulte sa dette, télécharge le commandement et propose un règlement.
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                      <input
+                        readOnly
+                        value={`${window.location.origin}/portail/${dossier.portailToken}`}
+                        onFocus={(e) => e.currentTarget.select()}
+                        style={{ flex: '1 1 220px', minWidth: 0 }}
+                      />
+                      <button
+                        onClick={() =>
+                          navigator.clipboard
+                            ?.writeText(`${window.location.origin}/portail/${dossier.portailToken}`)
+                            .then(() => showToast('Lien copié'), () => showToast('Copie impossible'))
+                        }
+                      >
+                        Copier
+                      </button>
+                      <button className="danger-btn" onClick={() => handlePortail('desactiver')}>Désactiver</button>
+                    </div>
+
+                    {dossier.propositions.length > 0 && (
+                      <div style={{ marginTop: 6 }}>
+                        <div className="mono" style={{ fontSize: 10, textTransform: 'uppercase', color: 'var(--ink-soft)', marginBottom: 4 }}>
+                          Propositions reçues
+                        </div>
+                        {dossier.propositions.map((p) => {
+                          const st =
+                            p.statut === 'acceptee'
+                              ? { label: 'Acceptée', color: 'var(--accent-dark)', bg: 'var(--accent-soft)' }
+                              : p.statut === 'refusee'
+                                ? { label: 'Refusée', color: 'var(--danger)', bg: 'var(--danger-soft)' }
+                                : { label: 'En attente', color: 'var(--amber-dark)', bg: 'var(--amber-soft)' };
+                          return (
+                            <div key={p.id} style={{ borderBottom: '1px solid var(--line-soft)', padding: '8px 0' }}>
+                              <div style={{ fontSize: 12.5 }}>
+                                {p.montantPropose != null && (
+                                  <>
+                                    Montant : <strong>{fmtFCFA(p.montantPropose)}</strong>{' '}
+                                  </>
+                                )}
+                                {p.nbEcheances != null && <>· {p.nbEcheances} échéance(s) </>}
+                                {p.premierPaiement && <>· dès {fmtDate(p.premierPaiement)} </>}
+                                {p.montantPropose == null && p.nbEcheances == null && !p.premierPaiement && 'Message'}
+                              </div>
+                              {p.message && <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 2 }}>« {p.message} »</div>}
+                              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6, flexWrap: 'wrap' }}>
+                                <span className="badge" style={{ color: st.color, background: st.bg }}>{st.label}</span>
+                                {p.statut === 'en_attente' && (
+                                  <>
+                                    <button className="primary" onClick={() => handleProposition(p.id, 'acceptee')}>Accepter</button>
+                                    <button onClick={() => handleProposition(p.id, 'refusee')}>Refuser</button>
+                                  </>
+                                )}
+                                <span style={{ fontSize: 10.5, color: 'var(--ink-soft)', marginLeft: 'auto' }}>{fmtDate(p.createdAt)}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <button className="primary" onClick={() => handlePortail('activer')}>
+                    Activer le portail débiteur
+                  </button>
+                )}
+              </>
+            )}
+
             {/* ---------- Clôture du dossier (interne) ---------- */}
             {!avocat && dossier.statut !== 'clos' && (
               <>
                 <div className="section-title" style={{ marginTop: 26 }}>Clôture du dossier</div>
+                <input ref={jugementRef} type="file" hidden multiple accept=".pdf,image/*" onChange={(e) => handleUploadJugement(e.target.files)} />
                 <input ref={jugementRef} type="file" hidden multiple accept=".pdf,image/*" onChange={(e) => handleUploadJugement(e.target.files)} />
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
                   <button onClick={() => jugementRef.current?.click()}>

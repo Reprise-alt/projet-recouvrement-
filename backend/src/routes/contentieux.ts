@@ -7,6 +7,7 @@
 // Réservé aux profils recouvrement, scopé par entité comme le reste du
 // module. Voir lib/contentieux.ts et lib/actes/injonctionDePayer.ts.
 // =====================================================================
+import crypto from 'crypto';
 import { Router } from 'express';
 import multer from 'multer';
 import { prisma } from '../db';
@@ -195,6 +196,7 @@ contentieuxRouter.get('/dossiers/:id', async (req, res, next) => {
           },
           orderBy: { createdAt: 'asc' },
         },
+        propositions: { orderBy: { createdAt: 'desc' } },
       },
     });
     // Expose « a une version signée » sans sortir le binaire, + prescription + scoring.
@@ -798,6 +800,51 @@ contentieuxRouter.post('/dossiers/:id/rouvrir', async (req, res, next) => {
       select: { id: true, statut: true },
     });
     res.json(maj);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// --- Activer le portail débiteur (génère un lien public) — interne ---
+contentieuxRouter.post('/dossiers/:id/portail/activer', async (req, res, next) => {
+  try {
+    if (bloquerSiCollaborateur(req, res)) return;
+    const dossier = await chargerDossierScope(req, res);
+    if (!dossier) return;
+    let token = dossier.portailToken;
+    if (!token) {
+      token = crypto.randomBytes(24).toString('hex');
+      await prisma.dossierContentieux.update({ where: { id: dossier.id }, data: { portailToken: token } });
+    }
+    res.json({ token });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// --- Désactiver le portail (révoque le lien) — interne ---
+contentieuxRouter.post('/dossiers/:id/portail/desactiver', async (req, res, next) => {
+  try {
+    if (bloquerSiCollaborateur(req, res)) return;
+    const dossier = await chargerDossierScope(req, res);
+    if (!dossier) return;
+    await prisma.dossierContentieux.update({ where: { id: dossier.id }, data: { portailToken: null } });
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// --- Accepter / refuser une proposition de règlement — interne ---
+contentieuxRouter.post('/dossiers/:id/propositions/:pid/statut', async (req, res, next) => {
+  try {
+    if (bloquerSiCollaborateur(req, res)) return;
+    const dossier = await chargerDossierScope(req, res);
+    if (!dossier) return;
+    const statut = String(req.body?.statut || '');
+    if (statut !== 'acceptee' && statut !== 'refusee') return res.status(400).json({ error: 'statut invalide' });
+    await prisma.propositionPaiement.updateMany({ where: { id: req.params.pid, dossierId: dossier.id }, data: { statut: statut as any } });
+    res.json({ ok: true });
   } catch (err) {
     next(err);
   }
