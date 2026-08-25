@@ -205,7 +205,7 @@ export function ContentieuxDrawer({
           <>
             <h2 style={{ marginBottom: 2 }}>{dossier.client.nom}</h2>
             <div className="sub">
-              Dossier contentieux · <span className="mono">{dossier.reference.slice(-8).toUpperCase()}</span> ·{' '}
+              Dossier contentieux · <span className="mono">{dossier.reference}</span> ·{' '}
               {STATUT_LABEL[dossier.statut]}
             </div>
 

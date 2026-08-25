@@ -104,9 +104,21 @@ contentieuxRouter.post('/dossiers', async (req, res, next) => {
     if (!client) return res.status(404).json({ error: 'Client introuvable' });
     if (!assertEntiteInScope(req, res, client.entite as Entite)) return;
 
-    const dossier = await prisma.dossierContentieux.create({
-      data: { clientId, createurId: req.user!.id },
-    });
+    // Référence lisible « CONT-AAAA-NNNN ». On réessaie sur collision d'unicité
+    // (deux créations simultanées peuvent calculer le même numéro).
+    let dossier;
+    for (let essai = 0; ; essai++) {
+      const reference = await genererReferenceDossier();
+      try {
+        dossier = await prisma.dossierContentieux.create({
+          data: { clientId, createurId: req.user!.id, reference },
+        });
+        break;
+      } catch (e: any) {
+        if (e?.code === 'P2002' && essai < 5) continue; // collision -> nouveau numéro
+        throw e;
+      }
+    }
 
     // Rattache les factures demandées (uniquement celles du client).
     if (Array.isArray(factureIds) && factureIds.length) {
@@ -591,6 +603,25 @@ contentieuxRouter.get('/dossiers/:id/actes/:acteId/signe/pdf', async (req, res, 
     next(err);
   }
 });
+
+// Prochaine référence lisible de l'année en cours : « CONT-AAAA-NNNN ». Le
+// numéro reprend au dernier attribué (tri lexical = numérique grâce au
+// zéro-padding sur 4 chiffres). En cas de collision, le create réessaie.
+async function genererReferenceDossier(): Promise<string> {
+  const annee = new Date().getFullYear();
+  const prefixe = `CONT-${annee}-`;
+  const dernier = await prisma.dossierContentieux.findFirst({
+    where: { reference: { startsWith: prefixe } },
+    orderBy: { reference: 'desc' },
+    select: { reference: true },
+  });
+  let n = 1;
+  if (dernier) {
+    const parsed = parseInt(dernier.reference.slice(prefixe.length), 10);
+    if (Number.isFinite(parsed)) n = parsed + 1;
+  }
+  return `${prefixe}${String(n).padStart(4, '0')}`;
+}
 
 function num(v: unknown): number | undefined {
   const n = Number(v);

@@ -976,7 +976,7 @@ model DossierContentieux {
   client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
   clientId String
 
-  reference String                   @unique @default(cuid()) // référence lisible du dossier
+  reference String                   @unique // référence lisible « CONT-AAAA-NNNN », générée à la création
   statut    StatutDossierContentieux @default(ouvert)
   verdict   VerdictRecevabilite      @default(non_evalue)
 
