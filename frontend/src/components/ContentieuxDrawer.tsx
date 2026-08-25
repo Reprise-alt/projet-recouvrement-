@@ -533,44 +533,68 @@ export function ContentieuxDrawer({
             {/* Génération : interne uniquement, dans l'ordre d'escalade. */}
             {!avocat && (
               <>
+                {/* Étape 1 — amiable */}
                 <div style={{ fontSize: 10.5, color: 'var(--ink-soft)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.3 }}>
-                  Escalade : ① société (≈ 90 j) → ② huissier → ③ assignation
+                  Étape 1 — amiable (≈ 90 j)
                 </div>
-                <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                <div style={{ marginBottom: 12 }}>
                   <button
                     onClick={() => setOpenForm(openForm === 'societe' ? null : 'societe')}
                     disabled={dossier.factures.length === 0}
-                    style={{ flex: '1 1 180px' }}
+                    style={{ width: '100%' }}
                   >
-                    <Building2 size={14} /> ① Commandement société
-                  </button>
-                  <button
-                    onClick={() => setOpenForm(openForm === 'commandement' ? null : 'commandement')}
-                    disabled={dossier.factures.length === 0}
-                    style={{ flex: '1 1 150px' }}
-                  >
-                    <Scale size={14} /> ② Huissier
-                  </button>
-                  <button
-                    onClick={() => setOpenForm(openForm === 'assignation' ? null : 'assignation')}
-                    disabled={dossier.factures.length === 0}
-                    style={{ flex: '1 1 150px' }}
-                  >
-                    <Gavel size={14} /> ③ Assignation
+                    <Building2 size={14} /> ① Commandement de payer (société)
                   </button>
                 </div>
-                <div style={{ fontSize: 10.5, color: 'var(--ink-soft)', margin: '2px 0 6px', textTransform: 'uppercase', letterSpacing: 0.3 }}>
-                  Voie rapide (alternative au judiciaire long)
+
+                {/* Étape 2 — bifurcation judiciaire */}
+                <div style={{ fontSize: 10.5, color: 'var(--ink-soft)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                  Étape 2 — judiciaire, selon la solidité du dossier
+                  {dossier.scoring && (
+                    <span style={{ textTransform: 'none', color: dossier.scoring.niveau === 'eleve' ? 'var(--accent-dark)' : 'var(--amber-dark)', fontWeight: 700 }}>
+                      {' '}· score {dossier.scoring.score}/100
+                    </span>
+                  )}
                 </div>
-                <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-                  <button
-                    onClick={() => setOpenForm(openForm === 'injonction' ? null : 'injonction')}
-                    disabled={dossier.factures.length === 0}
-                    style={{ flex: 1 }}
-                    title="Procédure simplifiée OHADA (AUPSRVE) : requête au président du tribunal → ordonnance d'injonction de payer"
-                  >
-                    <Sparkles size={14} /> ⚡ Injonction de payer (OHADA)
-                  </button>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+                  {/* Voie rapide */}
+                  <div style={{ flex: '1 1 200px', border: '1px solid var(--line)', borderRadius: 10, padding: 10 }}>
+                    <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: 0.3, fontWeight: 700, color: 'var(--accent-dark)' }}>
+                      Voie rapide {dossier.scoring?.niveau === 'eleve' && <span title="Recommandée par le score">· conseillée</span>}
+                    </div>
+                    <div style={{ fontSize: 10, color: 'var(--ink-soft)', marginBottom: 6 }}>dossier solide, non contesté</div>
+                    <button
+                      onClick={() => setOpenForm(openForm === 'injonction' ? null : 'injonction')}
+                      disabled={dossier.factures.length === 0}
+                      style={{ width: '100%' }}
+                      title="Procédure simplifiée OHADA (AUPSRVE) : requête au président du tribunal → ordonnance d'injonction de payer"
+                    >
+                      <Sparkles size={14} /> ⚡ Injonction de payer
+                    </button>
+                  </div>
+                  {/* Voie contradictoire */}
+                  <div style={{ flex: '1 1 200px', border: '1px solid var(--line)', borderRadius: 10, padding: 10 }}>
+                    <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: 0.3, fontWeight: 700, color: 'var(--ink-soft)' }}>
+                      Voie contradictoire
+                    </div>
+                    <div style={{ fontSize: 10, color: 'var(--ink-soft)', marginBottom: 6 }}>litige, ou après opposition</div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button
+                        onClick={() => setOpenForm(openForm === 'commandement' ? null : 'commandement')}
+                        disabled={dossier.factures.length === 0}
+                        style={{ flex: 1 }}
+                      >
+                        <Scale size={14} /> ② Huissier
+                      </button>
+                      <button
+                        onClick={() => setOpenForm(openForm === 'assignation' ? null : 'assignation')}
+                        disabled={dossier.factures.length === 0}
+                        style={{ flex: 1 }}
+                      >
+                        <Gavel size={14} /> ③ Assign.
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
                 {openForm === 'societe' && (
@@ -911,57 +935,106 @@ function BandeauPrescription({ info }: { info: InfoPrescription | null }) {
 // ------------------------------------------------------------- Frise d'escalade
 function FriseEscalade({ dossier }: { dossier: DossierContentieuxDetail }) {
   const acte = (t: TypeActe) => dossier.actes.find((a) => a.type === t);
-  const sousTitre = (a?: ActeContentieux) =>
+  const etat = (a?: ActeContentieux) =>
     !a ? '' : a.signeLe ? `Signé · ${fmtDate(a.signeLe)}` : a.valideLe ? `Validé · ${fmtDate(a.valideLe)}` : `Projet · ${fmtDate(a.createdAt)}`;
 
   const cs = acte('commandement_societe');
+  const inj = acte('requete_injonction_de_payer');
   const ch = acte('commandement_de_payer');
   const as = acte('assignation_en_paiement');
+  const clos = dossier.statut === 'clos' && dossier.issue ? dossier.issue : null;
 
-  const etapes = [
-    { label: 'Dossier ouvert', sub: fmtDate(dossier.createdAt), done: true },
-    { label: '① Commandement société', sub: cs ? sousTitre(cs) : 'à préparer', done: !!cs },
-    { label: '② Commandement huissier', sub: ch ? sousTitre(ch) : 'à venir', done: !!ch },
-    { label: '③ Assignation en paiement', sub: as ? sousTitre(as) : 'à venir', done: !!as },
-    dossier.statut === 'clos' && dossier.issue
-      ? { label: 'Clôturé', sub: `${ISSUE[dossier.issue].label}${dossier.clotureLe ? ' · ' + fmtDate(dossier.clotureLe) : ''}`, done: true }
-      : { label: 'Jugement & clôture', sub: 'à venir', done: false },
-  ];
-  const idxCourant = etapes.findIndex((e) => !e.done);
+  const rapideActive = !!inj;
+  const contradictoireActive = !!ch || !!as;
+  const voieChoisie = rapideActive || contradictoireActive;
+  const recoRapide = dossier.scoring?.niveau === 'eleve';
+
+  function ligne(done: boolean, courant: boolean, label: string, sub: string, dernier = false) {
+    const couleur = done ? 'var(--accent-dark)' : courant ? 'var(--amber-dark)' : 'var(--ink-soft)';
+    return (
+      <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div style={{ width: 12, height: 12, borderRadius: '50%', background: done ? 'var(--accent-dark)' : courant ? 'var(--amber)' : 'var(--line)', border: courant ? '2px solid var(--amber-dark)' : 'none', flexShrink: 0, marginTop: 3 }} />
+          {!dernier && <div style={{ width: 2, flex: 1, minHeight: 18, background: done ? 'var(--accent-dark)' : 'var(--line)' }} />}
+        </div>
+        <div style={{ paddingBottom: 12 }}>
+          <div style={{ fontSize: 12.5, fontWeight: done || courant ? 600 : 400, color: couleur }}>{label}</div>
+          {sub && <div style={{ fontSize: 11, color: 'var(--ink-soft)' }}>{sub}</div>}
+        </div>
+      </div>
+    );
+  }
+
+  function pointActe(label: string, a?: ActeContentieux) {
+    return (
+      <div style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, padding: '2px 0' }}>
+        <span style={{ width: 7, height: 7, borderRadius: '50%', background: a ? 'var(--accent-dark)' : 'var(--line)', flexShrink: 0 }} />
+        <span style={{ color: a ? 'var(--ink)' : 'var(--ink-soft)' }}>{label}</span>
+        {a && <span style={{ fontSize: 10, color: 'var(--ink-soft)' }}>· {etat(a)}</span>}
+      </div>
+    );
+  }
+
+  function voie(titre: string, soustitre: string, active: boolean, reco: boolean, contenu: JSX.Element) {
+    const surligne = reco && !voieChoisie;
+    return (
+      <div
+        style={{
+          flex: '1 1 190px',
+          border: `1px solid ${active ? 'var(--accent)' : surligne ? 'var(--amber)' : 'var(--line)'}`,
+          background: active ? 'var(--accent-soft)' : surligne ? 'var(--amber-soft)' : 'var(--surface)',
+          borderRadius: 10,
+          padding: '9px 11px',
+          opacity: voieChoisie && !active ? 0.55 : 1,
+        }}
+      >
+        <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: 0.3, fontWeight: 700, color: active ? 'var(--accent-dark)' : surligne ? 'var(--amber-dark)' : 'var(--ink-soft)' }}>
+          {titre}
+          {active ? ' · en cours' : surligne ? ' · recommandée' : ''}
+        </div>
+        <div style={{ fontSize: 10, color: 'var(--ink-soft)', marginBottom: 5 }}>{soustitre}</div>
+        {contenu}
+      </div>
+    );
+  }
 
   return (
     <div style={{ margin: '4px 0 16px' }}>
-      <div className="section-title" style={{ marginTop: 4 }}>Étapes du dossier</div>
-      <div style={{ display: 'flex', flexDirection: 'column' }}>
-        {etapes.map((e, i) => {
-          const courant = i === idxCourant;
-          const couleur = e.done ? 'var(--accent-dark)' : courant ? 'var(--amber-dark)' : 'var(--ink-soft)';
-          return (
-            <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'stretch' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <div
-                  style={{
-                    width: 12,
-                    height: 12,
-                    borderRadius: '50%',
-                    background: e.done ? 'var(--accent-dark)' : courant ? 'var(--amber)' : 'var(--line)',
-                    border: courant ? '2px solid var(--amber-dark)' : 'none',
-                    flexShrink: 0,
-                    marginTop: 3,
-                  }}
-                />
-                {i < etapes.length - 1 && (
-                  <div style={{ width: 2, flex: 1, minHeight: 20, background: e.done ? 'var(--accent-dark)' : 'var(--line)' }} />
-                )}
-              </div>
-              <div style={{ paddingBottom: 10 }}>
-                <div style={{ fontSize: 12.5, fontWeight: e.done || courant ? 600 : 400, color: couleur }}>{e.label}</div>
-                <div style={{ fontSize: 11, color: 'var(--ink-soft)' }}>{e.sub}</div>
-              </div>
+      <div className="section-title" style={{ marginTop: 4 }}>Parcours du dossier</div>
+      {ligne(true, false, 'Dossier ouvert', fmtDate(dossier.createdAt))}
+      {ligne(!!cs, !cs, '① Commandement de payer (société)', cs ? etat(cs) : 'amiable, LRAR — à préparer')}
+
+      {/* Bifurcation : voie rapide (injonction) vs voie contradictoire (huissier + assignation) */}
+      <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div style={{ width: 2, flex: 1, background: clos ? 'var(--accent-dark)' : 'var(--line)' }} />
+        </div>
+        <div style={{ flex: 1, paddingBottom: 12, minWidth: 0 }}>
+          <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: 0.3, color: 'var(--ink-soft)', marginBottom: 6 }}>
+            Puis, selon la solidité du dossier :
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {voie('Voie rapide', 'dossier solide', rapideActive, !!recoRapide, pointActe('⚡ Injonction de payer', inj))}
+            {voie(
+              'Voie contradictoire',
+              'litige / après opposition',
+              contradictoireActive,
+              dossier.scoring ? !recoRapide : false,
+              <>
+                {pointActe('② Commandement huissier', ch)}
+                {pointActe('③ Assignation en paiement', as)}
+              </>,
+            )}
+          </div>
+          {rapideActive && !contradictoireActive && (
+            <div style={{ fontSize: 10.5, color: 'var(--ink-soft)', marginTop: 6 }}>
+              En cas d’opposition du débiteur (sous 15 j) → bascule en voie contradictoire.
             </div>
-          );
-        })}
+          )}
+        </div>
       </div>
+
+      {ligne(!!clos, false, clos ? `Clôturé : ${ISSUE[clos].label}` : 'Clôture', clos ? (dossier.clotureLe ? fmtDate(dossier.clotureLe) : '') : 'à venir', true)}
     </div>
   );
 }
