@@ -910,6 +910,13 @@ export interface AvocatRef {
   id: string;
   nom: string;
 }
+
+// Référence légère d'un dossier contentieux (pour la fiche client côté amiable).
+export interface DossierRef {
+  id: string;
+  reference: string;
+  statut: StatutDossierContentieux;
+}
 export interface Avocat extends AvocatRef {
   email: string;
 }

@@ -215,6 +215,9 @@ export function ContentieuxDrawer({
             {/* ---------- Verdict de recevabilité ---------- */}
             <VerdictBloc dossier={dossier} />
 
+            {/* ---------- Frise d'escalade ---------- */}
+            <FriseEscalade dossier={dossier} />
+
             {/* ---------- Décompte ---------- */}
             {dossier.decompte.length > 0 && (
               <>
@@ -540,6 +543,62 @@ export function ContentieuxDrawer({
             )}
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------- Frise d'escalade
+function FriseEscalade({ dossier }: { dossier: DossierContentieuxDetail }) {
+  const acte = (t: TypeActe) => dossier.actes.find((a) => a.type === t);
+  const sousTitre = (a?: ActeContentieux) =>
+    !a ? '' : a.signeLe ? `Signé · ${fmtDate(a.signeLe)}` : a.valideLe ? `Validé · ${fmtDate(a.valideLe)}` : `Projet · ${fmtDate(a.createdAt)}`;
+
+  const cs = acte('commandement_societe');
+  const ch = acte('commandement_de_payer');
+  const as = acte('assignation_en_paiement');
+
+  const etapes = [
+    { label: 'Dossier ouvert', sub: fmtDate(dossier.createdAt), done: true },
+    { label: '① Commandement société', sub: cs ? sousTitre(cs) : 'à préparer', done: !!cs },
+    { label: '② Commandement huissier', sub: ch ? sousTitre(ch) : 'à venir', done: !!ch },
+    { label: '③ Assignation en paiement', sub: as ? sousTitre(as) : 'à venir', done: !!as },
+    { label: 'Jugement & exécution', sub: 'à venir', done: false },
+  ];
+  const idxCourant = etapes.findIndex((e) => !e.done);
+
+  return (
+    <div style={{ margin: '4px 0 16px' }}>
+      <div className="section-title" style={{ marginTop: 4 }}>Étapes du dossier</div>
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
+        {etapes.map((e, i) => {
+          const courant = i === idxCourant;
+          const couleur = e.done ? 'var(--accent-dark)' : courant ? 'var(--amber-dark)' : 'var(--ink-soft)';
+          return (
+            <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'stretch' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <div
+                  style={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: '50%',
+                    background: e.done ? 'var(--accent-dark)' : courant ? 'var(--amber)' : 'var(--line)',
+                    border: courant ? '2px solid var(--amber-dark)' : 'none',
+                    flexShrink: 0,
+                    marginTop: 3,
+                  }}
+                />
+                {i < etapes.length - 1 && (
+                  <div style={{ width: 2, flex: 1, minHeight: 20, background: e.done ? 'var(--accent-dark)' : 'var(--line)' }} />
+                )}
+              </div>
+              <div style={{ paddingBottom: 10 }}>
+                <div style={{ fontSize: 12.5, fontWeight: e.done || courant ? 600 : 400, color: couleur }}>{e.label}</div>
+                <div style={{ fontSize: 11, color: 'var(--ink-soft)' }}>{e.sub}</div>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
