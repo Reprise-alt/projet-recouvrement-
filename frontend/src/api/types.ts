@@ -506,6 +506,10 @@ export interface ReleveHebdo {
   score: number;
   commentaire: string | null;
   action: string | null;
+  climat: Climat | null;
+  actionEcheance: string | null;
+  dernierContact: string | null;
+  engagementPrecedentTenu: boolean;
 }
 
 export interface EtapeDemarrageConfig {

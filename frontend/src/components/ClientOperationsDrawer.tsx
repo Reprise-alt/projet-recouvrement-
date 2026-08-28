@@ -672,6 +672,45 @@ export function ClientOperationsDrawer({ id, user, initialSection, onClose, onCh
               </div>
             )}
 
+            {co.releves.length > 0 && (
+              <>
+                <div className="section-title">
+                  <span>Historique des relevés</span>
+                  <span style={{ color: 'var(--ink-soft)', fontSize: 12, fontWeight: 400 }}>{co.releves.length}</span>
+                </div>
+                <ul style={{ listStyle: 'none', margin: '0 0 10px', padding: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {co.releves.map((r) => (
+                    <li key={r.id} style={{ borderLeft: '2px solid var(--line)', paddingLeft: 10, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, flexWrap: 'wrap' }}>
+                        <strong>{fmtDate(r.date)}</strong>
+                        {r.climat && (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--ink-soft)' }}>
+                            <span className="climat-dot" style={{ background: CLIMAT_DOT_COLOR[r.climat], display: 'inline-block' }} />
+                            {CLIMAT_LABELS[r.climat]}
+                          </span>
+                        )}
+                        {r.engagementPrecedentTenu && (
+                          <span style={{ color: '#2e7d32', fontWeight: 600 }}>engagement précédent tenu ✓</span>
+                        )}
+                      </div>
+                      {r.action && (
+                        <div style={{ fontSize: 13 }}>
+                          <span style={{ color: 'var(--ink-soft)' }}>Engagement : </span>
+                          {r.action}
+                          {r.actionEcheance && (
+                            <span style={{ color: 'var(--ink-soft)' }}> (échéance {fmtDate(r.actionEcheance)})</span>
+                          )}
+                        </div>
+                      )}
+                      {r.commentaire && (
+                        <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>{r.commentaire}</div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+
             {co.resilie && (
               <>
                 <div className="section-title">
