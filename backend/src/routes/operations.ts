@@ -624,16 +624,20 @@ operationsRouter.post('/clients/:id/releve', async (req, res, next) => {
     const etapesConfig = await getEtapesConfig(co.client.entite);
     const scores = scoresClient(full, etapesConfig, full.etapesDemarrage, config);
 
-    const releve = await prisma.releveHebdo.upsert({
-      where: { clientOperationsId_semaineIso: { clientOperationsId: co.id, semaineIso: semaineIsoKey() } },
-      create: {
+    // Append : chaque relevé est une entrée d'historique à part entière, jamais
+    // écrasée (même deux fois la même semaine). On fige l'instantané complet.
+    const releve = await prisma.releveHebdo.create({
+      data: {
         clientOperationsId: co.id,
         semaineIso: semaineIsoKey(),
         score: scores.global,
         commentaire: commentaire ?? null,
         action: action ?? null,
+        climat: climat ?? co.climat ?? null,
+        actionEcheance: actionEcheance ? new Date(actionEcheance) : null,
+        dernierContact: dernierContact ? new Date(dernierContact) : co.dernierContact ?? null,
+        engagementPrecedentTenu: !!actionFait,
       },
-      update: { score: scores.global, commentaire: commentaire ?? null, action: action ?? null, date: new Date() },
     });
 
     res.json({ releve, scores });

@@ -795,10 +795,14 @@ model ActionCopil {
   updatedAt          DateTime            @updatedAt
 }
 
-// Une entrée par semaine ISO (cahier §3.1) -- @@unique garantit l'écrasement
-// si un second relevé est validé la même semaine plutôt que d'empiler deux
-// lignes. La fenêtre glissante de 52 entrées est une politique de
-// consultation/purge, pas une contrainte de schéma : voir lib/operations.ts.
+// Historique des relevés -- APPEND ONLY : chaque « Faire le relevé » ajoute
+// une entrée horodatée, jamais écrasée (choix produit : rien ne disparaît,
+// même deux relevés la même semaine). semaineIso reste renseigné pour le
+// regroupement, mais n'est plus une clé d'unicité. Chaque entrée est un
+// instantané COMPLET du relevé (climat, engagement pris, échéance, note,
+// contact, et si l'engagement précédent avait été tenu) pour se relire seule.
+// La fenêtre glissante de 52 entrées est une politique de consultation, pas
+// une contrainte de schéma : voir lib/operations.ts.
 model ReleveHebdo {
   id                 String           @id @default(cuid())
   clientOperations   ClientOperations @relation(fields: [clientOperationsId], references: [id], onDelete: Cascade)
@@ -808,8 +812,13 @@ model ReleveHebdo {
   score              Int
   commentaire        String?
   action             String?
+  climat             Climat?
+  actionEcheance     DateTime?
+  dernierContact     DateTime?
+  // Vrai si, à ce relevé, l'engagement du relevé PRÉCÉDENT avait été tenu.
+  engagementPrecedentTenu Boolean @default(false)
 
-  @@unique([clientOperationsId, semaineIso])
+  @@index([clientOperationsId, date])
 }
 
 // Progression du démarrage de contrat -- une ligne par étape cochée (cahier
