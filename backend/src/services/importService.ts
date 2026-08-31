@@ -38,6 +38,8 @@ function contratFields(c: ParsedContrat): Prisma.ContratUncheckedCreateInput {
     dateFin: new Date(c.dateFin),
     tacite: c.tacite,
     dateRevisionTarif: toDate(c.dateRevisionTarif),
+    tauxAugmentation: c.tauxAugmentation ?? undefined,
+    typeAugmentation: c.typeAugmentation ?? undefined,
     statutSource: c.statutSource,
     commentaire: c.commentaire,
   };
