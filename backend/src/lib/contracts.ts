@@ -18,11 +18,14 @@ export const CONTRACT_ALERTS: ContractAlert[] = [
   { id: 5, label: 'Échu', tone: 'danger', desc: 'Contrat échu — statut à clarifier (tacite reconduction ou rupture)' },
 ];
 
+export type TypeAugmentation = 'sans_notification' | 'sur_notification';
+
 export interface ContractLike {
   dateDebut?: Date | string | null;
   dateFin: Date | string;
   dateRevisionTarif?: Date | string | null;
   tauxAugmentation?: number | null;
+  typeAugmentation?: TypeAugmentation | null;
   dateDerniereRevision?: Date | string | null;
 }
 
@@ -30,6 +33,20 @@ export interface ContractEcheance {
   type: 'revision_tarif' | 'renouvellement';
   date: Date | string;
   jours: number;
+  // Vrai quand l'échéance est une date d'augmentation SUR NOTIFICATION : ce
+  // n'est plus un simple rappel mais une date LIMITE pour notifier le client.
+  surNotification?: boolean;
+}
+
+// Durée du contrat en mois (dateDebut → dateFin), arrondie. Null si une des
+// bornes manque. Le front l'affiche en années/mois selon le besoin.
+export function contractDureeMois(contract: ContractLike): number | null {
+  if (!contract.dateDebut || !contract.dateFin) return null;
+  const d1 = new Date(contract.dateDebut as any);
+  const d2 = new Date(contract.dateFin as any);
+  if (isNaN(d1.getTime()) || isNaN(d2.getTime())) return null;
+  const mois = (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth());
+  return mois < 0 ? 0 : mois;
 }
 
 // Prochaine occurrence du jour/mois de `anchor`, strictement après `anchor`
@@ -69,7 +86,12 @@ export function contractEcheance(contract: ContractLike): ContractEcheance {
   if (revisionDate) {
     const jTarif = daysUntil(revisionDate);
     if (jTarif >= 0 && jTarif < jFin) {
-      return { type: 'revision_tarif', date: revisionDate, jours: jTarif };
+      return {
+        type: 'revision_tarif',
+        date: revisionDate,
+        jours: jTarif,
+        surNotification: contract.typeAugmentation === 'sur_notification',
+      };
     }
   }
   return { type: 'renouvellement', date: contract.dateFin, jours: jFin };

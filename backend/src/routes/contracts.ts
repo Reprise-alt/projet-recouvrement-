@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { prisma } from '../db';
-import { contractAlertLevel, contractEcheance, montantProjete, nextAnniversary } from '../lib/contracts';
+import { contractAlertLevel, contractDureeMois, contractEcheance, montantProjete, nextAnniversary } from '../lib/contracts';
 import { generateContractDoc } from '../lib/letters';
 import { Entite, resolveEntiteScope } from '../lib/entites';
 import { assertEntiteInScope, requireAccesRecouvrement, requireAuth, requireRole } from '../middleware/auth';
@@ -55,6 +55,13 @@ contractsRouter.get('/', async (req, res, next) => {
           echeanceDate: e.date,
           joursRestants: e.jours,
           alertLevel: contractAlertLevel(contrat),
+          // Suivi de l'augmentation (colonnes de l'onglet Leasing) :
+          dateDebut: contrat.dateDebut,
+          dateFin: contrat.dateFin,
+          dureeMois: contractDureeMois(contrat),
+          tauxAugmentation: contrat.tauxAugmentation,
+          typeAugmentation: contrat.typeAugmentation,
+          surNotification: !!e.surNotification,
         };
       }),
     );
@@ -85,7 +92,7 @@ contractsRouter.get('/:id', async (req, res, next) => {
     // retient que celle des deux -- fin de contrat ou révision -- la plus
     // urgente) : sert d'affichage dédié pour la tarification, pas d'alerte.
     const prochaineRevision = contrat.tauxAugmentation != null ? nextAnniversary(contrat.dateDerniereRevision ?? contrat.dateDebut) : null;
-    res.json({ ...contrat, echeance: e, alertLevel: contractAlertLevel(contrat), montantApresRevision, prochaineRevision });
+    res.json({ ...contrat, echeance: e, alertLevel: contractAlertLevel(contrat), montantApresRevision, prochaineRevision, dureeMois: contractDureeMois(contrat) });
   } catch (err) {
     next(err);
   }
@@ -101,12 +108,15 @@ contractsRouter.patch('/:id/tarification', requireRole('admin', 'manager_entite'
     if (!contrat) return res.status(404).json({ error: 'Contrat introuvable' });
     if (!assertEntiteInScope(req, res, contrat.client.entite as Entite)) return;
 
-    const { montantActuel, tauxAugmentation } = req.body ?? {};
+    const { montantActuel, tauxAugmentation, typeAugmentation, commentaire } = req.body ?? {};
     if (montantActuel == null || isNaN(Number(montantActuel)) || Number(montantActuel) < 0) {
       return res.status(400).json({ error: 'Montant invalide' });
     }
     if (tauxAugmentation == null || isNaN(Number(tauxAugmentation))) {
       return res.status(400).json({ error: 'Taux invalide' });
+    }
+    if (typeAugmentation != null && typeAugmentation !== 'sans_notification' && typeAugmentation !== 'sur_notification') {
+      return res.status(400).json({ error: "Type d'augmentation invalide" });
     }
 
     const updated = await prisma.contrat.update({
@@ -114,6 +124,8 @@ contractsRouter.patch('/:id/tarification', requireRole('admin', 'manager_entite'
       data: {
         montantActuel: Number(montantActuel),
         tauxAugmentation: Number(tauxAugmentation),
+        typeAugmentation: typeAugmentation ?? undefined,
+        commentaire: commentaire !== undefined ? (commentaire || null) : undefined,
         dateDerniereRevision: contrat.dateDerniereRevision ?? contrat.dateDebut,
       },
     });

@@ -1,7 +1,7 @@
 import { FormEvent, useState } from 'react';
 import { X } from 'lucide-react';
 import { api, ApiError } from '../api/client';
-import { ContractDetail, ContractDoc, RoleUtilisateur } from '../api/types';
+import { ContractDetail, ContractDoc, RoleUtilisateur, TypeAugmentation } from '../api/types';
 import { useResource } from '../hooks/useResource';
 import { useToast } from '../hooks/useToast';
 import { CONTRACT_ALERTS, fmtDate, fmtFCFA } from '../lib/constants';
@@ -25,13 +25,29 @@ export function ContractDrawer({ contratId, role, onClose, onChanged }: Props) {
   const [editingTarif, setEditingTarif] = useState(false);
   const [montantInput, setMontantInput] = useState('');
   const [tauxInput, setTauxInput] = useState('');
+  const [typeInput, setTypeInput] = useState<TypeAugmentation | ''>('');
+  const [commentaireInput, setCommentaireInput] = useState('');
   const [tarifBusy, setTarifBusy] = useState(false);
 
   const canAct = role === 'admin' || role === 'manager_entite';
 
+  // Durée en années + mois (« 3 ans », « 3 ans 6 mois », « 8 mois »).
+  const fmtDuree = (mois: number | null | undefined) => {
+    if (mois == null) return '—';
+    const a = Math.floor(mois / 12);
+    const m = mois % 12;
+    return [a ? `${a} an${a > 1 ? 's' : ''}` : '', m ? `${m} mois` : ''].filter(Boolean).join(' ') || '0 mois';
+  };
+  const TYPE_AUG_LABEL: Record<TypeAugmentation, string> = {
+    sans_notification: 'Sans notification (automatique)',
+    sur_notification: 'Sur notification préalable',
+  };
+
   function openTarifForm() {
     setMontantInput(contrat?.montantActuel != null ? String(contrat.montantActuel) : '');
     setTauxInput(contrat?.tauxAugmentation != null ? String(contrat.tauxAugmentation) : '');
+    setTypeInput(contrat?.typeAugmentation ?? '');
+    setCommentaireInput(contrat?.commentaire ?? '');
     setEditingTarif(true);
   }
 
@@ -42,6 +58,8 @@ export function ContractDrawer({ contratId, role, onClose, onChanged }: Props) {
       await api.patch(`/api/contracts/${contratId}/tarification`, {
         montantActuel: Number(montantInput),
         tauxAugmentation: Number(tauxInput),
+        typeAugmentation: typeInput || undefined,
+        commentaire: commentaireInput,
       });
       setEditingTarif(false);
       refetch();
@@ -141,6 +159,10 @@ export function ContractDrawer({ contratId, role, onClose, onChanged }: Props) {
                 {fmtDate(contrat.dateFin)}
               </div>
               <div>
+                <span>Durée</span>
+                {fmtDuree(contrat.dureeMois)}
+              </div>
+              <div>
                 <span>Révision tarifaire</span>
                 {contrat.prochaineRevision
                   ? fmtDate(contrat.prochaineRevision)
@@ -189,6 +211,23 @@ export function ContractDrawer({ contratId, role, onClose, onChanged }: Props) {
                     <input type="number" step="0.1" value={tauxInput} onChange={(e) => setTauxInput(e.target.value)} required />
                   </div>
                 </div>
+                <div style={{ marginBottom: 8 }}>
+                  <label>Type d'augmentation</label>
+                  <select value={typeInput} onChange={(e) => setTypeInput(e.target.value as TypeAugmentation | '')}>
+                    <option value="">Sans notification (automatique)</option>
+                    <option value="sans_notification">Sans notification (automatique)</option>
+                    <option value="sur_notification">Sur notification préalable</option>
+                  </select>
+                  <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 4 }}>
+                    {typeInput === 'sur_notification'
+                      ? 'La hausse n\'est due que si le client est notifié avant la date d\'augmentation — sinon elle est perdue pour l\'année.'
+                      : 'La hausse s\'applique automatiquement à la date anniversaire, sans démarche.'}
+                  </div>
+                </div>
+                <div style={{ marginBottom: 8 }}>
+                  <label>Commentaire</label>
+                  <textarea rows={2} value={commentaireInput} onChange={(e) => setCommentaireInput(e.target.value)} placeholder="Note libre sur le contrat / l'augmentation…" />
+                </div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button className="primary" type="submit" disabled={tarifBusy}>
                     Enregistrer
@@ -210,6 +249,10 @@ export function ContractDrawer({ contratId, role, onClose, onChanged }: Props) {
                     {contrat.tauxAugmentation} %
                   </div>
                   <div>
+                    <span>Type d'augmentation</span>
+                    {TYPE_AUG_LABEL[contrat.typeAugmentation ?? 'sans_notification']}
+                  </div>
+                  <div>
                     <span>Prochaine révision</span>
                     {contrat.prochaineRevision ? fmtDate(contrat.prochaineRevision) : '—'}
                   </div>
@@ -218,6 +261,16 @@ export function ContractDrawer({ contratId, role, onClose, onChanged }: Props) {
                     {contrat.montantApresRevision != null ? fmtFCFA(contrat.montantApresRevision) : '—'}
                   </div>
                 </div>
+                {contrat.typeAugmentation === 'sur_notification' && contrat.echeance.type === 'revision_tarif' && (
+                  <div
+                    className="badge"
+                    data-tone={contrat.alertLevel >= 4 ? 'danger' : 'amber'}
+                    style={{ display: 'block', marginTop: 10, padding: '8px 12px', fontSize: 12.5, lineHeight: 1.4 }}
+                  >
+                    ⚠ Augmentation <strong>sur notification</strong> — à notifier au client <strong>avant le {fmtDate(contrat.echeance.date)}</strong>{' '}
+                    ({contrat.echeance.jours} j). Sans notification dans les délais, la revalorisation est perdue pour l'année.
+                  </div>
+                )}
                 {canAct && (
                   <button
                     className="primary"
