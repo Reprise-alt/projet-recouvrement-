@@ -22,6 +22,25 @@ function findCol(headerRow: unknown[], keyword: string): number {
 // La colonne du nom client s'appelle "Raison sociale" sur les fichiers SORAM,
 // mais juste "Client" sur les fichiers IRIS — un `includes('client')` seul
 // matcherait à tort une colonne "Code client".
+// Taux d'augmentation depuis la colonne « Augm. » : « — », vide ou 0 → aucun.
+// Accepte « 5 », « 5% », « 5 % », « 5,0 ».
+function parseTaux(v: unknown): number | undefined {
+  const s = (v ?? '').toString().trim();
+  if (!s || s === '—' || s === '-') return undefined;
+  const n = parseFloat(s.replace('%', '').replace(',', '.').replace(/[^\d.-]/g, ''));
+  return isFinite(n) && n > 0 ? n : undefined;
+}
+
+// Type d'augmentation depuis une colonne optionnelle (« Type augmentation »,
+// « Notification »…). Rien à renseigner tant que la colonne n'existe pas.
+function parseTypeAug(v: unknown): 'sans_notification' | 'sur_notification' | undefined {
+  const s = (v ?? '').toString().trim().toLowerCase();
+  if (!s || s === '—' || s === '-') return undefined;
+  if (/\bsans\b|\bnon\b|automat/.test(s)) return 'sans_notification';
+  if (/\bsur\b|\bavec\b|\boui\b|notif/.test(s)) return 'sur_notification';
+  return undefined;
+}
+
 function findClientCol(headerRow: unknown[]): number {
   const raison = findCol(headerRow, 'raison sociale');
   if (raison >= 0) return raison;
@@ -105,6 +124,13 @@ export function parseContractTrackingWorkbook(
     const colCommentaire = findCol(header, 'commentaire');
     const colLibelle = findCol(header, 'libellé contrat');
     const colCode = findCol(header, 'code');
+    // Colonnes « augmentation » de l'onglet Leasing :
+    //  - taux : en-tête contenant « augm » mais PAS « date » (« Augm. »).
+    //  - date : « Date d'augmentation annuelle ».
+    //  - type : colonne optionnelle « … notification » (sur / sans).
+    const colTaux = header.findIndex((h) => { const n = normHeader(h); return n.includes('augm') && !n.includes('date'); });
+    const colDateAug = header.findIndex((h) => { const n = normHeader(h); return n.includes('augmentation') && (n.includes('date') || n.includes('annuelle')); });
+    const colNotif = findCol(header, 'notification');
     if (colRaison < 0 || colFin < 0) return;
 
     const entite = detectEntite(rows, knownEntites);
@@ -123,6 +149,9 @@ export function parseContractTrackingWorkbook(
       const commentaire = colCommentaire >= 0 ? (row[colCommentaire] || '').toString().trim() : '';
       const libelle = colLibelle >= 0 ? (row[colLibelle] || '').toString().trim() : '';
       const code = colCode >= 0 ? row[colCode] : '';
+      const tauxAugmentation = colTaux >= 0 ? parseTaux(row[colTaux]) : undefined;
+      const dateAug = colDateAug >= 0 ? toISODate(row[colDateAug]) : null;
+      const typeAugmentation = colNotif >= 0 ? parseTypeAug(row[colNotif]) : undefined;
       const nom = nomRaw.replace(/\s+/g, ' ').trim();
       const key = nom.toUpperCase() + '|' + entite;
 
@@ -143,7 +172,11 @@ export function parseContractTrackingWorkbook(
         dateDebut,
         dateFin,
         tacite,
-        dateRevisionTarif: null,
+        // undefined (et non null) quand la colonne est absente/vide : à la
+        // réimportation, on ne veut pas écraser une valeur saisie à la main.
+        dateRevisionTarif: dateAug || undefined,
+        tauxAugmentation,
+        typeAugmentation,
         statutSource,
         commentaire,
       });

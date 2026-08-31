@@ -27,6 +27,8 @@ export interface ParsedContrat {
   dateFin: string;
   tacite: boolean;
   dateRevisionTarif?: string | null;
+  tauxAugmentation?: number | null;
+  typeAugmentation?: 'sans_notification' | 'sur_notification' | null;
   statutSource?: string;
   commentaire?: string;
 }
