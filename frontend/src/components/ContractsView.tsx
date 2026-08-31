@@ -11,6 +11,12 @@ const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,
 
 type AugFilter = 'tous' | 'avec' | 'imminent' | 'depassee' | 'realisee';
 
+// 1er jour du mois prochain, au format YYYY-MM-DD (date d'effet par défaut).
+function premierDuMoisProchain(): string {
+  const d = new Date();
+  return new Date(d.getFullYear(), d.getMonth() + 1, 1).toISOString().slice(0, 10);
+}
+
 // Pastille d'augmentation d'une ligne de contrat.
 function augBadge(r: ContractRow): { label: string; tone: string } | null {
   const t = r.tauxAugmentation != null ? `${r.tauxAugmentation} %` : '';
@@ -46,6 +52,9 @@ export function ContractsView({ entityFilter, role, reloadKey }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [q, setQ] = useState('');
   const [augFilter, setAugFilter] = useState<AugFilter>('tous');
+  const [revTaux, setRevTaux] = useState('5.5');
+  const [revDate, setRevDate] = useState(premierDuMoisProchain());
+  const [revSansAug, setRevSansAug] = useState(true);
 
   const kpisPath = `/api/contracts/kpis${buildQuery({ entite: entityFilter })}`;
   const listPath = `/api/contracts${buildQuery({ entite: entityFilter })}`;
@@ -133,30 +142,63 @@ export function ContractsView({ entityFilter, role, reloadKey }: Props) {
         ))}
       </div>
 
+      {/* Courrier de révision tarifaire générale (5,5 % par défaut). */}
+      <div
+        style={{
+          display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap',
+          margin: '14px 0 0', padding: '10px 12px', border: '1px solid var(--line)', borderRadius: 8,
+          background: 'var(--card, #fff)',
+        }}
+      >
+        <span style={{ fontSize: 13, fontWeight: 600 }}>Lettre de révision tarifaire</span>
+        <label style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
+          Taux
+          <input
+            type="number" step="0.1" min="0" value={revTaux} onChange={(e) => setRevTaux(e.target.value)}
+            style={{ width: 64, padding: '4px 6px', border: '1px solid var(--line)', borderRadius: 6 }}
+          />
+          %
+        </label>
+        <label style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
+          Date d'effet
+          <input
+            type="date" value={revDate} onChange={(e) => setRevDate(e.target.value)}
+            style={{ padding: '4px 6px', border: '1px solid var(--line)', borderRadius: 6 }}
+          />
+        </label>
+        <label style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
+          <input type="checkbox" checked={revSansAug} onChange={(e) => setRevSansAug(e.target.checked)} />
+          clients sans augmentation contractuelle
+        </label>
+        <button
+          type="button"
+          onClick={() =>
+            downloadFile(
+              `/api/contracts/lettre-revision-generale/lot${buildQuery({
+                entite: entityFilter,
+                sansAugmentation: revSansAug ? 'true' : undefined,
+                taux: revTaux,
+                date: revDate,
+              })}`,
+              'lettres-revision-tarifaire.pdf',
+            ).catch(() => alert('Génération impossible'))
+          }
+          title="Génère en un seul PDF les lettres de révision tarifaire pour les clients du périmètre affiché"
+        >
+          Générer le lot (PDF)
+        </button>
+      </div>
+
       <div className="table-card" style={{ marginTop: 12 }}>
         <div className="table-head" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
           <div style={{ fontWeight: 600, fontSize: 14 }}>Échéances de contrats — renouvellement &amp; révision tarifaire</div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              onClick={() =>
-                downloadFile(
-                  `/api/contracts/lettre-revision-generale/lot${buildQuery({ entite: entityFilter, sansAugmentation: 'true' })}`,
-                  'lettres-revision-tarifaire.pdf',
-                ).catch(() => alert('Génération impossible'))
-              }
-              title="Génère en un seul PDF les lettres de révision tarifaire (5,5 %) pour les clients du périmètre SANS augmentation contractuelle"
-            >
-              Lettres de révision (portefeuille)
-            </button>
-            <input
-              type="search"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Rechercher un client, un contrat…"
-              style={{ padding: '6px 10px', fontSize: 13, minWidth: 220, borderRadius: 6, border: '1px solid var(--line)' }}
-            />
-          </div>
+          <input
+            type="search"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Rechercher un client, un contrat…"
+            style={{ padding: '6px 10px', fontSize: 13, minWidth: 220, borderRadius: 6, border: '1px solid var(--line)' }}
+          />
         </div>
         <div>
           {list.loading ? (

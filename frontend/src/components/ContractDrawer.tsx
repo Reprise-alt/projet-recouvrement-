@@ -27,6 +27,12 @@ export function ContractDrawer({ contratId, role, onClose, onChanged }: Props) {
   const [typeInput, setTypeInput] = useState<TypeAugmentation | ''>('');
   const [commentaireInput, setCommentaireInput] = useState('');
   const [tarifBusy, setTarifBusy] = useState(false);
+  const premierMoisProchain = (() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth() + 1, 1).toISOString().slice(0, 10);
+  })();
+  const [revTaux, setRevTaux] = useState('5.5');
+  const [revDate, setRevDate] = useState(premierMoisProchain);
 
   const canAct = role === 'admin' || role === 'manager_entite';
 
@@ -299,18 +305,28 @@ export function ContractDrawer({ contratId, role, onClose, onChanged }: Props) {
               </div>
             )}
 
-            <div style={{ marginTop: 6, marginBottom: 4 }}>
+            <div className="card-mini" style={{ marginTop: 6, marginBottom: 4, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 12.5, fontWeight: 600 }}>Lettre de révision tarifaire</span>
+              <label style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
+                Taux
+                <input type="number" step="0.1" min="0" value={revTaux} onChange={(e) => setRevTaux(e.target.value)} style={{ width: 60 }} />
+                %
+              </label>
+              <label style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
+                Effet
+                <input type="date" value={revDate} onChange={(e) => setRevDate(e.target.value)} />
+              </label>
               <button
                 type="button"
                 onClick={() =>
                   downloadFile(
-                    `/api/contracts/${contratId}/lettre-revision-generale`,
+                    `/api/contracts/${contratId}/lettre-revision-generale?taux=${encodeURIComponent(revTaux)}&date=${encodeURIComponent(revDate)}`,
                     `revision-tarifaire-${contrat.client.nom.replace(/\W+/g, '-')}.pdf`,
                   ).catch((err) => showToast(err instanceof ApiError ? err.message : 'Génération impossible'))
                 }
-                title="Courrier type de révision tarifaire (5,5 %) à l'en-tête de la société — utile même sans augmentation prévue au contrat"
+                title="Courrier type de révision tarifaire à l'en-tête de la société — utile même sans augmentation prévue au contrat"
               >
-                Lettre de révision tarifaire (PDF)
+                Générer (PDF)
               </button>
             </div>
 
