@@ -773,6 +773,8 @@ export function genererLettreAugmentationPdf(d: DonneesLettreAugmentation): Prom
 // x % (défaut 5,5 %) au titre de la hausse des coûts (carburant au Sénégal,
 // consommables et pièces importés), avec annonce du futur portail client.
 // ---------------------------------------------------------------------
+export type MetierSociete = 'impression' | 'fleet';
+
 export interface DonneesLettreRevisionGenerale {
   societe: Societe;
   lieu?: string;
@@ -782,14 +784,32 @@ export interface DonneesLettreRevisionGenerale {
   clientAdresse?: string;
   taux: number; // ex. 5.5
   dateEffet: Date;
+  metier?: MetierSociete; // corps adapté au métier (impression vs fleet) — défaut : impression
   mentionPortail?: boolean; // annonce du nouveau portail client (défaut : true)
   signataireNom?: string;
   signataireQualite?: string;
 }
 
+// Postes de coût cités dans le corps, propres à chaque métier.
+// - impression (SORAM / SIS) : copieurs, consommables et pièces d'impression.
+// - fleet (IRIS) : télématique embarquée, connectivité et hébergement.
+function posteCoutsMetier(metier: MetierSociete): string {
+  return metier === 'fleet'
+    ? "déplacements et interventions techniques sur site, boîtiers de géolocalisation et équipements embarqués importés, connectivité (cartes SIM et abonnements data), ainsi que l'hébergement et la maintenance de notre plateforme de fleet management"
+    : "déplacements et interventions techniques sur site, pièces détachées et consommables importés (toners, tambours, kits de maintenance), ainsi que l'entretien de nos équipements d'impression";
+}
+
+// Engagement de continuité de service, formulé selon le métier.
+function engagementMetier(metier: MetierSociete): string {
+  return metier === 'fleet'
+    ? "continuité de la géolocalisation, fiabilité des données de suivi et réactivité de nos interventions"
+    : "disponibilité des pièces, anticipation des remplacements d'équipements et continuité de service";
+}
+
 function ecrireLettreRevisionGenerale(doc: PDFKit.PDFDocument, d: DonneesLettreRevisionGenerale) {
   const date = d.date || new Date();
   const lieu = d.lieu || 'Dakar';
+  const metier: MetierSociete = d.metier || 'impression';
   const largeur = doc.page.width - 56 - 320;
   const tauxTxt = `${String(d.taux).replace('.', ',')} %`;
 
@@ -811,13 +831,20 @@ function ecrireLettreRevisionGenerale(doc: PDFKit.PDFDocument, d: DonneesLettreR
 
   doc.text('Madame, Monsieur,');
   doc.moveDown(0.5);
+  // 1er paragraphe : contexte macro-économique, argumentaire élargi (pas seulement le carburant).
   doc.text(
-    `Depuis plusieurs mois, le contexte économique se traduit par une hausse continue de nos coûts d'exploitation. Au Sénégal, les prix des carburants ont de nouveau augmenté — le gasoil est repassé à 755 FCFA le litre à compter du 15 août 2026 — sous l'effet de la hausse des cours mondiaux du pétrole. Cette évolution se répercute sur l'ensemble de notre chaîne de service : déplacements et interventions sur site, pièces détachées et consommables importés (toners, tambours), ainsi que la maintenance de nos équipements.`,
+    `Depuis plusieurs mois, le contexte économique se traduit par une hausse continue et générale de nos coûts d'exploitation, sous l'effet conjugué de plusieurs facteurs. Au Sénégal, l'inflation est repartie à la hausse en 2025 (+1,4 % sur l'année, contre +0,8 % en 2024), la progression étant la plus marquée sur les postes d'équipement et de matériel. Les prix des carburants ont de nouveau augmenté — le gasoil est repassé à 755 FCFA le litre — ce qui renchérit nos déplacements et notre logistique. Enfin, la hausse des coûts du fret maritime international et des composants importés (perturbations des routes commerciales, tensions sur les chaînes d'approvisionnement et pression du dollar sur nos achats) alourdit le prix de nos équipements et pièces.`,
+    { align: 'justify' },
+  );
+  doc.moveDown(0.5);
+  // 2e paragraphe : répercussion sur la chaîne de service, propre au métier.
+  doc.text(
+    `Ces évolutions se répercutent sur l'ensemble de notre chaîne de service : ${posteCoutsMetier(metier)}.`,
     { align: 'justify' },
   );
   doc.moveDown(0.5);
   doc.text(
-    `Soucieux de maintenir le niveau de qualité et de réactivité que vous nous connaissez — disponibilité des pièces, anticipation des remplacements d'équipements et continuité de service —, nous sommes amenés à procéder à une révision de nos tarifs de ${tauxTxt} sur votre tarif actuel, à compter du ${fmtDate(d.dateEffet)}.`,
+    `Soucieux de maintenir le niveau de qualité et de réactivité que vous nous connaissez — ${engagementMetier(metier)} —, nous sommes amenés à procéder à une révision de nos tarifs de ${tauxTxt} sur votre tarif actuel, à compter du ${fmtDate(d.dateEffet)}.`,
     { align: 'justify' },
   );
   doc.moveDown(0.5);
@@ -825,10 +852,16 @@ function ecrireLettreRevisionGenerale(doc: PDFKit.PDFDocument, d: DonneesLettreR
     `Cette révision mesurée nous permet de continuer à investir dans votre parc et à garantir la fiabilité de nos prestations dans la durée.`,
     { align: 'justify' },
   );
+  doc.moveDown(0.5);
+  // Annonce de l'avenant, conditionnée à la validation du client.
+  doc.text(
+    `Dès votre validation de la présente, un avenant à votre contrat vous sera adressé afin de formaliser cette révision.`,
+    { align: 'justify' },
+  );
   if (d.mentionPortail !== false) {
     doc.moveDown(0.5);
     doc.text(
-      `Par ailleurs, nous avons le plaisir de vous annoncer le lancement prochain de notre nouveau portail client, qui vous permettra de suivre en ligne vos relevés, vos contrats et vos échanges avec nos équipes. Nous vous le présenterons très prochainement.`,
+      `Par ailleurs, nous avons le plaisir de vous annoncer le lancement prochain de notre nouveau portail client, qui vous permettra de suivre en ligne vos contrats, vos prestations et vos échanges avec nos équipes. Nous vous le présenterons très prochainement.`,
       { align: 'justify' },
     );
   }
@@ -839,12 +872,49 @@ function ecrireLettreRevisionGenerale(doc: PDFKit.PDFDocument, d: DonneesLettreR
   );
   doc.moveDown(0.8);
   doc.text('Veuillez agréer, Madame, Monsieur, l\'expression de nos salutations distinguées.', { align: 'justify' });
-  doc.moveDown(2);
+  doc.moveDown(1.5);
 
   const sigNom = d.signataireNom || d.societe.representant || '';
   if (sigNom) doc.font('Helvetica-Bold').fontSize(10.5).text(sigNom);
   if (d.signataireQualite) doc.font('Helvetica').fontSize(9.5).fillColor('#444').text(d.signataireQualite);
   doc.fillColor('#000');
+
+  // Cadre « Bon pour accord » à retourner par le client — vaut acceptation de la révision.
+  encadreAccordRevision(doc, d, tauxTxt);
+}
+
+// Encadré d'acceptation : le client retourne la lettre signée « augmentation acceptée ».
+function encadreAccordRevision(doc: PDFKit.PDFDocument, d: DonneesLettreRevisionGenerale, tauxTxt: string) {
+  const gauche = 56;
+  const largeur = doc.page.width - 56 * 2;
+  const hauteur = 108;
+  // Saut de page si l'encadré ne tient pas en bas de page.
+  if (doc.y + hauteur + 20 > doc.page.height - 56) doc.addPage();
+  else doc.moveDown(1.5);
+
+  const yTop = doc.y;
+  doc.save();
+  doc.roundedRect(gauche, yTop, largeur, hauteur, 6).lineWidth(0.8).strokeColor('#888').stroke();
+  doc.restore();
+
+  const padX = 12;
+  const innerW = largeur - padX * 2;
+  doc.fillColor('#000');
+  doc.font('Helvetica-Bold').fontSize(10).text('Bon pour accord — révision tarifaire acceptée', gauche + padX, yTop + 10, { width: innerW });
+  doc.font('Helvetica').fontSize(9).fillColor('#333');
+  doc.moveDown(0.3);
+  doc.text(
+    `Le client déclare accepter la révision tarifaire de ${tauxTxt} à compter du ${fmtDate(d.dateEffet)} et autorise l'établissement de l'avenant correspondant à son contrat.`,
+    gauche + padX,
+    doc.y,
+    { width: innerW, align: 'justify' },
+  );
+  doc.fillColor('#000').fontSize(9.5);
+  const yLigne = yTop + hauteur - 30;
+  doc.text('Nom et qualité du signataire :', gauche + padX, yLigne, { width: innerW / 2 - 6 });
+  doc.text('Date :', gauche + padX + innerW / 2 + 6, yLigne, { width: innerW / 2 - 6 });
+  doc.text('Signature et cachet :', gauche + padX, yLigne + 15, { width: innerW });
+  doc.y = yTop + hauteur;
 }
 
 export function genererLettreRevisionGeneralePdf(d: DonneesLettreRevisionGenerale): Promise<Buffer> {
