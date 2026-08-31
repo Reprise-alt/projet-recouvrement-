@@ -37,6 +37,11 @@ function societePourEntite(entite?: string | null): Societe {
   };
 }
 
+// Métier de l'entité : IRIS = fleet management, SORAM/SIS = impression.
+function metierPourEntite(entite?: string | null): 'impression' | 'fleet' {
+  return String(entite || '').toUpperCase() === 'IRIS' ? 'fleet' : 'impression';
+}
+
 // Premier jour du mois prochain (date d'effet par défaut d'une révision).
 function premierDuMoisProchain(): Date {
   const d = new Date();
@@ -285,6 +290,7 @@ contractsRouter.get('/lettre-revision-generale/lot', requireRole('admin', 'manag
         clientContact: destinataireDoc(c.contact),
         taux,
         dateEffet,
+        metier: metierPourEntite(c.entite),
         signataireNom: base?.signataireNom,
         signataireQualite: base?.signataireQualite,
       };
@@ -314,6 +320,7 @@ contractsRouter.get('/:id/lettre-revision-generale', requireRole('admin', 'manag
       clientContact: destinataireDoc(contrat.client.contact),
       taux,
       dateEffet,
+      metier: metierPourEntite(contrat.client.entite),
       signataireNom: base?.signataireNom,
       signataireQualite: base?.signataireQualite,
     };
