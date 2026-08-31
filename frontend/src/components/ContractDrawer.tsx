@@ -299,6 +299,21 @@ export function ContractDrawer({ contratId, role, onClose, onChanged }: Props) {
               </div>
             )}
 
+            <div style={{ marginTop: 6, marginBottom: 4 }}>
+              <button
+                type="button"
+                onClick={() =>
+                  downloadFile(
+                    `/api/contracts/${contratId}/lettre-revision-generale`,
+                    `revision-tarifaire-${contrat.client.nom.replace(/\W+/g, '-')}.pdf`,
+                  ).catch((err) => showToast(err instanceof ApiError ? err.message : 'Génération impossible'))
+                }
+                title="Courrier type de révision tarifaire (5,5 %) à l'en-tête de la société — utile même sans augmentation prévue au contrat"
+              >
+                Lettre de révision tarifaire (PDF)
+              </button>
+            </div>
+
             <div className="section-title">Statut</div>
             <span className="badge" data-tone={CONTRACT_ALERTS[contrat.alertLevel].tone} style={{ fontSize: 13, padding: '6px 12px' }}>
               {CONTRACT_ALERTS[contrat.alertLevel].label}

@@ -765,3 +765,100 @@ export function genererLettreAugmentationPdf(d: DonneesLettreAugmentation): Prom
 
   return bufferDePdf(doc);
 }
+
+// ---------------------------------------------------------------------
+// LETTRE DE RÉVISION TARIFAIRE GÉNÉRALE (indexation coûts d'exploitation)
+// Courrier type à adresser à l'ensemble des clients — en particulier ceux
+// dont le contrat ne prévoit pas d'augmentation — annonçant une révision de
+// x % (défaut 5,5 %) au titre de la hausse des coûts (carburant au Sénégal,
+// consommables et pièces importés), avec annonce du futur portail client.
+// ---------------------------------------------------------------------
+export interface DonneesLettreRevisionGenerale {
+  societe: Societe;
+  lieu?: string;
+  date?: Date;
+  clientNom: string;
+  clientContact?: string;
+  clientAdresse?: string;
+  taux: number; // ex. 5.5
+  dateEffet: Date;
+  mentionPortail?: boolean; // annonce du nouveau portail client (défaut : true)
+  signataireNom?: string;
+  signataireQualite?: string;
+}
+
+function ecrireLettreRevisionGenerale(doc: PDFKit.PDFDocument, d: DonneesLettreRevisionGenerale) {
+  const date = d.date || new Date();
+  const lieu = d.lieu || 'Dakar';
+  const largeur = doc.page.width - 56 - 320;
+  const tauxTxt = `${String(d.taux).replace('.', ',')} %`;
+
+  enteteSociete(doc, d.societe);
+
+  doc.fontSize(10).font('Helvetica');
+  const yRef = doc.y;
+  doc.font('Helvetica-Bold').text(d.clientNom, 320, yRef, { width: largeur });
+  doc.font('Helvetica');
+  if (d.clientAdresse) doc.text(d.clientAdresse, { width: largeur });
+  doc.text('À l\'attention de ' + (d.clientContact || 'la Direction Générale'), { width: largeur });
+  doc.moveDown(0.5);
+  doc.text(`${lieu}, le ${fmtDate(date)}`, 320, doc.y, { width: largeur });
+  doc.moveDown(1.2);
+  doc.x = 56;
+
+  doc.font('Helvetica-Bold').fontSize(10.5).text('Objet : Avis de révision tarifaire');
+  doc.font('Helvetica').fontSize(10.5).moveDown(0.9);
+
+  doc.text('Madame, Monsieur,');
+  doc.moveDown(0.5);
+  doc.text(
+    `Depuis plusieurs mois, le contexte économique se traduit par une hausse continue de nos coûts d'exploitation. Au Sénégal, les prix des carburants ont de nouveau augmenté — le gasoil est repassé à 755 FCFA le litre à compter du 15 août 2026 — sous l'effet de la hausse des cours mondiaux du pétrole. Cette évolution se répercute sur l'ensemble de notre chaîne de service : déplacements et interventions sur site, pièces détachées et consommables importés (toners, tambours), ainsi que la maintenance de nos équipements.`,
+    { align: 'justify' },
+  );
+  doc.moveDown(0.5);
+  doc.text(
+    `Soucieux de maintenir le niveau de qualité et de réactivité que vous nous connaissez — disponibilité des pièces, anticipation des remplacements d'équipements et continuité de service —, nous sommes amenés à procéder à une révision de nos tarifs de ${tauxTxt} sur votre tarif actuel, à compter du ${fmtDate(d.dateEffet)}.`,
+    { align: 'justify' },
+  );
+  doc.moveDown(0.5);
+  doc.text(
+    `Cette révision mesurée nous permet de continuer à investir dans votre parc et à garantir la fiabilité de nos prestations dans la durée.`,
+    { align: 'justify' },
+  );
+  if (d.mentionPortail !== false) {
+    doc.moveDown(0.5);
+    doc.text(
+      `Par ailleurs, nous avons le plaisir de vous annoncer le lancement prochain de notre nouveau portail client, qui vous permettra de suivre en ligne vos relevés, vos contrats et vos échanges avec nos équipes. Nous vous le présenterons très prochainement.`,
+      { align: 'justify' },
+    );
+  }
+  doc.moveDown(0.5);
+  doc.text(
+    `Nous restons à votre entière disposition pour échanger sur ces évolutions et vous remercions de la confiance que vous nous accordez.`,
+    { align: 'justify' },
+  );
+  doc.moveDown(0.8);
+  doc.text('Veuillez agréer, Madame, Monsieur, l\'expression de nos salutations distinguées.', { align: 'justify' });
+  doc.moveDown(2);
+
+  const sigNom = d.signataireNom || d.societe.representant || '';
+  if (sigNom) doc.font('Helvetica-Bold').fontSize(10.5).text(sigNom);
+  if (d.signataireQualite) doc.font('Helvetica').fontSize(9.5).fillColor('#444').text(d.signataireQualite);
+  doc.fillColor('#000');
+}
+
+export function genererLettreRevisionGeneralePdf(d: DonneesLettreRevisionGenerale): Promise<Buffer> {
+  const doc = new PDFDocument({ size: 'A4', margin: 56 });
+  ecrireLettreRevisionGenerale(doc, d);
+  return bufferDePdf(doc);
+}
+
+// Un seul PDF, une lettre par client (une page chacune) — pour un envoi en lot.
+export function genererLettresRevisionLotPdf(list: DonneesLettreRevisionGenerale[]): Promise<Buffer> {
+  const doc = new PDFDocument({ size: 'A4', margin: 56 });
+  list.forEach((d, i) => {
+    if (i > 0) doc.addPage();
+    ecrireLettreRevisionGenerale(doc, d);
+  });
+  return bufferDePdf(doc);
+}
