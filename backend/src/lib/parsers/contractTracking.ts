@@ -22,13 +22,25 @@ function findCol(headerRow: unknown[], keyword: string): number {
 // La colonne du nom client s'appelle "Raison sociale" sur les fichiers SORAM,
 // mais juste "Client" sur les fichiers IRIS — un `includes('client')` seul
 // matcherait à tort une colonne "Code client".
-// Taux d'augmentation depuis la colonne « Augm. » : « — », vide ou 0 → aucun.
-// Accepte « 5 », « 5% », « 5 % », « 5,0 ».
+// Taux d'augmentation (en POINTS de %, ex. 5 pour 5 %) depuis la colonne
+// « Augm. ». Subtilité Excel : un pourcentage saisi via le format % est stocké
+// en FRACTION (5 % = 0,05). On reconvertit donc toute valeur strictement < 1 en
+// points de pourcentage. « — », vide ou 0 → aucun.
+// Accepte 0.05, 5, « 5 », « 5% », « 5 % », « 5,0 ».
 function parseTaux(v: unknown): number | undefined {
-  const s = (v ?? '').toString().trim();
+  if (v == null) return undefined;
+  if (typeof v === 'number') {
+    if (!isFinite(v) || v <= 0) return undefined;
+    return Math.round((v < 1 ? v * 100 : v) * 100) / 100; // 0.05 → 5 ; 5 → 5
+  }
+  const s = v.toString().trim();
   if (!s || s === '—' || s === '-') return undefined;
-  const n = parseFloat(s.replace('%', '').replace(',', '.').replace(/[^\d.-]/g, ''));
-  return isFinite(n) && n > 0 ? n : undefined;
+  const hasPercent = s.includes('%');
+  let n = parseFloat(s.replace('%', '').replace(',', '.').replace(/[^\d.-]/g, ''));
+  if (!isFinite(n) || n <= 0) return undefined;
+  // « 0,05 » sans signe % et < 1 → fraction ; « 5% » ou « 5 » → déjà en points.
+  if (!hasPercent && n < 1) n = n * 100;
+  return Math.round(n * 100) / 100;
 }
 
 // Type d'augmentation depuis une colonne optionnelle (« Type augmentation »,
@@ -151,7 +163,14 @@ export function parseContractTrackingWorkbook(
       const code = colCode >= 0 ? row[colCode] : '';
       const tauxAugmentation = colTaux >= 0 ? parseTaux(row[colTaux]) : undefined;
       const dateAug = colDateAug >= 0 ? toISODate(row[colDateAug]) : null;
-      const typeAugmentation = colNotif >= 0 ? parseTypeAug(row[colNotif]) : undefined;
+      // Type : colonne dédiée « … notification » si elle existe ; à défaut, on
+      // le déduit du commentaire QUAND il parle de notification (ex. « Sans
+      // nécessité de notification »), sans jamais interpréter un commentaire
+      // qui ne mentionne pas la notification.
+      let typeAugmentation = colNotif >= 0 ? parseTypeAug(row[colNotif]) : undefined;
+      if (typeAugmentation === undefined && /notif/i.test(commentaire)) {
+        typeAugmentation = parseTypeAug(commentaire);
+      }
       const nom = nomRaw.replace(/\s+/g, ' ').trim();
       const key = nom.toUpperCase() + '|' + entite;
 

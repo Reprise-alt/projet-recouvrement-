@@ -109,11 +109,15 @@ contractsRouter.patch('/:id/tarification', requireRole('admin', 'manager_entite'
     if (!assertEntiteInScope(req, res, contrat.client.entite as Entite)) return;
 
     const { montantActuel, tauxAugmentation, typeAugmentation, commentaire } = req.body ?? {};
-    if (montantActuel == null || isNaN(Number(montantActuel)) || Number(montantActuel) < 0) {
-      return res.status(400).json({ error: 'Montant invalide' });
-    }
+    // L'augmentation est un TAUX annuel, indépendant d'un montant : la
+    // facturation applique ensuite la nouvelle tarification. Le montant reste
+    // donc facultatif (pour projeter un montant révisé si on le souhaite).
     if (tauxAugmentation == null || isNaN(Number(tauxAugmentation))) {
       return res.status(400).json({ error: 'Taux invalide' });
+    }
+    const montantFourni = montantActuel != null && montantActuel !== '';
+    if (montantFourni && (isNaN(Number(montantActuel)) || Number(montantActuel) < 0)) {
+      return res.status(400).json({ error: 'Montant invalide' });
     }
     if (typeAugmentation != null && typeAugmentation !== 'sans_notification' && typeAugmentation !== 'sur_notification') {
       return res.status(400).json({ error: "Type d'augmentation invalide" });
@@ -122,7 +126,7 @@ contractsRouter.patch('/:id/tarification', requireRole('admin', 'manager_entite'
     const updated = await prisma.contrat.update({
       where: { id: req.params.id },
       data: {
-        montantActuel: Number(montantActuel),
+        montantActuel: montantFourni ? Number(montantActuel) : undefined,
         tauxAugmentation: Number(tauxAugmentation),
         typeAugmentation: typeAugmentation ?? undefined,
         commentaire: commentaire !== undefined ? (commentaire || null) : undefined,
@@ -135,17 +139,18 @@ contractsRouter.patch('/:id/tarification', requireRole('admin', 'manager_entite'
   }
 });
 
-// Applique la révision due : fait passer le montant au montant projeté
-// (composé sur le montant en vigueur) et avance l'ancre sur la date
-// anniversaire qui vient d'échoir -- pas sur "aujourd'hui", pour que le
-// cycle reste calé sur la vraie date anniversaire même si le geste est fait
-// avec quelques jours de retard.
+// Marque l'augmentation de l'année comme appliquée : avance l'ancre sur la date
+// anniversaire qui vient d'échoir (pas sur "aujourd'hui", pour rester calé sur
+// la vraie date même si le geste est fait avec quelques jours de retard), ce qui
+// réarme l'alerte pour l'année suivante. Le montant n'est PAS requis : si un
+// montant de référence est renseigné, on le projette au passage, sinon on ne
+// touche qu'à la date (la facturation applique la nouvelle tarification).
 contractsRouter.post('/:id/appliquer-revision', requireRole('admin', 'manager_entite'), async (req, res, next) => {
   try {
     const contrat = await prisma.contrat.findUnique({ where: { id: req.params.id }, include: { client: true } });
     if (!contrat) return res.status(404).json({ error: 'Contrat introuvable' });
     if (!assertEntiteInScope(req, res, contrat.client.entite as Entite)) return;
-    if (contrat.montantActuel == null || contrat.tauxAugmentation == null) {
+    if (contrat.tauxAugmentation == null) {
       return res.status(400).json({ error: "Aucune augmentation tarifaire configurée sur ce contrat" });
     }
 
@@ -153,7 +158,7 @@ contractsRouter.post('/:id/appliquer-revision', requireRole('admin', 'manager_en
     const updated = await prisma.contrat.update({
       where: { id: req.params.id },
       data: {
-        montantActuel: montantProjete(contrat.montantActuel, contrat.tauxAugmentation),
+        montantActuel: contrat.montantActuel != null ? montantProjete(contrat.montantActuel, contrat.tauxAugmentation) : undefined,
         dateDerniereRevision: echeanceEnCours,
       },
     });

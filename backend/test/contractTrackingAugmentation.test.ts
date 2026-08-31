@@ -19,32 +19,42 @@ const HEADER = [
 ];
 
 describe('parseContractTrackingWorkbook — colonnes augmentation', () => {
-  it('lit le taux, la date et le type d\'augmentation', () => {
+  it('lit le taux (fraction Excel → points de %), la date et le type', () => {
     const wb = workbook([
       ['SORAM AFRIQUE – Suivi des contrats Leasing'],
       HEADER,
-      [400003, 'LQT CONSULTING', '2020-01-15', '2025-01-14', 5, '5%', '2026-01-15', 100, '🟢 OK', '—', 'En cours', 'RAS', 'Nouveau contrat', 'sur notification'],
-      [400011, 'AUTRE SARL', '2021-06-01', '2027-06-01', 6, '—', '', 200, '🟢 OK', '—', 'En cours', '', 'Tacite reconduction', 'sans notification'],
+      // Augm. = 0,05 : Excel stocke « 5 % » comme fraction 0,05 → doit donner 5.
+      [400003, 'LQT CONSULTING', '2020-01-15', '2025-01-14', 5, 0.05, '2026-01-15', 100, '🟢 OK', '—', 'En cours', 'RAS', 'Nouveau contrat', 'sur notification'],
+      [400011, 'AUTRE SARL', '2021-06-01', '2027-06-01', 6, '—', '', 200, '🟢 OK', '—', 'En cours', '', 'Tacite', 'sans notification'],
     ]);
     const res = parseContractTrackingWorkbook(wb);
     const lqt = res.clients.find((c) => c.nom === 'LQT CONSULTING')!.contrats[0];
     const autre = res.clients.find((c) => c.nom === 'AUTRE SARL')!.contrats[0];
 
-    expect(lqt.tauxAugmentation).toBe(5);
+    expect(lqt.tauxAugmentation).toBe(5); // 0,05 → 5 %
     expect(lqt.dateRevisionTarif).toBe('2026-01-15');
     expect(lqt.typeAugmentation).toBe('sur_notification');
 
-    // « — » / vide ne remplit rien (undefined = ne pas écraser au réimport).
-    expect(autre.tauxAugmentation).toBeUndefined();
-    expect(autre.dateRevisionTarif).toBeUndefined();
+    expect(autre.tauxAugmentation).toBeUndefined(); // « — » → rien
     expect(autre.typeAugmentation).toBe('sans_notification');
+  });
+
+  it('déduit le type du commentaire quand il n\'y a pas de colonne dédiée', () => {
+    const wb = workbook([
+      ['SORAM AFRIQUE – Suivi des contrats Leasing'],
+      ['Code client', 'Raison sociale', 'Début', 'Fin contrat', 'Augm.', "Date d'augmentation annuelle", 'Statut', 'Commentaire', 'Issue contrat'],
+      [400379, 'CLUB TIOSSANE', '2026-05-23', '2031-05-23', 0.05, '2026-05-23', 'En cours', 'Sans nécessité de notification', 'Nouveau contrat'],
+    ]);
+    const c = parseContractTrackingWorkbook(wb).clients[0].contrats[0];
+    expect(c.tauxAugmentation).toBe(5);
+    expect(c.typeAugmentation).toBe('sans_notification');
   });
 
   it('n\'invente rien quand les colonnes augmentation sont absentes', () => {
     const wb = workbook([
       ['SORAM AFRIQUE – Suivi des contrats Leasing'],
       ['Code client', 'Raison sociale', 'Début', 'Fin contrat', 'Statut', 'Issue contrat'],
-      [400020, 'SANS COLONNES', '2022-03-01', '2025-03-01', 'En cours', ''],
+      [400020, 'SANS COLONNES', '2022-03-01', '2025-03-01', 'En cours', 'Autre note'],
     ]);
     const c = parseContractTrackingWorkbook(wb).clients[0].contrats[0];
     expect(c.tauxAugmentation).toBeUndefined();

@@ -4,7 +4,7 @@ import { api, ApiError } from '../api/client';
 import { ContractDetail, ContractDoc, RoleUtilisateur, TypeAugmentation } from '../api/types';
 import { useResource } from '../hooks/useResource';
 import { useToast } from '../hooks/useToast';
-import { CONTRACT_ALERTS, fmtDate, fmtFCFA } from '../lib/constants';
+import { CONTRACT_ALERTS, fmtDate } from '../lib/constants';
 
 interface Props {
   contratId: string;
@@ -23,7 +23,6 @@ export function ContractDrawer({ contratId, role, onClose, onChanged }: Props) {
   const [sendStatus, setSendStatus] = useState<{ kind: 'ok' | 'err'; message: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [editingTarif, setEditingTarif] = useState(false);
-  const [montantInput, setMontantInput] = useState('');
   const [tauxInput, setTauxInput] = useState('');
   const [typeInput, setTypeInput] = useState<TypeAugmentation | ''>('');
   const [commentaireInput, setCommentaireInput] = useState('');
@@ -44,7 +43,6 @@ export function ContractDrawer({ contratId, role, onClose, onChanged }: Props) {
   };
 
   function openTarifForm() {
-    setMontantInput(contrat?.montantActuel != null ? String(contrat.montantActuel) : '');
     setTauxInput(contrat?.tauxAugmentation != null ? String(contrat.tauxAugmentation) : '');
     setTypeInput(contrat?.typeAugmentation ?? '');
     setCommentaireInput(contrat?.commentaire ?? '');
@@ -56,7 +54,6 @@ export function ContractDrawer({ contratId, role, onClose, onChanged }: Props) {
     setTarifBusy(true);
     try {
       await api.patch(`/api/contracts/${contratId}/tarification`, {
-        montantActuel: Number(montantInput),
         tauxAugmentation: Number(tauxInput),
         typeAugmentation: typeInput || undefined,
         commentaire: commentaireInput,
@@ -64,7 +61,7 @@ export function ContractDrawer({ contratId, role, onClose, onChanged }: Props) {
       setEditingTarif(false);
       refetch();
       onChanged();
-      showToast('Tarification annuelle enregistrée');
+      showToast('Augmentation annuelle enregistrée');
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Erreur');
     } finally {
@@ -194,22 +191,16 @@ export function ContractDrawer({ contratId, role, onClose, onChanged }: Props) {
             )}
 
             <div className="section-title">
-              <span>Tarification annuelle</span>
+              <span>Augmentation annuelle</span>
               {canAct && contrat.tauxAugmentation != null && !editingTarif && (
                 <button onClick={openTarifForm}>Modifier</button>
               )}
             </div>
             {editingTarif ? (
               <form onSubmit={handleSaveTarification} className="card-mini" style={{ borderColor: 'var(--accent)' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
-                  <div>
-                    <label>Montant actuel (FCFA)</label>
-                    <input type="number" min="0" step="1" value={montantInput} onChange={(e) => setMontantInput(e.target.value)} required />
-                  </div>
-                  <div>
-                    <label>Augmentation annuelle (%)</label>
-                    <input type="number" step="0.1" value={tauxInput} onChange={(e) => setTauxInput(e.target.value)} required />
-                  </div>
+                <div style={{ marginBottom: 8 }}>
+                  <label>Augmentation annuelle (%)</label>
+                  <input type="number" step="0.1" min="0" value={tauxInput} onChange={(e) => setTauxInput(e.target.value)} placeholder="ex. 5" required />
                 </div>
                 <div style={{ marginBottom: 8 }}>
                   <label>Type d'augmentation</label>
@@ -237,13 +228,9 @@ export function ContractDrawer({ contratId, role, onClose, onChanged }: Props) {
                   </button>
                 </div>
               </form>
-            ) : contrat.tauxAugmentation != null && contrat.montantActuel != null ? (
+            ) : contrat.tauxAugmentation != null ? (
               <div className="card-mini">
                 <div className="info-grid">
-                  <div>
-                    <span>Montant actuel</span>
-                    {fmtFCFA(contrat.montantActuel)}
-                  </div>
                   <div>
                     <span>Augmentation annuelle</span>
                     {contrat.tauxAugmentation} %
@@ -253,39 +240,41 @@ export function ContractDrawer({ contratId, role, onClose, onChanged }: Props) {
                     {TYPE_AUG_LABEL[contrat.typeAugmentation ?? 'sans_notification']}
                   </div>
                   <div>
-                    <span>Prochaine révision</span>
-                    {contrat.prochaineRevision ? fmtDate(contrat.prochaineRevision) : '—'}
-                  </div>
-                  <div>
-                    <span>Montant après révision</span>
-                    {contrat.montantApresRevision != null ? fmtFCFA(contrat.montantApresRevision) : '—'}
+                    <span>Prochaine augmentation</span>
+                    {contrat.prochaineRevision ? fmtDate(contrat.prochaineRevision) : contrat.dateRevisionTarif ? fmtDate(contrat.dateRevisionTarif) : '—'}
                   </div>
                 </div>
-                {contrat.typeAugmentation === 'sur_notification' && contrat.echeance.type === 'revision_tarif' && (
-                  <div
-                    className="badge"
-                    data-tone={contrat.alertLevel >= 4 ? 'danger' : 'amber'}
-                    style={{ display: 'block', marginTop: 10, padding: '8px 12px', fontSize: 12.5, lineHeight: 1.4 }}
-                  >
-                    ⚠ Augmentation <strong>sur notification</strong> — à notifier au client <strong>avant le {fmtDate(contrat.echeance.date)}</strong>{' '}
-                    ({contrat.echeance.jours} j). Sans notification dans les délais, la revalorisation est perdue pour l'année.
-                  </div>
-                )}
+                {contrat.echeance.type === 'revision_tarif' &&
+                  (contrat.typeAugmentation === 'sur_notification' ? (
+                    <div
+                      className="badge"
+                      data-tone={contrat.alertLevel >= 4 ? 'danger' : 'amber'}
+                      style={{ display: 'block', marginTop: 10, padding: '8px 12px', fontSize: 12.5, lineHeight: 1.4 }}
+                    >
+                      ⚠ Augmentation <strong>sur notification</strong> — à notifier au client <strong>avant le {fmtDate(contrat.echeance.date)}</strong>{' '}
+                      ({contrat.echeance.jours} j). Sans notification dans les délais, la revalorisation est perdue pour l'année.
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginTop: 10 }}>
+                      Prochaine augmentation de <strong>{contrat.tauxAugmentation} %</strong> le{' '}
+                      <strong>{fmtDate(contrat.echeance.date)}</strong> ({contrat.echeance.jours} j) — automatique, à répercuter en facturation.
+                    </div>
+                  ))}
                 {canAct && (
                   <button
                     className="primary"
                     style={{ marginTop: 12 }}
                     disabled={tarifBusy}
                     onClick={handleAppliquerRevision}
-                    title="Fait passer le montant au montant projeté et avance la date anniversaire d'un an"
+                    title="Marque l'augmentation de cette année comme appliquée et réarme le rappel pour l'an prochain"
                   >
-                    Marquer la révision appliquée
+                    Augmentation appliquée cette année
                   </button>
                 )}
               </div>
             ) : (
               <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginBottom: canAct ? 8 : 0 }}>
-                Pas d'augmentation automatique configurée sur ce contrat.
+                Pas d'augmentation annuelle configurée sur ce contrat.
                 {canAct && (
                   <>
                     {' '}
