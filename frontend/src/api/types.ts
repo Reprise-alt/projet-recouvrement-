@@ -107,11 +107,14 @@ export interface Contrat {
   dateRevisionTarif: string | null;
   montantActuel: number | null;
   tauxAugmentation: number | null;
+  typeAugmentation: TypeAugmentation | null;
   dateDerniereRevision: string | null;
   statutSource: string | null;
   commentaire: string | null;
   envois: EnvoiContrat[];
 }
+
+export type TypeAugmentation = 'sans_notification' | 'sur_notification';
 
 export interface ActionRecouvrement {
   id: string;
@@ -281,14 +284,21 @@ export interface ContractRow {
   echeanceDate: string;
   joursRestants: number;
   alertLevel: number;
+  dateDebut: string;
+  dateFin: string;
+  dureeMois: number | null;
+  tauxAugmentation: number | null;
+  typeAugmentation: TypeAugmentation | null;
+  surNotification: boolean;
 }
 
 export interface ContractDetail extends Contrat {
   client: { id: string; nom: string; entite: Entite; contact: string | null; email: string | null };
-  echeance: { type: 'revision_tarif' | 'renouvellement'; date: string; jours: number };
+  echeance: { type: 'revision_tarif' | 'renouvellement'; date: string; jours: number; surNotification?: boolean };
   alertLevel: number;
   montantApresRevision: number | null;
   prochaineRevision: string | null;
+  dureeMois: number | null;
 }
 
 export interface ContractsKpis {

@@ -6,6 +6,14 @@ import { CONTRACT_ALERTS, fmtDate } from '../lib/constants';
 import { ContractDrawer } from './ContractDrawer';
 import { EntityLogo, entityAccent } from './EntityLogo';
 
+// Durée compacte pour le tableau : « 3 ans », « 3 a 6 m », « 8 m ».
+function fmtDureeCourt(mois: number | null): string {
+  if (mois == null) return '—';
+  const a = Math.floor(mois / 12);
+  const m = mois % 12;
+  return [a ? `${a} a` : '', m ? `${m} m` : ''].filter(Boolean).join(' ') || '0 m';
+}
+
 interface Props {
   entityFilter: Entite | 'ALL';
   role: RoleUtilisateur;
@@ -71,6 +79,7 @@ export function ContractsView({ entityFilter, role, reloadKey }: Props) {
                   <th>Entité</th>
                   <th>Contrat</th>
                   <th>Type</th>
+                  <th>Durée</th>
                   <th>Échéance</th>
                   <th>Date</th>
                   <th>Jours restants</th>
@@ -91,7 +100,28 @@ export function ContractsView({ entityFilter, role, reloadKey }: Props) {
                       </td>
                       <td className="mono">{r.numero}</td>
                       <td style={{ fontSize: 12, color: 'var(--ink-soft)' }}>{r.type || ''}</td>
-                      <td>{r.echeanceType === 'revision_tarif' ? 'Révision tarifaire' : r.tacite ? 'Renouvellement (tacite)' : 'Renouvellement'}</td>
+                      <td className="mono" style={{ fontSize: 12 }}>{fmtDureeCourt(r.dureeMois)}</td>
+                      <td>
+                        {r.echeanceType === 'revision_tarif' ? (
+                          <span>
+                            Révision tarifaire
+                            {r.surNotification && (
+                              <span
+                                className="badge"
+                                data-tone={r.alertLevel >= 4 ? 'danger' : 'amber'}
+                                style={{ marginLeft: 6, fontSize: 10.5, padding: '1px 6px' }}
+                                title="À notifier au client avant la date — sinon la hausse est perdue"
+                              >
+                                sur notification
+                              </span>
+                            )}
+                          </span>
+                        ) : r.tacite ? (
+                          'Renouvellement (tacite)'
+                        ) : (
+                          'Renouvellement'
+                        )}
+                      </td>
                       <td className="mono">{fmtDate(r.echeanceDate)}</td>
                       <td className="mono">{r.joursRestants}</td>
                       <td>

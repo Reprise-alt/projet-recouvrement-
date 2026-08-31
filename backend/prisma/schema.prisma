@@ -184,6 +184,18 @@ model Facture {
   @@unique([clientId, numero])
 }
 
+// Modalité contractuelle de l'augmentation tarifaire annuelle :
+// - sans_notification : la hausse s'applique automatiquement à la date
+//   anniversaire, aucune démarche requise (simple rappel de facturation).
+// - sur_notification : la hausse n'est due QUE si le prestataire a notifié le
+//   client avant l'échéance (avenant / courrier). La date d'augmentation
+//   devient alors une date LIMITE de notification : la manquer fait perdre la
+//   revalorisation de l'année. C'est ce qui rend l'alerte réellement critique.
+enum TypeAugmentation {
+  sans_notification
+  sur_notification
+}
+
 model Contrat {
   id                   String    @id @default(cuid())
   client               Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
@@ -201,6 +213,9 @@ model Contrat {
   // lieu d'être ressaisie à la main -- cf lib/contracts.ts.
   montantActuel        Float?
   tauxAugmentation     Float?
+  // Avec ou sans notification préalable (cf. enum ci-dessus). Null tant que la
+  // modalité n'est pas renseignée -- on suppose alors « sans notification ».
+  typeAugmentation     TypeAugmentation?
   dateDerniereRevision DateTime?
   statutSource         String?
   commentaire          String?
