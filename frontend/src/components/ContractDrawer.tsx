@@ -266,9 +266,9 @@ export function ContractDrawer({ contratId, role, onClose, onChanged }: Props) {
                     style={{ marginTop: 12 }}
                     disabled={tarifBusy}
                     onClick={handleAppliquerRevision}
-                    title="Marque l'augmentation de cette année comme appliquée et réarme le rappel pour l'an prochain"
+                    title="Marque l'augmentation de cette année comme appliquée et validée avec le client, et réarme le rappel pour l'an prochain"
                   >
-                    Augmentation appliquée cette année
+                    Augmentation appliquée &amp; validée client
                   </button>
                 )}
               </div>

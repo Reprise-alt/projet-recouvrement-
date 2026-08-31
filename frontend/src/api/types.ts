@@ -290,6 +290,9 @@ export interface ContractRow {
   tauxAugmentation: number | null;
   typeAugmentation: TypeAugmentation | null;
   surNotification: boolean;
+  augStatut: AugmentationStatut;
+  augDate: string | null;
+  augJours: number | null;
 }
 
 export interface ContractDetail extends Contrat {
@@ -306,7 +309,13 @@ export interface ContractsKpis {
   echus: number;
   envoisEnvoyes: number;
   contratsSuivis: number;
+  augImminentes: number;
+  augDepassees: number;
+  augRealisees: number;
+  augParametrees: number;
 }
+
+export type AugmentationStatut = 'aucune' | 'a_venir' | 'imminent' | 'depassee' | 'realisee';
 
 export interface ContractDoc {
   subject: string;

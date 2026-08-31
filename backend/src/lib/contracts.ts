@@ -97,6 +97,64 @@ export function contractEcheance(contract: ContractLike): ContractEcheance {
   return { type: 'renouvellement', date: contract.dateFin, jours: jFin };
 }
 
+// État de l'augmentation annuelle d'un contrat, indépendant de l'échéance de
+// renouvellement. Pilote les tuiles et le filtre du module.
+//  - aucune    : pas de taux paramétré ;
+//  - a_venir   : prochaine augmentation à plus de 30 jours ;
+//  - imminent  : prochaine augmentation dans 30 jours ou moins → à appliquer ;
+//  - depassee  : l'anniversaire d'augmentation est passé sans être marqué
+//                appliqué (délai dépassé) ;
+//  - realisee  : marquée appliquée pour le cycle en cours (validée client).
+export type AugmentationStatut = 'aucune' | 'a_venir' | 'imminent' | 'depassee' | 'realisee';
+
+export interface AugmentationEtat {
+  statut: AugmentationStatut;
+  taux: number | null;
+  date: Date | null; // prochaine augmentation, ou celle dépassée / réalisée
+  jours: number | null;
+}
+
+const minuit = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+const occurrence = (anchor: Date, annee: number) => new Date(annee, anchor.getMonth(), anchor.getDate());
+
+export function augmentationEtat(contract: ContractLike, from: Date = new Date()): AugmentationEtat {
+  const taux = contract.tauxAugmentation ?? null;
+  const anchorSrc = contract.dateRevisionTarif ?? contract.dateDebut;
+  if (!taux || taux <= 0 || !anchorSrc) return { statut: 'aucune', taux: null, date: null, jours: null };
+
+  const anchor = new Date(anchorSrc);
+  const today = minuit(from);
+  const fin = minuit(new Date(contract.dateFin));
+  const debut = contract.dateDebut ? minuit(new Date(contract.dateDebut)) : null;
+
+  const annCourante = occurrence(anchor, today.getFullYear());
+  const derniere = annCourante.getTime() <= today.getTime() ? annCourante : occurrence(anchor, today.getFullYear() - 1);
+  const prochaine = annCourante.getTime() > today.getTime() ? annCourante : occurrence(anchor, today.getFullYear() + 1);
+  const jours = (d: Date) => Math.round((d.getTime() - today.getTime()) / 86400000);
+
+  const applique = contract.dateDerniereRevision ? minuit(new Date(contract.dateDerniereRevision)) : null;
+  // Le dernier anniversaire compte-t-il vraiment ? (dans la période du contrat)
+  const derniereDue = derniere.getTime() >= (debut ? debut.getTime() : -Infinity) && derniere.getTime() <= fin.getTime();
+  const faitDerniere = applique != null && applique.getTime() >= derniere.getTime();
+
+  // Pré-appliqué au-delà de la prochaine échéance → tout est à jour.
+  if (applique != null && applique.getTime() >= prochaine.getTime()) {
+    return { statut: 'realisee', taux, date: applique, jours: null };
+  }
+  // Délai dépassé : dernier anniversaire dû, passé, non appliqué.
+  if (derniereDue && !faitDerniere && derniere.getTime() <= today.getTime()) {
+    return { statut: 'depassee', taux, date: derniere, jours: jours(derniere) };
+  }
+  // Prochaine échéance encore dans la période du contrat.
+  if (prochaine.getTime() <= fin.getTime()) {
+    const j = jours(prochaine);
+    if (j <= 30) return { statut: 'imminent', taux, date: prochaine, jours: j };
+    if (faitDerniere) return { statut: 'realisee', taux, date: applique, jours: null };
+    return { statut: 'a_venir', taux, date: prochaine, jours: j };
+  }
+  return faitDerniere ? { statut: 'realisee', taux, date: applique, jours: null } : { statut: 'aucune', taux, date: null, jours: null };
+}
+
 export function contractAlertLevel(contract: ContractLike): number {
   const e = contractEcheance(contract);
   if (e.jours < 0) return 5;
