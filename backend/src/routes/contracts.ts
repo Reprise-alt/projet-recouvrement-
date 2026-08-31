@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { prisma } from '../db';
-import { contractAlertLevel, contractDureeMois, contractEcheance, montantProjete, nextAnniversary } from '../lib/contracts';
+import { augmentationEtat, contractAlertLevel, contractDureeMois, contractEcheance, montantProjete, nextAnniversary } from '../lib/contracts';
 import { generateContractDoc } from '../lib/letters';
 import { Entite, resolveEntiteScope } from '../lib/entites';
 import { assertEntiteInScope, requireAccesRecouvrement, requireAuth, requireRole } from '../middleware/auth';
@@ -29,7 +29,17 @@ contractsRouter.get('/kpis', async (req, res, next) => {
     const echus = rows.filter((r) => contractAlertLevel(r.contrat) === 5);
     const envoisEnvoyes = rows.reduce((s, r) => s + r.contrat.envois.length, 0);
 
-    res.json({ sous90: sous90.length, echus: echus.length, envoisEnvoyes, contratsSuivis: rows.length });
+    // Tuiles « augmentation » : à appliquer sous 30 j, en retard, réalisées.
+    const aug = rows.map((r) => augmentationEtat(r.contrat).statut);
+    const augImminentes = aug.filter((s) => s === 'imminent').length;
+    const augDepassees = aug.filter((s) => s === 'depassee').length;
+    const augRealisees = aug.filter((s) => s === 'realisee').length;
+    const augParametrees = aug.filter((s) => s !== 'aucune').length;
+
+    res.json({
+      sous90: sous90.length, echus: echus.length, envoisEnvoyes, contratsSuivis: rows.length,
+      augImminentes, augDepassees, augRealisees, augParametrees,
+    });
   } catch (err) {
     next(err);
   }
@@ -43,6 +53,7 @@ contractsRouter.get('/', async (req, res, next) => {
     const rows = clients.flatMap((c) =>
       c.contrats.map((contrat) => {
         const e = contractEcheance(contrat);
+        const aug = augmentationEtat(contrat);
         return {
           contratId: contrat.id,
           clientId: c.id,
@@ -62,6 +73,9 @@ contractsRouter.get('/', async (req, res, next) => {
           tauxAugmentation: contrat.tauxAugmentation,
           typeAugmentation: contrat.typeAugmentation,
           surNotification: !!e.surNotification,
+          augStatut: aug.statut,
+          augDate: aug.date,
+          augJours: aug.jours,
         };
       }),
     );
