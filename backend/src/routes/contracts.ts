@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { prisma } from '../db';
 import { augmentationEtat, contractAlertLevel, contractDureeMois, contractEcheance, montantProjete, nextAnniversary } from '../lib/contracts';
-import { generateContractDoc } from '../lib/letters';
+import { destinataireDoc, generateContractDoc } from '../lib/letters';
 import { DonneesLettreAugmentation, genererLettreAugmentationPdf } from '../lib/actes/actesContentieux';
 import { logoEntite, mentionsLegales } from '../lib/actes/mentionsLegales';
 import { Entite, resolveEntiteScope } from '../lib/entites';
@@ -211,7 +211,7 @@ contractsRouter.get('/:id/lettre-augmentation', requireRole('admin', 'manager_en
         logo: logoEntite(contrat.client.entite),
       },
       clientNom: contrat.client.nom,
-      clientContact: contrat.client.contact ?? undefined,
+      clientContact: destinataireDoc(contrat.client.contact),
       numeroContrat: contrat.numero,
       taux: contrat.tauxAugmentation,
       dateEffet: new Date(dateEffet),

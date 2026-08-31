@@ -60,6 +60,15 @@ function lastActionDate(client: LetterClient, palier: number): string | null {
   return matches.length ? fmtDate(matches[0].date) : null;
 }
 
+// Destinataire d'un courrier : le contact renseigné s'il s'agit d'un
+// interlocuteur réel, sinon « la Direction Générale » (les contacts vides ou
+// génériques comme « Cher partenaire » ne doivent pas apparaître dans l'en-tête).
+export function destinataireDoc(contact?: string | null): string {
+  const c = (contact || '').trim();
+  if (!c || /partenaire|^client$|^n\/?a$|^-+$/i.test(c)) return 'la Direction Générale';
+  return c;
+}
+
 function entiteNom(entite: Entite): string {
   if (entite === 'IRIS') return 'IRIS Afrique';
   if (entite === 'SIS') return 'SIS — SORAM Impression & Services';
@@ -70,7 +79,7 @@ function entiteNom(entite: Entite): string {
 function letterHeader(client: LetterClient): string {
   const today = fmtDateLong(new Date());
   return (
-    `Dakar, le ${today}\n\nÀ l'attention de : ${client.contact}\n${client.nom}\n\n` +
+    `Dakar, le ${today}\n\nÀ l'attention de : ${destinataireDoc(client.contact)}\n${client.nom}\n\n` +
     `Bonjour,\n\nJ'espère que vous allez bien. Je vous contacte au nom du service recouvrement de l'entreprise ${entiteNom(client.entite)}.\n\n`
   );
 }
@@ -238,7 +247,7 @@ export function generateContractDoc(client: ContractDocClient, c: LetterContract
   const today = fmtDateLong(new Date());
   const nomEntite = entiteNom(client.entite);
   const preamble =
-    `Dakar, le ${today}\n\nÀ l'attention de : ${client.contact}\n${client.nom}\n\n` +
+    `Dakar, le ${today}\n\nÀ l'attention de : ${destinataireDoc(client.contact)}\n${client.nom}\n\n` +
     `Bonjour,\n\nJ'espère que vous allez bien. Je vous contacte au nom du service recouvrement de l'entreprise ${nomEntite}.\n\n`;
 
   if (e.type === 'revision_tarif') {
