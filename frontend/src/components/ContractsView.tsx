@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { buildQuery } from '../api/client';
+import { buildQuery, downloadFile } from '../api/client';
 import { useResource } from '../hooks/useResource';
 import { AugmentationStatut, ContractRow, ContractsKpis, Entite, RoleUtilisateur } from '../api/types';
 import { CONTRACT_ALERTS, fmtDate } from '../lib/constants';
@@ -136,13 +136,27 @@ export function ContractsView({ entityFilter, role, reloadKey }: Props) {
       <div className="table-card" style={{ marginTop: 12 }}>
         <div className="table-head" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
           <div style={{ fontWeight: 600, fontSize: 14 }}>Échéances de contrats — renouvellement &amp; révision tarifaire</div>
-          <input
-            type="search"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Rechercher un client, un contrat…"
-            style={{ padding: '6px 10px', fontSize: 13, minWidth: 220, borderRadius: 6, border: '1px solid var(--line)' }}
-          />
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() =>
+                downloadFile(
+                  `/api/contracts/lettre-revision-generale/lot${buildQuery({ entite: entityFilter, sansAugmentation: 'true' })}`,
+                  'lettres-revision-tarifaire.pdf',
+                ).catch(() => alert('Génération impossible'))
+              }
+              title="Génère en un seul PDF les lettres de révision tarifaire (5,5 %) pour les clients du périmètre SANS augmentation contractuelle"
+            >
+              Lettres de révision (portefeuille)
+            </button>
+            <input
+              type="search"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Rechercher un client, un contrat…"
+              style={{ padding: '6px 10px', fontSize: 13, minWidth: 220, borderRadius: 6, border: '1px solid var(--line)' }}
+            />
+          </div>
         </div>
         <div>
           {list.loading ? (

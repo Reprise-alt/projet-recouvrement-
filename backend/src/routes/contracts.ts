@@ -2,7 +2,14 @@ import { Router } from 'express';
 import { prisma } from '../db';
 import { augmentationEtat, contractAlertLevel, contractDureeMois, contractEcheance, montantProjete, nextAnniversary } from '../lib/contracts';
 import { destinataireDoc, generateContractDoc } from '../lib/letters';
-import { DonneesLettreAugmentation, genererLettreAugmentationPdf } from '../lib/actes/actesContentieux';
+import {
+  DonneesLettreAugmentation,
+  DonneesLettreRevisionGenerale,
+  Societe,
+  genererLettreAugmentationPdf,
+  genererLettreRevisionGeneralePdf,
+  genererLettresRevisionLotPdf,
+} from '../lib/actes/actesContentieux';
 import { logoEntite, mentionsLegales } from '../lib/actes/mentionsLegales';
 import { Entite, resolveEntiteScope } from '../lib/entites';
 import { assertEntiteInScope, requireAccesRecouvrement, requireAuth, requireRole } from '../middleware/auth';
@@ -13,6 +20,27 @@ contractsRouter.use(requireAuth, requireAccesRecouvrement);
 function entiteWhere(entiteFilter: Entite | 'ALL') {
   if (entiteFilter === 'ALL') return {};
   return { OR: [{ entite: entiteFilter as any }, { entite: 'COMMUN' as any }] };
+}
+
+// Société émettrice (papier à en-tête) déduite de l'entité du client.
+function societePourEntite(entite?: string | null): Societe {
+  const base = mentionsLegales(entite);
+  return {
+    nom: String(base?.nom || entite || 'La société'),
+    formeJuridique: base?.formeJuridique,
+    adresse: base?.adresse,
+    rccm: base?.rccm,
+    ninea: base?.ninea,
+    tel: base?.tel,
+    email: base?.email,
+    logo: logoEntite(entite),
+  };
+}
+
+// Premier jour du mois prochain (date d'effet par défaut d'une révision).
+function premierDuMoisProchain(): Date {
+  const d = new Date();
+  return new Date(d.getFullYear(), d.getMonth() + 1, 1);
 }
 
 contractsRouter.get('/kpis', async (req, res, next) => {
@@ -222,6 +250,76 @@ contractsRouter.get('/:id/lettre-augmentation', requireRole('admin', 'manager_en
     const pdf = await genererLettreAugmentationPdf(donnees);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="avis-augmentation-${contrat.numero}.pdf"`);
+    res.send(Buffer.from(pdf));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Lettre de révision tarifaire GÉNÉRALE (indexation coûts) — courrier type
+// pour l'ensemble des clients, notamment ceux sans augmentation contractuelle.
+// En lot pour tout un périmètre : GET /lettre-revision-generale/lot.
+contractsRouter.get('/lettre-revision-generale/lot', requireRole('admin', 'manager_entite'), async (req, res, next) => {
+  try {
+    const entiteFilter = resolveEntiteScope(req.user!, req.query.entite);
+    const taux = Number(req.query.taux) > 0 ? Number(req.query.taux) : 5.5;
+    const dateEffet = req.query.date ? new Date(String(req.query.date)) : premierDuMoisProchain();
+    const sansAug = req.query.sansAugmentation === 'true' || req.query.sansAugmentation === '1';
+
+    const clients = await prisma.client.findMany({
+      where: entiteWhere(entiteFilter),
+      include: { contrats: { select: { tauxAugmentation: true } } },
+      orderBy: { nom: 'asc' },
+    });
+    // « Sans augmentation » : aucun contrat du client ne porte de taux annuel.
+    const cibles = sansAug
+      ? clients.filter((c) => !c.contrats.some((ct) => ct.tauxAugmentation != null && ct.tauxAugmentation > 0))
+      : clients;
+    if (!cibles.length) return res.status(404).json({ error: 'Aucun client dans ce périmètre' });
+
+    const donnees: DonneesLettreRevisionGenerale[] = cibles.map((c) => {
+      const base = mentionsLegales(c.entite);
+      return {
+        societe: societePourEntite(c.entite),
+        clientNom: c.nom,
+        clientContact: destinataireDoc(c.contact),
+        taux,
+        dateEffet,
+        signataireNom: base?.signataireNom,
+        signataireQualite: base?.signataireQualite,
+      };
+    });
+    const pdf = await genererLettresRevisionLotPdf(donnees);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="revision-tarifaire-lot-${cibles.length}-clients.pdf"`);
+    res.send(Buffer.from(pdf));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Lettre de révision générale pour le client d'un contrat donné.
+contractsRouter.get('/:id/lettre-revision-generale', requireRole('admin', 'manager_entite'), async (req, res, next) => {
+  try {
+    const contrat = await prisma.contrat.findUnique({ where: { id: req.params.id }, include: { client: true } });
+    if (!contrat) return res.status(404).json({ error: 'Contrat introuvable' });
+    if (!assertEntiteInScope(req, res, contrat.client.entite as Entite)) return;
+
+    const taux = Number(req.query.taux) > 0 ? Number(req.query.taux) : 5.5;
+    const dateEffet = req.query.date ? new Date(String(req.query.date)) : premierDuMoisProchain();
+    const base = mentionsLegales(contrat.client.entite);
+    const donnees: DonneesLettreRevisionGenerale = {
+      societe: societePourEntite(contrat.client.entite),
+      clientNom: contrat.client.nom,
+      clientContact: destinataireDoc(contrat.client.contact),
+      taux,
+      dateEffet,
+      signataireNom: base?.signataireNom,
+      signataireQualite: base?.signataireQualite,
+    };
+    const pdf = await genererLettreRevisionGeneralePdf(donnees);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="revision-tarifaire-${contrat.client.nom.replace(/\W+/g, '-')}.pdf"`);
     res.send(Buffer.from(pdf));
   } catch (err) {
     next(err);
