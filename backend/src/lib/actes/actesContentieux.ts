@@ -680,3 +680,88 @@ function jourEnLettres(d: Date): string {
   const j = d.getDate();
   return `${j === 1 ? 'premier' : enLettres(j)} ${mois[d.getMonth()]}`;
 }
+
+// ---------------------------------------------------------------------
+// LETTRE D'AVIS DE REVALORISATION TARIFAIRE ANNUELLE (augmentation)
+// Courrier sur entête de la société (logo + mentions), informant le client
+// de l'augmentation annuelle en pourcentage. Deux variantes selon le contrat :
+// « sur notification » (le courrier vaut notification préalable, LR/AR) ou
+// « sans notification » (application automatique, simple information).
+// Aucun montant : c'est un taux, la facturation applique ensuite le tarif.
+// ---------------------------------------------------------------------
+export interface DonneesLettreAugmentation {
+  societe: Societe;
+  lieu?: string;
+  date?: Date;
+  clientNom: string;
+  clientContact?: string;
+  clientAdresse?: string;
+  numeroContrat: string;
+  taux: number; // en points de % (ex. 5 pour 5 %)
+  dateEffet: Date; // date d'application de l'augmentation
+  surNotification?: boolean;
+  signataireNom?: string;
+  signataireQualite?: string;
+}
+
+export function genererLettreAugmentationPdf(d: DonneesLettreAugmentation): Promise<Buffer> {
+  const doc = new PDFDocument({ size: 'A4', margin: 56 });
+  const date = d.date || new Date();
+  const lieu = d.lieu || 'Dakar';
+  const largeur = doc.page.width - 56 - 320;
+  const tauxTxt = `${String(d.taux).replace('.', ',')} %`;
+
+  enteteSociete(doc, d.societe);
+
+  // Destinataire + lieu/date, alignés à droite (format courrier).
+  doc.fontSize(10).font('Helvetica');
+  const yRef = doc.y;
+  doc.font('Helvetica-Bold').text(d.clientNom, 320, yRef, { width: largeur });
+  doc.font('Helvetica');
+  if (d.clientAdresse) doc.text(d.clientAdresse, { width: largeur });
+  if (d.clientContact) doc.text("À l'attention de " + d.clientContact, { width: largeur });
+  doc.moveDown(0.5);
+  doc.text(`${lieu}, le ${fmtDate(date)}`, 320, doc.y, { width: largeur });
+  doc.moveDown(1.2);
+  doc.x = 56;
+
+  // Objet.
+  doc.font('Helvetica-Bold').fontSize(10.5).text(
+    `Objet : Avis de revalorisation tarifaire annuelle — Contrat ${d.numeroContrat}`,
+  );
+  if (d.surNotification) {
+    doc.font('Helvetica').fontSize(9).fillColor('#555').text('Lettre recommandée avec accusé de réception');
+    doc.fillColor('#000');
+  }
+  doc.fontSize(10.5).moveDown(0.9);
+
+  doc.font('Helvetica').text('Madame, Monsieur,');
+  doc.moveDown(0.5);
+  doc.text(
+    `Nous vous informons que, conformément aux stipulations de votre contrat n° ${d.numeroContrat} prévoyant une révision tarifaire annuelle, votre tarif fera l'objet d'une revalorisation de ${tauxTxt} à compter du ${fmtDate(d.dateEffet)}.`,
+    { align: 'justify' },
+  );
+  doc.moveDown(0.5);
+  doc.text(
+    d.surNotification
+      ? `Le présent courrier vaut notification préalable de cette revalorisation, conformément à votre contrat. À défaut d'observation de votre part dans le délai contractuel, le nouveau tarif sera appliqué à compter de la date indiquée ci-dessus.`
+      : `Cette revalorisation s'applique de plein droit à la date indiquée, conformément à votre contrat. Nos services de facturation intégreront le nouveau tarif dès cette échéance.`,
+    { align: 'justify' },
+  );
+  doc.moveDown(0.5);
+  doc.text(
+    `Nous restons à votre entière disposition pour toute précision et vous remercions de la confiance que vous nous accordez.`,
+    { align: 'justify' },
+  );
+  doc.moveDown(0.8);
+  doc.text('Veuillez agréer, Madame, Monsieur, l\'expression de nos salutations distinguées.', { align: 'justify' });
+  doc.moveDown(2);
+
+  // Signature.
+  const sigNom = d.signataireNom || d.societe.representant || '';
+  if (sigNom) doc.font('Helvetica-Bold').fontSize(10.5).text(sigNom);
+  if (d.signataireQualite) doc.font('Helvetica').fontSize(9.5).fillColor('#444').text(d.signataireQualite);
+  doc.fillColor('#000');
+
+  return bufferDePdf(doc);
+}

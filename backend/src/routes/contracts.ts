@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { prisma } from '../db';
 import { augmentationEtat, contractAlertLevel, contractDureeMois, contractEcheance, montantProjete, nextAnniversary } from '../lib/contracts';
 import { generateContractDoc } from '../lib/letters';
+import { DonneesLettreAugmentation, genererLettreAugmentationPdf } from '../lib/actes/actesContentieux';
+import { logoEntite, mentionsLegales } from '../lib/actes/mentionsLegales';
 import { Entite, resolveEntiteScope } from '../lib/entites';
 import { assertEntiteInScope, requireAccesRecouvrement, requireAuth, requireRole } from '../middleware/auth';
 
@@ -177,6 +179,50 @@ contractsRouter.post('/:id/appliquer-revision', requireRole('admin', 'manager_en
       },
     });
     res.json(updated);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Lettre d'avis de revalorisation tarifaire annuelle (PDF, entête société).
+// Générée à la volée à partir du taux + de la date d'augmentation ; la variante
+// LR/AR est retenue si l'augmentation est « sur notification ».
+contractsRouter.get('/:id/lettre-augmentation', requireRole('admin', 'manager_entite'), async (req, res, next) => {
+  try {
+    const contrat = await prisma.contrat.findUnique({ where: { id: req.params.id }, include: { client: true } });
+    if (!contrat) return res.status(404).json({ error: 'Contrat introuvable' });
+    if (!assertEntiteInScope(req, res, contrat.client.entite as Entite)) return;
+    if (contrat.tauxAugmentation == null || contrat.tauxAugmentation <= 0) {
+      return res.status(400).json({ error: "Aucune augmentation configurée sur ce contrat" });
+    }
+
+    const etat = augmentationEtat(contrat);
+    const dateEffet = etat.date ?? nextAnniversary(contrat.dateDerniereRevision ?? contrat.dateDebut);
+    const base = mentionsLegales(contrat.client.entite);
+    const donnees: DonneesLettreAugmentation = {
+      societe: {
+        nom: String(base?.nom || contrat.client.entite || 'La société'),
+        formeJuridique: base?.formeJuridique,
+        adresse: base?.adresse,
+        rccm: base?.rccm,
+        ninea: base?.ninea,
+        tel: base?.tel,
+        email: base?.email,
+        logo: logoEntite(contrat.client.entite),
+      },
+      clientNom: contrat.client.nom,
+      clientContact: contrat.client.contact ?? undefined,
+      numeroContrat: contrat.numero,
+      taux: contrat.tauxAugmentation,
+      dateEffet: new Date(dateEffet),
+      surNotification: contrat.typeAugmentation === 'sur_notification',
+      signataireNom: base?.signataireNom,
+      signataireQualite: base?.signataireQualite,
+    };
+    const pdf = await genererLettreAugmentationPdf(donnees);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="avis-augmentation-${contrat.numero}.pdf"`);
+    res.send(Buffer.from(pdf));
   } catch (err) {
     next(err);
   }

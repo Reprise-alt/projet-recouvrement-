@@ -1,6 +1,6 @@
 import { FormEvent, useState } from 'react';
 import { X } from 'lucide-react';
-import { api, ApiError } from '../api/client';
+import { api, ApiError, downloadFile } from '../api/client';
 import { ContractDetail, ContractDoc, RoleUtilisateur, TypeAugmentation } from '../api/types';
 import { useResource } from '../hooks/useResource';
 import { useToast } from '../hooks/useToast';
@@ -260,17 +260,30 @@ export function ContractDrawer({ contratId, role, onClose, onChanged }: Props) {
                       <strong>{fmtDate(contrat.echeance.date)}</strong> ({contrat.echeance.jours} j) — automatique, à répercuter en facturation.
                     </div>
                   ))}
-                {canAct && (
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
                   <button
-                    className="primary"
-                    style={{ marginTop: 12 }}
-                    disabled={tarifBusy}
-                    onClick={handleAppliquerRevision}
-                    title="Marque l'augmentation de cette année comme appliquée et validée avec le client, et réarme le rappel pour l'an prochain"
+                    type="button"
+                    onClick={() =>
+                      downloadFile(
+                        `/api/contracts/${contratId}/lettre-augmentation`,
+                        `avis-augmentation-${contrat.numero}.pdf`,
+                      ).catch((err) => showToast(err instanceof ApiError ? err.message : 'Génération impossible'))
+                    }
+                    title="Génère la lettre d'avis de revalorisation, à l'en-tête de la société (logo + mentions)"
                   >
-                    Augmentation appliquée &amp; validée client
+                    Générer la lettre d'avis (PDF)
                   </button>
-                )}
+                  {canAct && (
+                    <button
+                      className="primary"
+                      disabled={tarifBusy}
+                      onClick={handleAppliquerRevision}
+                      title="Marque l'augmentation de cette année comme appliquée et validée avec le client, et réarme le rappel pour l'an prochain"
+                    >
+                      Augmentation appliquée &amp; validée client
+                    </button>
+                  )}
+                </div>
               </div>
             ) : (
               <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginBottom: canAct ? 8 : 0 }}>
