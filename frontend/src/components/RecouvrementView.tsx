@@ -180,11 +180,11 @@ export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
           const MAX_SIZE = 54;
           const colWidth = 100 / PALIERS.length;
           // Même regroupement business que le KPI "Répartition des clients actifs" :
-          // paliers 0-3 dans les clous, 4 arrêt de service, 5-7 en litige.
+          // paliers 0-4 dans les clous (dont Avis d'échéance), 5 arrêt de service, 6-8 en litige.
           const zones = [
-            { label: 'Dans les clous', color: 'var(--success)', bg: 'var(--success-soft)', from: 0, count: 4 },
-            { label: 'Arrêt de service', color: 'var(--amber)', bg: 'var(--amber-soft)', from: 4, count: 1 },
-            { label: 'En litige', color: 'var(--danger)', bg: 'var(--danger-soft)', from: 5, count: 3 },
+            { label: 'Dans les clous', color: 'var(--success)', bg: 'var(--success-soft)', from: 0, count: 5 },
+            { label: 'Arrêt de service', color: 'var(--amber)', bg: 'var(--amber-soft)', from: 5, count: 1 },
+            { label: 'En litige', color: 'var(--danger)', bg: 'var(--danger-soft)', from: 6, count: 3 },
           ];
           return (
             <div className="ladder-zones">
@@ -229,15 +229,15 @@ export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
         <div className="ladder-legend">
           <span>
             <span className="dot" style={{ background: 'var(--success)' }} />
-            Dans les clous (paliers 0-3)
+            Dans les clous (paliers 0-4)
           </span>
           <span>
             <span className="dot" style={{ background: 'var(--amber)' }} />
-            Arrêt de service (palier 4)
+            Arrêt de service (palier 5)
           </span>
           <span>
             <span className="dot" style={{ background: 'var(--danger)' }} />
-            En litige (paliers 5-7)
+            En litige (paliers 6-8)
           </span>
         </div>
       </div>

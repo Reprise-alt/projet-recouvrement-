@@ -13,8 +13,8 @@ export interface Palier {
 
 export const PALIERS: Palier[] = [
   { id: 0, label: 'À jour', tone: 'success' },
-  { id: 1, label: "Avis d'échéance", tone: 'success', key: 'j0', desc: 'Avis courtois dès que la facture est échue — premier e-mail automatique' },
-  { id: 2, label: 'Relance 1', tone: 'success', key: 'j1', desc: 'Relance amiable — email/appel de courtoisie' },
+  { id: 1, label: "Avis d'échéance", tone: 'amber', key: 'j0', desc: 'Avis courtois dès que la facture est échue — premier e-mail automatique (le recouvrement démarre)' },
+  { id: 2, label: 'Relance 1', tone: 'amber', key: 'j1', desc: 'Relance amiable — email/appel de courtoisie' },
   { id: 3, label: 'Relance 2', tone: 'amber', key: 'j2', desc: 'Relance ferme — rappel des conditions de paiement' },
   { id: 4, label: 'Relance 3', tone: 'amber', key: 'j3', desc: 'Dernier rappel avant mesures — préavis écrit' },
   {
