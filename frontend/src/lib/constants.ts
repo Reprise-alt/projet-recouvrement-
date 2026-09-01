@@ -7,25 +7,26 @@ export interface Palier {
   id: number;
   label: string;
   tone: 'success' | 'amber' | 'danger';
-  key?: 'j1' | 'j2' | 'j3' | 'j4' | 'j5' | 'j6' | 'j7';
+  key?: 'j0' | 'j1' | 'j2' | 'j3' | 'j4' | 'j5' | 'j6' | 'j7';
   desc?: string;
 }
 
 export const PALIERS: Palier[] = [
   { id: 0, label: 'À jour', tone: 'success' },
-  { id: 1, label: 'Relance 1', tone: 'success', key: 'j1', desc: 'Relance amiable — email/appel de courtoisie' },
-  { id: 2, label: 'Relance 2', tone: 'amber', key: 'j2', desc: 'Relance ferme — rappel des conditions de paiement' },
-  { id: 3, label: 'Relance 3', tone: 'amber', key: 'j3', desc: 'Dernier rappel avant mesures — préavis écrit' },
+  { id: 1, label: "Avis d'échéance", tone: 'success', key: 'j0', desc: 'Avis courtois dès que la facture est échue — premier e-mail automatique' },
+  { id: 2, label: 'Relance 1', tone: 'success', key: 'j1', desc: 'Relance amiable — email/appel de courtoisie' },
+  { id: 3, label: 'Relance 2', tone: 'amber', key: 'j2', desc: 'Relance ferme — rappel des conditions de paiement' },
+  { id: 4, label: 'Relance 3', tone: 'amber', key: 'j3', desc: 'Dernier rappel avant mesures — préavis écrit' },
   {
-    id: 4,
+    id: 5,
     label: 'Arrêt de service',
     tone: 'amber',
     key: 'j4',
     desc: "Lettre annonçant la suspension du service (livraisons, interventions ou accès plateforme) jusqu'à régularisation",
   },
-  { id: 5, label: 'Pénalités', tone: 'danger', key: 'j5', desc: 'Application des pénalités de retard contractuelles' },
-  { id: 6, label: 'Commandement (société)', tone: 'danger', key: 'j6', desc: 'Commandement de payer sur entête société (LRAR) — vaut mise en demeure et bascule le dossier en contentieux' },
-  { id: 7, label: 'Contentieux', tone: 'danger', key: 'j7', desc: 'Dossier passé en contentieux — voie huissier / injonction, suivi dans l’onglet Contentieux' },
+  { id: 6, label: 'Pénalités', tone: 'danger', key: 'j5', desc: 'Application des pénalités de retard contractuelles' },
+  { id: 7, label: 'Commandement (société)', tone: 'danger', key: 'j6', desc: 'Commandement de payer sur entête société (LRAR) — vaut mise en demeure et bascule le dossier en contentieux' },
+  { id: 8, label: 'Contentieux', tone: 'danger', key: 'j7', desc: 'Dossier passé en contentieux — voie huissier / injonction, suivi dans l’onglet Contentieux' },
 ];
 
 export interface ContractAlert {

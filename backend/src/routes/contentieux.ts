@@ -438,7 +438,7 @@ async function preparerDonneesActe(dossier: { id: string; clientId: string; mont
 
 // Construit les données du commandement société : pré-remplissage depuis les
 // mentions légales officielles de l'entité (une valeur saisie prime), logo de
-// l'entité. Partagé par l'endpoint manuel et la bascule automatique (palier 6).
+// l'entité. Partagé par l'endpoint manuel et la bascule automatique (palier 7).
 function construireCommandementSociete(
   dossier: { reference: string; montantReclame: number | null },
   factures: { numero: string; dateFacture: Date | null; dateEcheance: Date; montant: number }[],
@@ -953,7 +953,7 @@ contentieuxRouter.post('/dossiers/:id/propositions/:pid/statut', async (req, res
   }
 });
 
-// --- Bascule amiable -> contentieux (palier 6) ---
+// --- Bascule amiable -> contentieux (palier 7) ---
 // Prépare TOUT automatiquement, l'envoi restant validé par un humain : crée le
 // dossier contentieux, rattache les factures impayées, et génère le BROUILLON
 // de commandement société (entête auto). Idempotent : si un dossier non clos

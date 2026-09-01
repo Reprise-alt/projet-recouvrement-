@@ -21,9 +21,9 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
   // "vide" qui laisserait croire que le module a été consulté sans rien y
   // trouver.
   const { data: signalOperations } = useResource<SignalOperations>(`/api/clients/${clientId}/signal-operations`);
-  // Dossier contentieux du client — chargé seulement à partir du palier 6
+  // Dossier contentieux du client — chargé seulement à partir du palier 7
   // (« Commandement société »), pour proposer la bascule ou renvoyer au dossier.
-  const dossierContentieuxPath = client && client.palier >= 6 ? `/api/contentieux/client/${clientId}/dossier` : null;
+  const dossierContentieuxPath = client && client.palier >= 7 ? `/api/contentieux/client/${clientId}/dossier` : null;
   const { data: dossierContentieux, refetch: refetchDossier } = useResource<DossierRef | null>(dossierContentieuxPath);
 
   const [editingContact, setEditingContact] = useState(false);
@@ -856,7 +856,7 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
               <div className="action-box">
                 <div style={{ fontWeight: 600, marginBottom: 4 }}>Action recommandée</div>
                 <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginBottom: 12 }}>{PALIERS[client.palier].desc}</div>
-                {client.palier >= 6 ? (
+                {client.palier >= 7 ? (
                   dossierContentieux ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
                       <Scale size={16} style={{ color: 'var(--accent-dark)', flexShrink: 0 }} />

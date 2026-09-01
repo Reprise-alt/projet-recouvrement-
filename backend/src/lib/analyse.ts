@@ -105,7 +105,7 @@ export function buildAnalyse(input: AnalyseInput): AnalyseResult {
   // --- Contentieux et retards inhabituels (état actuel, pas un flux sur la période) ---
   if (input.clientsEnContentieux.nombre > 0) {
     pointsVigilance.push(
-      `${input.clientsEnContentieux.nombre} client${input.clientsEnContentieux.nombre > 1 ? 's' : ''} actuellement en contentieux (palier ≥ 6), représentant ${input.clientsEnContentieux.montant.toLocaleString('fr-FR')} FCFA d'encours.`,
+      `${input.clientsEnContentieux.nombre} client${input.clientsEnContentieux.nombre > 1 ? 's' : ''} actuellement en contentieux (palier ≥ 7), représentant ${input.clientsEnContentieux.montant.toLocaleString('fr-FR')} FCFA d'encours.`,
     );
     recommandations.push(
       `Statuer sur les dossiers en contentieux (relance judiciaire, échéancier négocié ou provision) plutôt que de les laisser en l'état — ${input.clientsEnContentieux.montant.toLocaleString('fr-FR')} FCFA d'encours immobilisé.`,

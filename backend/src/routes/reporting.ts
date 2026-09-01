@@ -203,7 +203,7 @@ export async function computeAgentStats(period: Period, where: object): Promise<
 async function computeSnapshotKpis(where: object) {
   const config = await getConfig();
   const clients = await prisma.client.findMany({ where, include: { factures: true } });
-  const enContentieux = clients.filter((c) => clientPalier(c, config) >= 6);
+  const enContentieux = clients.filter((c) => clientPalier(c, config) >= 7);
   return {
     clientsEnContentieux: { nombre: enContentieux.length, montant: enContentieux.reduce((s, c) => s + clientEncours(c), 0) },
     clientsRetardInhabituel: clients.filter((c) => clientRetardInhabituel(c)).length,

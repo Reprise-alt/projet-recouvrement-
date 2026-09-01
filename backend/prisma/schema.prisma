@@ -310,6 +310,7 @@ model Utilisateur {
 // Seuils de paliers de recouvrement (jours de retard), config unique du groupe.
 model Config {
   id Int @id @default(1)
+  j0 Int @default(1)
   j1 Int @default(7)
   j2 Int @default(15)
   j3 Int @default(30)

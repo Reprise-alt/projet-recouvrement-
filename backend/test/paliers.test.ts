@@ -18,34 +18,35 @@ describe('computePalier', () => {
   });
 
   it('respects the configured thresholds at their boundaries', () => {
-    expect(computePalier(6)).toBe(0); // < j1(7)
-    expect(computePalier(7)).toBe(1); // == j1
-    expect(computePalier(14)).toBe(1); // < j2(15)
-    expect(computePalier(15)).toBe(2);
-    expect(computePalier(29)).toBe(2);
-    expect(computePalier(30)).toBe(3);
-    expect(computePalier(44)).toBe(3);
-    expect(computePalier(45)).toBe(4);
-    expect(computePalier(59)).toBe(4);
-    expect(computePalier(60)).toBe(5);
-    expect(computePalier(74)).toBe(5);
-    expect(computePalier(75)).toBe(6);
-    expect(computePalier(89)).toBe(6);
-    expect(computePalier(90)).toBe(7);
-    expect(computePalier(500)).toBe(7);
+    expect(computePalier(1)).toBe(1); // == j0 → Avis d'échéance
+    expect(computePalier(6)).toBe(1); // < j1(7) → Avis d'échéance
+    expect(computePalier(7)).toBe(2); // == j1 → Relance 1
+    expect(computePalier(14)).toBe(2); // < j2(15)
+    expect(computePalier(15)).toBe(3);
+    expect(computePalier(29)).toBe(3);
+    expect(computePalier(30)).toBe(4);
+    expect(computePalier(44)).toBe(4);
+    expect(computePalier(45)).toBe(5);
+    expect(computePalier(59)).toBe(5);
+    expect(computePalier(60)).toBe(6);
+    expect(computePalier(74)).toBe(6);
+    expect(computePalier(75)).toBe(7);
+    expect(computePalier(89)).toBe(7);
+    expect(computePalier(90)).toBe(8);
+    expect(computePalier(500)).toBe(8);
   });
 
   it('honours a custom config', () => {
     const custom = { ...DEFAULT_CONFIG, j1: 3 };
-    expect(computePalier(3, custom)).toBe(1);
-    expect(computePalier(2, custom)).toBe(0);
+    expect(computePalier(3, custom)).toBe(2); // == j1 → Relance 1
+    expect(computePalier(2, custom)).toBe(1); // dans [j0(1), j1(3)) → Avis d'échéance
   });
 
   it('scales every threshold by the multiplier for non-monthly billing clients', () => {
-    // 80 jours de retard : palier 6 (Mise en demeure) en mensuel, mais un
-    // client trimestriel (x3) doit rester au palier 2 (80 < 3*30=90).
-    expect(computePalier(80, DEFAULT_CONFIG, 1)).toBe(6);
-    expect(computePalier(80, DEFAULT_CONFIG, 3)).toBe(2);
+    // 80 jours de retard : palier 7 (Commandement) en mensuel, mais un client
+    // trimestriel (x3) reste au palier 3 (Relance 2) — 80 < 3*30=90.
+    expect(computePalier(80, DEFAULT_CONFIG, 1)).toBe(7);
+    expect(computePalier(80, DEFAULT_CONFIG, 3)).toBe(3);
   });
 });
 
@@ -88,7 +89,7 @@ describe('client-level helpers', () => {
     const client = { factures: [{ montant: 1000, dateEcheance: '2026-06-28', statut: 'impayee' as const }] };
     // 2026-07-28 - 2026-06-28 = 30 days
     expect(clientJoursRetard(client)).toBe(30);
-    expect(clientPalier(client)).toBe(3); // j3 threshold is 30
+    expect(clientPalier(client)).toBe(4); // j3 threshold is 30 → Relance 3
   });
 
   it('never returns a negative jours de retard for a not-yet-due invoice', () => {
@@ -98,18 +99,18 @@ describe('client-level helpers', () => {
   });
 
   it('defaults to the monthly (x1) scale when frequenceFacturation is unset', () => {
-    // 2026-07-28 - 2026-05-10 = 79 jours -> palier 6 en mensuel (>= j6=75)
+    // 2026-07-28 - 2026-05-10 = 79 jours -> palier 7 (Commandement) en mensuel (>= j6=75)
     const client = { factures: [{ montant: 1000, dateEcheance: '2026-05-10', statut: 'impayee' as const }] };
-    expect(clientPalier(client)).toBe(6);
+    expect(clientPalier(client)).toBe(7);
   });
 
   it('spares a quarterly-billed client from a false "en retard" reading', () => {
-    // Même retard (79 jours) mais un client trimestriel (x3) reste palier 2.
+    // Même retard (79 jours) mais un client trimestriel (x3) reste palier 3 (Relance 2).
     const client = {
       factures: [{ montant: 1000, dateEcheance: '2026-05-10', statut: 'impayee' as const }],
       frequenceFacturation: 'trimestrielle' as const,
     };
-    expect(clientPalier(client)).toBe(2);
+    expect(clientPalier(client)).toBe(3);
   });
 });
 
