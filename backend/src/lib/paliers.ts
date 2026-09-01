@@ -1,6 +1,7 @@
 import { daysBetween, daysDiff } from './dates';
 
 export interface PalierConfig {
+  j0: number;
   j1: number;
   j2: number;
   j3: number;
@@ -10,7 +11,10 @@ export interface PalierConfig {
   j7: number;
 }
 
-export const DEFAULT_CONFIG: PalierConfig = { j1: 7, j2: 15, j3: 30, j4: 45, j5: 60, j6: 75, j7: 90 };
+// j0 : « Avis d'échéance » — premier e-mail courtois dès que la facture est
+// échue (défaut J+1, soit ~31 jours après édition avec un délai de 30 jours).
+// Les autres seuils j1..j7 sont inchangés (comptés depuis l'échéance).
+export const DEFAULT_CONFIG: PalierConfig = { j0: 1, j1: 7, j2: 15, j3: 30, j4: 45, j5: 60, j6: 75, j7: 90 };
 
 export type FrequenceFacturation = 'mensuelle' | 'trimestrielle' | 'annuelle';
 
@@ -35,31 +39,33 @@ export interface Palier {
 
 export const PALIERS: Palier[] = [
   { id: 0, label: 'À jour', tone: 'success' },
-  { id: 1, label: 'Relance 1', tone: 'success', key: 'j1', desc: 'Relance amiable — email/appel de courtoisie' },
-  { id: 2, label: 'Relance 2', tone: 'amber', key: 'j2', desc: 'Relance ferme — rappel des conditions de paiement' },
-  { id: 3, label: 'Relance 3', tone: 'amber', key: 'j3', desc: 'Dernier rappel avant mesures — préavis écrit' },
+  { id: 1, label: "Avis d'échéance", tone: 'success', key: 'j0', desc: 'Avis courtois dès que la facture est échue — premier e-mail automatique' },
+  { id: 2, label: 'Relance 1', tone: 'success', key: 'j1', desc: 'Relance amiable — email/appel de courtoisie' },
+  { id: 3, label: 'Relance 2', tone: 'amber', key: 'j2', desc: 'Relance ferme — rappel des conditions de paiement' },
+  { id: 4, label: 'Relance 3', tone: 'amber', key: 'j3', desc: 'Dernier rappel avant mesures — préavis écrit' },
   {
-    id: 4,
+    id: 5,
     label: 'Arrêt de service',
     tone: 'amber',
     key: 'j4',
     desc: "Lettre annonçant la suspension du service (livraisons, interventions ou accès plateforme) jusqu'à régularisation",
   },
-  { id: 5, label: 'Pénalités', tone: 'danger', key: 'j5', desc: 'Application des pénalités de retard contractuelles' },
-  { id: 6, label: 'Commandement (société)', tone: 'danger', key: 'j6', desc: 'Commandement de payer sur entête société (LRAR) — vaut mise en demeure et bascule le dossier en contentieux' },
-  { id: 7, label: 'Contentieux', tone: 'danger', key: 'j7', desc: 'Dossier passé en contentieux — voie huissier / injonction, suivi dans l’onglet Contentieux' },
+  { id: 6, label: 'Pénalités', tone: 'danger', key: 'j5', desc: 'Application des pénalités de retard contractuelles' },
+  { id: 7, label: 'Commandement (société)', tone: 'danger', key: 'j6', desc: 'Commandement de payer sur entête société (LRAR) — vaut mise en demeure et bascule le dossier en contentieux' },
+  { id: 8, label: 'Contentieux', tone: 'danger', key: 'j7', desc: 'Dossier passé en contentieux — voie huissier / injonction, suivi dans l’onglet Contentieux' },
 ];
 
 export function computePalier(joursRetard: number, config: PalierConfig = DEFAULT_CONFIG, multiplier = 1): number {
   if (joursRetard <= 0) return 0;
-  if (joursRetard < config.j1 * multiplier) return 0;
-  if (joursRetard < config.j2 * multiplier) return 1;
-  if (joursRetard < config.j3 * multiplier) return 2;
-  if (joursRetard < config.j4 * multiplier) return 3;
-  if (joursRetard < config.j5 * multiplier) return 4;
-  if (joursRetard < config.j6 * multiplier) return 5;
-  if (joursRetard < config.j7 * multiplier) return 6;
-  return 7;
+  if (joursRetard < config.j0 * multiplier) return 0;
+  if (joursRetard < config.j1 * multiplier) return 1; // Avis d'échéance
+  if (joursRetard < config.j2 * multiplier) return 2; // Relance 1
+  if (joursRetard < config.j3 * multiplier) return 3; // Relance 2
+  if (joursRetard < config.j4 * multiplier) return 4; // Relance 3
+  if (joursRetard < config.j5 * multiplier) return 5; // Arrêt de service
+  if (joursRetard < config.j6 * multiplier) return 6; // Pénalités
+  if (joursRetard < config.j7 * multiplier) return 7; // Commandement
+  return 8; // Contentieux
 }
 
 export interface FactureLike {

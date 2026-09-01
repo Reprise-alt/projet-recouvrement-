@@ -31,8 +31,8 @@ clientsRouter.get('/kpis', async (req, res, next) => {
 
     const totalEncours = clients.reduce((s, c) => s + clientEncours(c), 0);
     const enRetard = clients.filter((c) => clientPalier(c, config) >= 1).length;
-    const contentieux = clients.filter((c) => clientPalier(c, config) >= 6).reduce((s, c) => s + clientEncours(c), 0);
-    const lettresAEnvoyer = clients.filter((c) => clientPalier(c, config) >= 4).length;
+    const contentieux = clients.filter((c) => clientPalier(c, config) >= 7).reduce((s, c) => s + clientEncours(c), 0);
+    const lettresAEnvoyer = clients.filter((c) => clientPalier(c, config) >= 5).length;
     const retardsInhabituels = clients.filter((c) => clientRetardInhabituel(c)).length;
 
     const ladder: Record<number, number> = {};

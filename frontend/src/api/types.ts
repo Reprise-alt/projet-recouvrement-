@@ -263,6 +263,7 @@ export interface ComparaisonResult {
 }
 
 export interface PalierConfig {
+  j0: number;
   j1: number;
   j2: number;
   j3: number;

@@ -29,7 +29,7 @@ describe('buildReportingSummary', () => {
   it('does not report a row for palier 0 (à jour has no relance)', () => {
     const summary = buildReportingSummary('2026-07-01', '2026-07-31', [], [], [], ['2026-07']);
     expect(summary.relances.some((r) => r.palier === 0)).toBe(false);
-    expect(summary.relances).toHaveLength(7);
+    expect(summary.relances).toHaveLength(8);
   });
 
   it('returns zeroed totals when nothing happened in the period', () => {

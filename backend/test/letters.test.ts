@@ -48,18 +48,26 @@ describe('generateLetter', () => {
     expect(text).toContain('la facture FA-2026-1042');
   });
 
+  it('generates a courteous échéance notice at palier 1 (avis), non-threatening', () => {
+    const text = generateLetter(baseClient, 1);
+    expect(text).toContain("Avis d'échéance");
+    expect(text).toContain('arrivée à échéance');
+    expect(text).not.toContain('MISE EN DEMEURE');
+    expect(text).toContain('Moyens de paiement'); // le moyen de régler est joint
+  });
+
   it('contracts the article correctly with plural factures ("des"/"aux", never "de les"/"à les")', () => {
-    for (const palier of [2, 6]) {
+    for (const palier of [3, 7]) {
       const text = generateLetter(multiFactureClient, palier);
       expect(text, `palier ${palier}`).not.toContain('de les factures');
       expect(text, `palier ${palier}`).not.toContain('à les factures');
     }
-    expect(generateLetter(multiFactureClient, 2)).toContain('au sujet des factures');
-    expect(generateLetter(multiFactureClient, 6)).toContain('correspondant aux factures');
+    expect(generateLetter(multiFactureClient, 3)).toContain('au sujet des factures');
+    expect(generateLetter(multiFactureClient, 7)).toContain('correspondant aux factures');
   });
 
-  it('lists all unpaid factures at every palier that cites the debt (4, 5, 6, 7)', () => {
-    for (const palier of [4, 5, 6, 7]) {
+  it('lists all unpaid factures at every palier that cites the debt (5, 6, 7, 8)', () => {
+    for (const palier of [5, 6, 7, 8]) {
       const text = generateLetter(multiFactureClient, palier);
       expect(text, `palier ${palier}`).toContain('FA-2026-1042');
       expect(text, `palier ${palier}`).toContain('FA-2026-1099');
@@ -67,30 +75,30 @@ describe('generateLetter', () => {
   });
 
   it('mentions the right service for a suspension notice, per entité', () => {
-    const iris = generateLetter({ ...baseClient, entite: 'IRIS' as const }, 4);
+    const iris = generateLetter({ ...baseClient, entite: 'IRIS' as const }, 5);
     expect(iris).toContain('géolocalisation');
 
-    const sis = generateLetter({ ...baseClient, entite: 'SIS' as const }, 4);
+    const sis = generateLetter({ ...baseClient, entite: 'SIS' as const }, 5);
     expect(sis).toContain("d'impression");
 
-    const soram = generateLetter(baseClient, 4);
+    const soram = generateLetter(baseClient, 5);
     expect(soram).toContain('toners');
   });
 
-  it('generates a formal mise en demeure at palier 6', () => {
-    const text = generateLetter(baseClient, 6);
+  it('generates a formal mise en demeure at palier 7', () => {
+    const text = generateLetter(baseClient, 7);
     expect(text).toContain('MISE EN DEMEURE');
     expect(text).toContain('quinzaine');
   });
 
-  it('generates an internal note with the service signature at palier 7 (huissier)', () => {
-    const text = generateLetter(baseClient, 7);
+  it('generates an internal note with the service signature at palier 8 (huissier)', () => {
+    const text = generateLetter(baseClient, 8);
     expect(text).toContain('Transmission au contentieux');
     expect(text).toContain('Cordialement');
     expect(text).toContain('Service Facturation et Recouvrement');
   });
 
-  it('includes the right bank details and mobile money numbers per entité, for paliers 0-6', () => {
+  it('includes the right bank details and mobile money numbers per entité, for paliers 0-7', () => {
     const iris = generateLetter({ ...baseClient, entite: 'IRIS' as const }, 2);
     expect(iris).toContain('Moyens de paiement');
     expect(iris).toContain('IRIS AFRIQUE SARL');
@@ -98,18 +106,18 @@ describe('generateLetter', () => {
     expect(iris).toContain('Wave : +221 78 300 29 01');
     expect(iris).toContain('Orange Money : +221 77 107 78 47');
 
-    const sis = generateLetter({ ...baseClient, entite: 'SIS' as const }, 4);
+    const sis = generateLetter({ ...baseClient, entite: 'SIS' as const }, 5);
     expect(sis).toContain('99SORAM IMPRESSION ET SERVICES');
     expect(sis).toContain('SUNU Bank');
     expect(sis).not.toContain('Wave :');
 
-    const soram = generateLetter(baseClient, 6);
+    const soram = generateLetter(baseClient, 7);
     expect(soram).toContain('SORAM OUEST AFRICA');
     expect(soram).toContain('Wave : +221 76 637 35 06');
   });
 
-  it('does not include payment info on the internal huissier note (palier 7)', () => {
-    const text = generateLetter(baseClient, 7);
+  it('does not include payment info on the internal huissier note (palier 8)', () => {
+    const text = generateLetter(baseClient, 8);
     expect(text).not.toContain('Moyens de paiement');
   });
 
