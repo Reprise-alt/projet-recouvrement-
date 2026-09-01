@@ -1,6 +1,9 @@
 databases:
   - name: recouvrement-db
-    plan: free
+    # Aligne le blueprint sur la base réelle (Basic-256mb) : Render a retiré le
+    # Postgres gratuit et refuse de rétrograder un plan via blueprint, ce qui
+    # bloquait la synchro (« Failed sync »). Ne PAS remettre `free`.
+    plan: basic-256mb
     postgresMajorVersion: "16"
 
 # Variables communes aux trois consoles front (un seul back-end / une seule
