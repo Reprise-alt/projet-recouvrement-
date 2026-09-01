@@ -46,9 +46,9 @@ clientsRouter.get('/kpis', async (req, res, next) => {
         totalActifs++;
         const p = clientPalier(c, config);
         ladder[p]++;
-        if (p <= 3) dansLesClous++;
-        else if (p === 4) arretService++;
-        else litige++;
+        if (p <= 4) dansLesClous++; // À jour, Avis d'échéance, Relance 1/2/3
+        else if (p === 5) arretService++; // Arrêt de service
+        else litige++; // Pénalités, Commandement, Contentieux (6-8)
       }
     });
     const repartition = { total: totalActifs, dansLesClous, arretService, litige };
