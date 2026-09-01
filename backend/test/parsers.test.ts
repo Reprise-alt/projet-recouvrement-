@@ -68,6 +68,24 @@ describe('parseOluFacturationWorkbook', () => {
     expect(sis[0].nom).toBe('Horizon BTP');
   });
 
+  it('does not mistake a real client named "TOTAL …" for a subtotal row (imports it and every row after)', () => {
+    const rows = [
+      ['SORAM AFRIQUE', '', '', '', '', ''],
+      ['N° FACTURE', 'DATE', 'NOM CLIENT', 'MONTANT HT', 'MONTANT TTC', 'DATE DE PAIEMENT'],
+      [40526147, '26/05/2026', 'TOTAL ENERGIES', 100000, 118000, ''],
+      [40526176, '26/05/2026', 'La Laiterie Du Berger', 110548, 130447, '07/08/2026'],
+      ['', '', 'TOTAL SORAM', '', '', ''], // vraie ligne de sous-total : col A vide
+    ];
+    const sheet = XLSX.utils.aoa_to_sheet(rows);
+    const wbTotal = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wbTotal, sheet, 'MAI 2026');
+    const result = parseOluFacturationWorkbook(wbTotal);
+    expect(result.totalFactures).toBe(2);
+    const noms = result.clients.map((c) => c.nom);
+    expect(noms).toContain('TOTAL ENERGIES');
+    expect(noms).toContain('La Laiterie Du Berger');
+  });
+
   it('computes the échéance as facture date + 30 days and infers statut from the paiement column', () => {
     const result = parseOluFacturationWorkbook(wb);
     const teranga = result.clients.find((c) => c.nom === 'Teranga Négoce SA')!;

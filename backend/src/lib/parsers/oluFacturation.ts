@@ -68,8 +68,14 @@ export function parseOluFacturationWorkbook(
         c12 = row[12],
         c13 = row[13];
       const c2str = (c2 || '').toString().trim();
+      // Une vraie ligne de facture porte un n° de facture en colonne A ; une
+      // ligne de sous-total / consolidation n'en a pas. On ne coupe l'entité
+      // courante que sur une vraie ligne de total — sinon un client dont le nom
+      // commence par « TOTAL » (ex. « TOTAL ENERGIES ») serait pris pour un
+      // sous-total et TOUTES les factures suivantes du mois seraient ignorées.
+      const aNumeroFacture = /^\d{5,}/.test((c0 ?? '').toString().trim().replace(/\.0+$/, ''));
 
-      if (c2str.toUpperCase().startsWith('TOTAL') || c2str.toUpperCase().includes('CONSOLID')) {
+      if (!aNumeroFacture && (c2str.toUpperCase().startsWith('TOTAL') || c2str.toUpperCase().includes('CONSOLID'))) {
         currentEntity = null;
         return;
       }
