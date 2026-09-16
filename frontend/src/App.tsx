@@ -316,7 +316,12 @@ export function App() {
         ) : contentieuxSeul || recouvrementTab === 'contentieux' ? (
           <ContentieuxView entityFilter={effectiveEntity} role={user.role} avocat={contentieuxSeul} />
         ) : recouvrementTab === 'recouvrement' ? (
-          <RecouvrementView entityFilter={effectiveEntity} role={user.role} reloadKey={dataVersion} />
+          <RecouvrementView
+            entityFilter={effectiveEntity}
+            role={user.role}
+            reloadKey={dataVersion}
+            onImport={isAdmin ? () => setImportOpen(true) : undefined}
+          />
         ) : (
           <ContractsView entityFilter={effectiveEntity} role={user.role} reloadKey={dataVersion} />
         )}
