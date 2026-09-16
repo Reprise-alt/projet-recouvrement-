@@ -130,7 +130,7 @@ model Client {
   // la valeur de session (current_setting) et une WITH CHECK interdira d'écrire
   // hors de son tenant.
   organisation         Organisation         @relation(fields: [organisationId], references: [id], onDelete: Cascade)
-  organisationId       String               @default("org-groupe-olu360")
+  organisationId       String               @default(dbgenerated("coalesce(current_setting('app.organisation_id', true), 'org-groupe-olu360')"))
   nom                  String
   entite               String
   contact              String?
@@ -321,7 +321,7 @@ model Utilisateur {
   // du groupe (cf. Client.organisationId). Un utilisateur appartient à une
   // seule organisation ; l'email reste unique globalement en V1.
   organisation      Organisation    @relation(fields: [organisationId], references: [id], onDelete: Cascade)
-  organisationId    String          @default("org-groupe-olu360")
+  organisationId    String          @default(dbgenerated("coalesce(current_setting('app.organisation_id', true), 'org-groupe-olu360')"))
   nom               String
   email             String          @unique
   role              RoleUtilisateur

@@ -160,7 +160,7 @@ operationsRouter.patch('/fenetres-saisonnieres/:secteur', requireModuleOperation
     if (jour != null && !isNaN(Number(jour))) data.jour = Number(jour);
     if (anticipationJours != null && !isNaN(Number(anticipationJours))) data.anticipationJours = Number(anticipationJours);
     if (label != null) data.label = String(label);
-    const updated = await prisma.fenetreSaisonniere.update({ where: { secteur: req.params.secteur as any }, data });
+    const updated = await prisma.fenetreSaisonniere.update({ where: { secteur: req.params.secteur as any }, data: data as any });
     res.json(updated);
   } catch (err) {
     next(err);
