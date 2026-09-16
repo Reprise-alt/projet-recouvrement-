@@ -13,6 +13,9 @@ interface Props {
   entityFilter: Entite | 'ALL';
   role: RoleUtilisateur;
   reloadKey: unknown;
+  // Ouvre l'import (fourni uniquement si l'utilisateur a le droit d'importer).
+  // Sert l'écran vide pédagogique d'un compte sans aucune créance (addendum §4.3).
+  onImport?: () => void;
 }
 
 function needsAction(c: ClientListItem): boolean {
@@ -21,7 +24,7 @@ function needsAction(c: ClientListItem): boolean {
   return actionStale || relanceOverdue;
 }
 
-export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
+export function RecouvrementView({ entityFilter, role, reloadKey, onImport }: Props) {
   const [palierFilter, setPalierFilter] = useState<number | null>(null);
   const [sortKey, setSortKey] = useState<'nom' | 'encours' | 'joursRetard'>('joursRetard');
   const [sortDir, setSortDir] = useState<1 | -1>(-1);
@@ -88,6 +91,27 @@ export function RecouvrementView({ entityFilter, role, reloadKey }: Props) {
 
       {showReporting ? (
         <ReportingView entityFilter={entityFilter} role={role} />
+      ) : !list.loading && !list.error && list.data && list.data.length === 0 ? (
+        // Écran vide pédagogique : compte neuf, aucune créance importée (addendum §4.3).
+        <div className="empty-state empty-onboarding">
+          <div className="empty-onboarding-icon">
+            <Wallet size={30} />
+          </div>
+          <h3>Votre console est prête — importez vos créances</h3>
+          <p>
+            Déposez votre fichier Excel ou CSV de factures impayées : clients, montants et échéances
+            sont repris automatiquement. Les relances pourront ensuite partir toutes seules, à votre nom.
+          </p>
+          {onImport ? (
+            <button className="primary" onClick={onImport}>
+              Importer mes créances
+            </button>
+          ) : (
+            <p className="empty-onboarding-hint">
+              Demandez à un administrateur d'importer le premier fichier de créances.
+            </p>
+          )}
+        </div>
       ) : (
         <>
       {aTraiter.length > 0 && (

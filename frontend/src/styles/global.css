@@ -243,6 +243,13 @@ tr.row-hover:hover{background:var(--paper);cursor:pointer;}
 .entity-tag img{height:12px;width:auto;display:block;}
 .empty-state{padding:64px 20px;text-align:center;color:var(--ink-soft);}
 .empty-state h3{margin-bottom:8px;color:var(--ink);}
+/* Écran vide pédagogique d'un compte neuf (addendum §4.3). */
+.empty-onboarding{max-width:520px;margin:24px auto;display:flex;flex-direction:column;align-items:center;gap:14px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);padding:44px 32px;box-shadow:var(--shadow-sm);}
+.empty-onboarding-icon{width:60px;height:60px;border-radius:50%;background:var(--accent-soft);color:var(--accent-dark);display:flex;align-items:center;justify-content:center;}
+.empty-onboarding h3{font-size:20px;margin:0;}
+.empty-onboarding p{margin:0;line-height:1.55;font-size:14.5px;max-width:420px;}
+.empty-onboarding .primary{margin-top:6px;}
+.empty-onboarding-hint{font-size:13px;color:var(--ink-soft);}
 
 .overlay{position:fixed;inset:0;background:rgba(20,26,34,.5);backdrop-filter:blur(1px);display:none;align-items:stretch;justify-content:flex-end;z-index:50;}
 .overlay.open{display:flex;animation:fade-in .18s var(--ease);}
