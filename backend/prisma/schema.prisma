@@ -18,6 +18,19 @@ enum RoleUtilisateur {
   comptable
 }
 
+// Rôle d'un utilisateur AU SEIN de son organisation SaaS (addendum §3). Dimension
+// distincte et orthogonale de RoleUtilisateur (qui régit le recouvrement côté
+// groupe) : les comptes SaaS (inscrits par OTP) sont gouvernés par roleOrg, les
+// comptes historiques du groupe (SSO) gardent roleOrg = null et leur logique
+// existante. Le premier compte d'une organisation (créé à l'inscription) est
+// « proprietaire ».
+enum RoleOrg {
+  proprietaire   // tout, y compris abonnement et suppression du compte
+  administrateur // paramétrage, utilisateurs, scénarios
+  gestionnaire   // import, suivi, encaissements, relances
+  lecture        // consultation et exports uniquement
+}
+
 // Rôle propre au module Opérations -- orthogonal à RoleUtilisateur (qui régit
 // le recouvrement) : un utilisateur peut avoir l'un, l'autre, les deux, ou
 // aucun. Nullable sur Utilisateur = pas d'accès au module Opérations.
@@ -325,6 +338,8 @@ model Utilisateur {
   nom               String
   email             String          @unique
   role              RoleUtilisateur
+  // Rôle SaaS dans l'organisation (null pour les comptes groupe historiques).
+  roleOrg           RoleOrg?
   entite            String?
   // Mise à jour à chaque appel à /api/auth/me, qui n'est fait qu'une fois par
   // ouverture/rechargement de l'app — reflète donc "la dernière fois que
@@ -372,6 +387,21 @@ model Utilisateur {
   dossiersAssignes    DossierContentieux[] @relation("AvocatDossier")
 
   @@index([organisationId])
+}
+
+// Code à usage unique (OTP) pour l'inscription/connexion SaaS par email
+// (addendum §4.2). Table PRÉ-AUTH (aucune donnée tenant) : hors périmètre RLS.
+// Le code n'est jamais stocké en clair (HMAC-SHA256 avec un secret serveur).
+model CodeOtp {
+  id         String    @id @default(cuid())
+  email      String
+  codeHash   String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  tentatives Int       @default(0)
+  createdAt  DateTime  @default(now())
+
+  @@index([email])
 }
 
 // Seuils de paliers de recouvrement (jours de retard), config unique du groupe.

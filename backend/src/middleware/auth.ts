@@ -1,7 +1,9 @@
 import { NextFunction, Request, Response } from 'express';
+import { RoleOrg } from '@prisma/client';
 import { prisma } from '../db';
 import { Entite, RoleUtilisateur, userCanAccessEntite } from '../lib/entites';
 import { extractEmailFromToken } from '../lib/verifyToken';
+import { verifierSession } from '../lib/authToken';
 import { accesDepuisMoi, lireCookie, resoudreSession } from '../lib/sso';
 
 // Mode d'authentification : 'sso' = session partagée du hub OLU 360 (cookie
@@ -21,6 +23,8 @@ export interface AuthedUser {
   // Tenant SaaS (addendum §2-3). Pour les comptes du groupe (SSO socle), c'est
   // toujours l'organisation socle ; pour un compte SaaS, son organisation propre.
   organisationId: string;
+  // Rôle SaaS dans l'organisation (null pour les comptes groupe historiques).
+  roleOrg: RoleOrg | null;
   // Accès aux modules -- indépendants les uns des autres. accesRecouvrement
   // vrai par défaut (comptes existants) ; roleOperations null par défaut
   // (nouveau module, jamais d'accès implicite) ; accesPlanningCoursiers pour
@@ -47,7 +51,42 @@ declare global {
 // via son email — l'identité vient de Supabase, mais le rôle et l'entité de
 // rattachement restent gérés dans la table Utilisateur de cette base (cf.
 // cahier des charges §4). Voir lib/verifyToken.ts pour le repli dev-only.
+// Construit le contexte d'auth à partir d'une fiche Utilisateur (chemin OTP).
+function toAuthedUser(u: {
+  id: string; nom: string; email: string; role: RoleUtilisateur; entite: string | null;
+  organisationId: string; roleOrg: RoleOrg | null; accesRecouvrement: boolean;
+  roleOperations: RoleOperations | null; accesPlanningCoursiers: boolean; accesContentieux: boolean;
+}): AuthedUser {
+  return {
+    id: u.id,
+    nom: u.nom,
+    email: u.email,
+    role: u.role,
+    entite: (u.entite as Entite | null) ?? null,
+    organisationId: u.organisationId,
+    roleOrg: u.roleOrg ?? null,
+    accesRecouvrement: u.accesRecouvrement,
+    roleOperations: u.roleOperations ?? null,
+    accesPlanningCoursiers: u.accesPlanningCoursiers,
+    accesContentieux: u.accesContentieux,
+  };
+}
+
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
+  // Session SaaS (OTP) : token Bearer signé par notre secret. Essayé en premier
+  // et indépendant du mode SSO/Supabase — les deux systèmes cohabitent. Un JWT
+  // Supabase ne vérifie pas contre notre secret et retombe sur le chemin suivant.
+  const bearer = req.headers.authorization;
+  if (bearer?.startsWith('Bearer ')) {
+    const sess = verifierSession(bearer.slice('Bearer '.length));
+    if (sess) {
+      const u = await prisma.utilisateur.findUnique({ where: { id: sess.sub } });
+      if (!u) return res.status(403).json({ error: 'Compte introuvable' });
+      req.user = toAuthedUser(u);
+      return next();
+    }
+  }
+
   if (AUTH_MODE === 'sso') return requireAuthSso(req, res, next);
 
   const header = req.headers.authorization;
@@ -73,6 +112,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     role: utilisateur.role as RoleUtilisateur,
     entite: (utilisateur.entite as Entite | null) ?? null,
     organisationId: utilisateur.organisationId,
+    roleOrg: utilisateur.roleOrg ?? null,
     accesRecouvrement: utilisateur.accesRecouvrement,
     roleOperations: (utilisateur.roleOperations as RoleOperations | null) ?? null,
     accesPlanningCoursiers: utilisateur.accesPlanningCoursiers,
@@ -134,6 +174,7 @@ async function requireAuthSso(req: Request, res: Response, next: NextFunction) {
     role: utilisateur.role as RoleUtilisateur,
     entite: (utilisateur.entite as Entite | null) ?? null,
     organisationId: utilisateur.organisationId,
+    roleOrg: utilisateur.roleOrg ?? null,
     accesRecouvrement: utilisateur.accesRecouvrement,
     roleOperations: (utilisateur.roleOperations as RoleOperations | null) ?? null,
     accesPlanningCoursiers: utilisateur.accesPlanningCoursiers,
@@ -147,6 +188,20 @@ export function requireRole(...roles: RoleUtilisateur[]) {
   return (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return res.status(401).json({ error: 'Authentification requise' });
     if (!roles.includes(req.user.role)) {
+      return res.status(403).json({ error: 'Accès refusé pour ce rôle' });
+    }
+    next();
+  };
+}
+
+// Restriction par rôle SaaS (roleOrg). À appliquer progressivement sur les routes
+// pour limiter selon propriétaire / administrateur / gestionnaire / lecture. Un
+// compte sans roleOrg (compte groupe historique) est refusé par ce garde — il
+// n'est donc à monter que sur des routes propres au parcours SaaS.
+export function requireOrgRole(...roles: RoleOrg[]) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (!req.user) return res.status(401).json({ error: 'Authentification requise' });
+    if (!req.user.roleOrg || !roles.includes(req.user.roleOrg)) {
       return res.status(403).json({ error: 'Accès refusé pour ce rôle' });
     }
     next();
