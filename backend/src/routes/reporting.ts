@@ -40,7 +40,9 @@ function logosForScope(entiteFilter: Entite | 'ALL'): string[] {
 }
 
 export const reportingRouter = Router();
-reportingRouter.use(requireAuth, requireAccesRecouvrement);
+import { tenantScope } from '../middleware/tenant';
+
+reportingRouter.use(requireAuth, requireAccesRecouvrement, tenantScope);
 
 function entiteWhere(entiteFilter: Entite | 'ALL') {
   if (entiteFilter === 'ALL') return {};

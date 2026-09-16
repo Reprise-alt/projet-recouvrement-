@@ -16,7 +16,9 @@ import { assertEntiteInScope, requireAccesRecouvrement, requireAuth, requireRole
 import { fmtDate, fmtFCFA } from '../lib/dates';
 
 export const clientsRouter = Router();
-clientsRouter.use(requireAuth, requireAccesRecouvrement);
+import { tenantScope } from '../middleware/tenant';
+
+clientsRouter.use(requireAuth, requireAccesRecouvrement, tenantScope);
 
 function entiteWhere(entiteFilter: Entite | 'ALL') {
   if (entiteFilter === 'ALL') return {};

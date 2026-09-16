@@ -36,19 +36,23 @@ par la base, accès legacy complet hors contexte. Les 287 tests existants passen
 
 ## Activer en recette (étapes restantes)
 
-1. **Câbler le contexte** : après authentification, envelopper le traitement des
-   requêtes dans `withTenant(req.user.organisationId, ...)` (middleware à monter sur
-   les routeurs du produit). Attention à la durée de transaction (éviter d'englober
-   les appels externes longs — email, IA — dans la transaction tenant).
-2. **Auditer les requêtes brutes** : `$queryRaw` / `$executeRaw` ne passent pas par la
-   redirection d'opération et s'exécutent hors contexte tenant (donc en accès legacy).
-   Les recenser et, pour celles qui touchent des tables du produit, les passer par le
-   client de transaction ou y ajouter le filtre d'organisation.
+1. **Câbler le contexte** — ✅ **fait** : le middleware `tenantScope`
+   (`src/middleware/tenant.ts`) est monté APRÈS l'authentification sur les routeurs
+   de données tenant (`clients`, `factures`, `contracts`, `reporting`,
+   `contentieux`, `users`, `import`). Il enveloppe la requête dans
+   `withTenant(req.user.organisationId, ...)` quand `RLS_ENABLED=true`, et reste
+   inerte sinon. **Non montés volontairement** : `sendEmail`, `assistant`,
+   `integrations` (appels externes longs — y câbler `withTenant` autour des seuls
+   accès base) ; `operations`, `taches`, `parc` (modules internes hors périmètre RLS).
+2. **Auditer les requêtes brutes** — ✅ **fait** : aucune `$queryRaw`/`$executeRaw`
+   dans le backend. Tous les accès passent par les opérations de modèle Prisma,
+   donc entièrement couverts par la redirection tenant.
 3. **Activer** `RLS_ENABLED=true` sur une base de recette, rejouer les scénarios
-   multi-organisations, vérifier les performances (policies par sous-requête).
-4. **Resserrer l'échappatoire** : une fois tous les chemins câblés et validés,
-   remplacer `app_current_org() IS NULL OR ...` par la seule condition d'égalité
-   (fail-closed) dans une migration dédiée, pour supprimer tout accès legacy.
+   multi-organisations, vérifier les performances (policies par sous-requête, et
+   durée des transactions par requête).
+4. **Resserrer l'échappatoire** : une fois validé, remplacer
+   `app_current_org() IS NULL OR ...` par la seule condition d'égalité (fail-closed)
+   dans une migration dédiée, pour supprimer tout accès legacy.
 
 ## Périmètre
 
