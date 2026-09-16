@@ -71,8 +71,66 @@ model Entreprise {
   createdAt DateTime @default(now())
 }
 
+// ============================================================================
+// SaaS multi-entreprises (addendum §2-3). Une `Organisation` = une entreprise
+// cliente d'OLU 360, avec un espace strictement isolé. En héritage mono-tenant,
+// une seule organisation « socle » (« Groupe OLU 360 », id `org-groupe-olu360`)
+// porte toutes les données existantes — le groupe est le client n°1 (§1.9).
+// L'isolation forte au niveau base (Row Level Security, §2.2) est posée dans
+// une migration dédiée ; ici on établit d'abord l'entité et le rattachement.
+// ============================================================================
+
+enum PaysOrg {
+  SN
+  CI
+}
+
+enum StatutOrganisation {
+  essai
+  actif
+  coupe
+  supprime
+}
+
+enum FormuleAbo {
+  petite
+  pme
+  grands_comptes
+}
+
+model Organisation {
+  id                   String             @id @default(cuid())
+  raisonSociale        String
+  // Identifiant d'URL lisible (sous-domaine / portail débiteur). Unique.
+  slug                 String             @unique
+  pays                 PaysOrg            @default(SN)
+  // NINEA / IFU selon le pays.
+  identifiantFiscal    String?
+  rccm                 String?
+  adresse              String?
+  logoUrl              String?
+  // Affichées au débiteur sur les messages et le portail (§3, §7.1).
+  instructionsPaiement String?
+  contactRecouvrement  String?
+  formule              FormuleAbo         @default(pme)
+  statut               StatutOrganisation @default(actif)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  clients      Client[]
+  utilisateurs Utilisateur[]
+}
+
 model Client {
   id                   String               @id @default(cuid())
+  // Tenant SaaS (addendum §2-3). Défaut statique sur l'organisation « socle »
+  // du groupe : rend l'ajout non-cassant (tout le code existant continue
+  // d'écrire dans le groupe, client n°1 cf. §1.9). La RLS Postgres (§2.2)
+  // durcira ce rattachement dans une migration dédiée, où le défaut deviendra
+  // la valeur de session (current_setting) et une WITH CHECK interdira d'écrire
+  // hors de son tenant.
+  organisation         Organisation         @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  organisationId       String               @default(dbgenerated("coalesce(current_setting('app.organisation_id', true), 'org-groupe-olu360')"))
   nom                  String
   entite               String
   contact              String?
@@ -105,9 +163,11 @@ model Client {
   dossiersContentieux   DossierContentieux[]
 
   // Clé de rapprochement à l'import (Excel manuel aujourd'hui, sync ARTIS/MAPON demain) :
-  // un même client ne doit jamais être dupliqué d'un import à l'autre.
-  @@unique([nom, entite])
-  @@unique([codeClient, entite])
+  // un même client ne doit jamais être dupliqué d'un import à l'autre. Unicité
+  // PAR TENANT : deux organisations peuvent porter un client de même nom.
+  @@unique([organisationId, nom, entite])
+  @@unique([organisationId, codeClient, entite])
+  @@index([organisationId])
 }
 
 // Accord de règlement échelonné négocié avec un client en difficulté —
@@ -197,14 +257,14 @@ enum TypeAugmentation {
 }
 
 model Contrat {
-  id                   String    @id @default(cuid())
-  client               Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  id                   String            @id @default(cuid())
+  client               Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
   clientId             String
   numero               String
   type                 String?
   dateDebut            DateTime
   dateFin              DateTime
-  tacite               Boolean   @default(false)
+  tacite               Boolean           @default(false)
   dateRevisionTarif    DateTime?
   // Augmentation tarifaire annuelle automatique -- optionnelle, coexiste avec
   // dateRevisionTarif (utilisée quand tauxAugmentation n'est pas renseigné).
@@ -219,8 +279,8 @@ model Contrat {
   dateDerniereRevision DateTime?
   statutSource         String?
   commentaire          String?
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
 
   envois EnvoiContrat[]
 
@@ -257,6 +317,11 @@ model EnvoiContrat {
 
 model Utilisateur {
   id                String          @id @default(cuid())
+  // Tenant SaaS (addendum §2-3). Défaut statique sur l'organisation « socle »
+  // du groupe (cf. Client.organisationId). Un utilisateur appartient à une
+  // seule organisation ; l'email reste unique globalement en V1.
+  organisation      Organisation    @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  organisationId    String          @default(dbgenerated("coalesce(current_setting('app.organisation_id', true), 'org-groupe-olu360')"))
   nom               String
   email             String          @unique
   role              RoleUtilisateur
@@ -301,10 +366,12 @@ model Utilisateur {
   // garde son accès via accesRecouvrement ; ce booléen est le vecteur des externes.
   accesContentieux Boolean @default(false)
 
-  actions          ActionRecouvrement[]
-  comptesOperation ClientOperations[]   @relation("ChargeDeCompte")
+  actions             ActionRecouvrement[]
+  comptesOperation    ClientOperations[]   @relation("ChargeDeCompte")
   dossiersContentieux DossierContentieux[] @relation("CreateurDossier")
   dossiersAssignes    DossierContentieux[] @relation("AvocatDossier")
+
+  @@index([organisationId])
 }
 
 // Seuils de paliers de recouvrement (jours de retard), config unique du groupe.
@@ -717,7 +784,7 @@ model EquipementParc {
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
 
-  interventions Intervention[]
+  interventions        Intervention[]
   volumetrieParMachine VolumetrieEquipement[]
 
   @@unique([clientOperationsId, numeroSerie])
@@ -729,14 +796,14 @@ model EquipementParc {
 // de calculer. Alimenté uniquement par l'import ARTIS (export SSC, colonne
 // "Bien facturé" = n° de série), pas de saisie manuelle pour l'instant.
 model VolumetrieEquipement {
-  id           String         @id @default(cuid())
-  equipement   EquipementParc @relation(fields: [equipementId], references: [id], onDelete: Cascade)
-  equipementId String
-  periode      String
-  copiesNB     Int            @default(0)
-  copiesCouleur Int           @default(0)
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  id            String         @id @default(cuid())
+  equipement    EquipementParc @relation(fields: [equipementId], references: [id], onDelete: Cascade)
+  equipementId  String
+  periode       String
+  copiesNB      Int            @default(0)
+  copiesCouleur Int            @default(0)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
   @@unique([equipementId, periode])
 }
@@ -820,19 +887,19 @@ model ActionCopil {
 // La fenêtre glissante de 52 entrées est une politique de consultation, pas
 // une contrainte de schéma : voir lib/operations.ts.
 model ReleveHebdo {
-  id                 String           @id @default(cuid())
-  clientOperations   ClientOperations @relation(fields: [clientOperationsId], references: [id], onDelete: Cascade)
-  clientOperationsId String
-  semaineIso         String
-  date               DateTime         @default(now())
-  score              Int
-  commentaire        String?
-  action             String?
-  climat             Climat?
-  actionEcheance     DateTime?
-  dernierContact     DateTime?
+  id                      String           @id @default(cuid())
+  clientOperations        ClientOperations @relation(fields: [clientOperationsId], references: [id], onDelete: Cascade)
+  clientOperationsId      String
+  semaineIso              String
+  date                    DateTime         @default(now())
+  score                   Int
+  commentaire             String?
+  action                  String?
+  climat                  Climat?
+  actionEcheance          DateTime?
+  dernierContact          DateTime?
   // Vrai si, à ce relevé, l'engagement du relevé PRÉCÉDENT avait été tenu.
-  engagementPrecedentTenu Boolean @default(false)
+  engagementPrecedentTenu Boolean          @default(false)
 
   @@index([clientOperationsId, date])
 }
@@ -947,20 +1014,20 @@ model ConfigOperations {
 // =====================================================================
 
 enum StatutDossierContentieux {
-  ouvert     // créé, pièces en cours de dépôt
-  analyse    // analyse IA produite
-  pret       // recevable, prêt à transmettre au professionnel
-  transmis   // remis à l'huissier / avocat
-  depose     // déposé au tribunal
-  clos       // recouvré ou classé sans suite
+  ouvert // créé, pièces en cours de dépôt
+  analyse // analyse IA produite
+  pret // recevable, prêt à transmettre au professionnel
+  transmis // remis à l'huissier / avocat
+  depose // déposé au tribunal
+  clos // recouvré ou classé sans suite
 }
 
 // Verdict de recevabilité (synthèse de l'analyse OHADA).
 enum VerdictRecevabilite {
   non_evalue
-  pret         // créance certaine, liquide, exigible + pièces complètes
-  a_completer  // recevable sur le fond mais pièces manquantes
-  risque       // prescription probable, créance non certaine, etc.
+  pret // créance certaine, liquide, exigible + pièces complètes
+  a_completer // recevable sur le fond mais pièces manquantes
+  risque // prescription probable, créance non certaine, etc.
 }
 
 // Type de pièce versée au dossier (sert au classement et à la checklist).
@@ -970,20 +1037,20 @@ enum TypePiece {
   contrat
   mise_en_demeure
   preuve_livraison
-  echange           // e-mail / WhatsApp / courrier
+  echange // e-mail / WhatsApp / courrier
   releve_de_compte
-  jugement          // décision de justice / compte rendu d'audience
+  jugement // décision de justice / compte rendu d'audience
   autre
 }
 
 // Dénouement d'un dossier contentieux à sa clôture.
 enum IssueDossier {
-  recouvre             // créance payée / recouvrée (issue positive)
-  transige             // accord amiable / transaction
-  resilie              // clôturé volontairement (résiliation, abandon de la poursuite)
-  jugement_favorable   // condamnation obtenue
+  recouvre // créance payée / recouvrée (issue positive)
+  transige // accord amiable / transaction
+  resilie // clôturé volontairement (résiliation, abandon de la poursuite)
+  jugement_favorable // condamnation obtenue
   jugement_defavorable // débouté
-  irrecouvrable        // perdu / passé en pertes
+  irrecouvrable // perdu / passé en pertes
 }
 
 // Actes réellement pratiqués par les huissiers au Sénégal (calqués sur les
@@ -994,19 +1061,19 @@ enum IssueDossier {
 //    des faits, « PAR CES MOTIFS », bordereau de pièces).
 enum TypeActe {
   mise_en_demeure
-  commandement_societe        // étape 1 : commandement émis par la société créancière, sur son entête (≈ 90 j)
+  commandement_societe // étape 1 : commandement émis par la société créancière, sur son entête (≈ 90 j)
   requete_injonction_de_payer // voie rapide OHADA (AUPSRVE) : requête au président du tribunal
-  commandement_de_payer       // étape 2 : commandement de payer signifié par huissier
-  assignation_en_paiement     // étape 3 : commandement valant assignation devant le tribunal
-  protocole_accord            // transaction : accord de règlement (échéancier) signé des deux parties
+  commandement_de_payer // étape 2 : commandement de payer signifié par huissier
+  assignation_en_paiement // étape 3 : commandement valant assignation devant le tribunal
+  protocole_accord // transaction : accord de règlement (échéancier) signé des deux parties
   decompte_de_creance
   bordereau_de_pieces
 }
 
 enum StatutActe {
-  brouillon   // projet généré par l'IA, non relu
-  valide      // relu par le professionnel
-  signe       // signé, prêt au dépôt
+  brouillon // projet généré par l'IA, non relu
+  valide // relu par le professionnel
+  signe // signé, prêt au dépôt
 }
 
 model DossierContentieux {
@@ -1118,11 +1185,11 @@ model AnalyseContentieux {
   exigible       Boolean // l'échéance est-elle dépassée ?
   prescriptionOk Boolean // la créance est-elle encore dans les délais ?
 
-  manquants   String[] // pièces / éléments manquants (checklist)
-  competence  String? // juridiction compétente (domicile du débiteur)
-  syntheseIa  String? // synthèse rédigée par l'IA
-  modeleIa    String? // modèle Claude utilisé (traçabilité)
-  createdAt   DateTime @default(now())
+  manquants  String[] // pièces / éléments manquants (checklist)
+  competence String? // juridiction compétente (domicile du débiteur)
+  syntheseIa String? // synthèse rédigée par l'IA
+  modeleIa   String? // modèle Claude utilisé (traçabilité)
+  createdAt  DateTime @default(now())
 }
 
 // Un poste du décompte de créance, rattaché à une pièce justificative.
@@ -1164,7 +1231,7 @@ model ActeContentieux {
   contenuSigne  Bytes?
   mimeTypeSigne String?
   signeLe       DateTime?
-  createdAt     DateTime @default(now())
+  createdAt     DateTime  @default(now())
 
   @@index([dossierId])
 }

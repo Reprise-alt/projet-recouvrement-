@@ -18,6 +18,9 @@ export interface AuthedUser {
   email: string;
   role: RoleUtilisateur;
   entite: Entite | null;
+  // Tenant SaaS (addendum §2-3). Pour les comptes du groupe (SSO socle), c'est
+  // toujours l'organisation socle ; pour un compte SaaS, son organisation propre.
+  organisationId: string;
   // Accès aux modules -- indépendants les uns des autres. accesRecouvrement
   // vrai par défaut (comptes existants) ; roleOperations null par défaut
   // (nouveau module, jamais d'accès implicite) ; accesPlanningCoursiers pour
@@ -69,6 +72,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     email: utilisateur.email,
     role: utilisateur.role as RoleUtilisateur,
     entite: (utilisateur.entite as Entite | null) ?? null,
+    organisationId: utilisateur.organisationId,
     accesRecouvrement: utilisateur.accesRecouvrement,
     roleOperations: (utilisateur.roleOperations as RoleOperations | null) ?? null,
     accesPlanningCoursiers: utilisateur.accesPlanningCoursiers,
@@ -129,6 +133,7 @@ async function requireAuthSso(req: Request, res: Response, next: NextFunction) {
     email: utilisateur.email,
     role: utilisateur.role as RoleUtilisateur,
     entite: (utilisateur.entite as Entite | null) ?? null,
+    organisationId: utilisateur.organisationId,
     accesRecouvrement: utilisateur.accesRecouvrement,
     roleOperations: (utilisateur.roleOperations as RoleOperations | null) ?? null,
     accesPlanningCoursiers: utilisateur.accesPlanningCoursiers,

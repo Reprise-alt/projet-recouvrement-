@@ -160,7 +160,7 @@ operationsRouter.patch('/fenetres-saisonnieres/:secteur', requireModuleOperation
     if (jour != null && !isNaN(Number(jour))) data.jour = Number(jour);
     if (anticipationJours != null && !isNaN(Number(anticipationJours))) data.anticipationJours = Number(anticipationJours);
     if (label != null) data.label = String(label);
-    const updated = await prisma.fenetreSaisonniere.update({ where: { secteur: req.params.secteur as any }, data });
+    const updated = await prisma.fenetreSaisonniere.update({ where: { secteur: req.params.secteur as any }, data: data as any });
     res.json(updated);
   } catch (err) {
     next(err);
@@ -461,7 +461,7 @@ operationsRouter.post(
           horsPerimetre++;
           continue;
         }
-        let client = await prisma.client.findUnique({ where: { nom_entite: { nom: row.nom, entite: row.entite } } });
+        let client = await prisma.client.findUnique({ where: { organisationId_nom_entite: { organisationId: req.user!.organisationId, nom: row.nom, entite: row.entite } } });
         if (!client) {
           client = await prisma.client.create({ data: { nom: row.nom, entite: row.entite } });
         }
@@ -510,7 +510,7 @@ operationsRouter.post('/clients', requireModuleOperations('directrice_operations
     }
     if (!secteur) return res.status(400).json({ error: 'Secteur requis' });
 
-    let client = await prisma.client.findUnique({ where: { nom_entite: { nom, entite } } });
+    let client = await prisma.client.findUnique({ where: { organisationId_nom_entite: { organisationId: req.user!.organisationId, nom, entite } } });
     if (!client) {
       client = await prisma.client.create({ data: { nom, entite, codeClient: codeClient || null } });
     } else if (codeClient && !client.codeClient) {
