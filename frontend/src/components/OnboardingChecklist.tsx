@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import { FicheEntreprise } from './FicheEntreprise';
+import { ImportPanel } from './ImportPanel';
 
 // Démarrage guidé SaaS (addendum §4.3) : checklist d'activation branchée sur
 // /api/onboarding, avec actions (voir le scénario, relance test, activer) et un
@@ -38,6 +40,7 @@ export function OnboardingChecklist({ onEntrerConsole }: { onEntrerConsole: () =
   const [apercu, setApercu] = useState<string | null>(null);
   const [demo, setDemo] = useState<Demo | null>(null);
   const [voirDemo, setVoirDemo] = useState(false);
+  const [modal, setModal] = useState<'fiche' | 'fiche-paiement' | 'import' | null>(null);
 
   async function charger() {
     setData(await api.get<Checklist>('/api/onboarding'));
@@ -68,13 +71,26 @@ export function OnboardingChecklist({ onEntrerConsole }: { onEntrerConsole: () =
     if (!demo) setDemo(await api.get<Demo>('/api/onboarding/demo').catch(() => null));
   }
 
-  // Actions directement déclenchables depuis la checklist (les autres étapes
-  // renvoient vers les écrans dédiés, à câbler ensuite).
-  const ACTION: Record<string, { label: string; path: string } | undefined> = {
-    verifier_scenario: { label: 'Voir le scénario', path: '/api/onboarding/scenario-vu' },
-    relance_test: { label: "M'envoyer une relance test", path: '/api/onboarding/relance-test' },
-    activer_relances: { label: 'Activer les relances', path: '/api/onboarding/activer-relances' },
-  };
+  // Chaque étape porte son action : ouverture d'un écran (fiche, import) ou appel
+  // direct à l'API (scénario, relance test, activation).
+  function cta(id: string): { label: string; onClick: () => void } | null {
+    switch (id) {
+      case 'fiche_entreprise':
+        return { label: 'Compléter', onClick: () => setModal('fiche') };
+      case 'instructions_paiement':
+        return { label: 'Renseigner', onClick: () => setModal('fiche-paiement') };
+      case 'import_creances':
+        return { label: 'Importer', onClick: () => setModal('import') };
+      case 'verifier_scenario':
+        return { label: 'Voir le scénario', onClick: () => action('verifier_scenario', '/api/onboarding/scenario-vu') };
+      case 'relance_test':
+        return { label: "M'envoyer une relance test", onClick: () => action('relance_test', '/api/onboarding/relance-test') };
+      case 'activer_relances':
+        return { label: 'Activer les relances', onClick: () => action('activer_relances', '/api/onboarding/activer-relances') };
+      default:
+        return null;
+    }
+  }
 
   return (
     <div className="onb-wrap">
@@ -106,7 +122,7 @@ export function OnboardingChecklist({ onEntrerConsole }: { onEntrerConsole: () =
 
             <ol className="onb-steps">
               {data.etapes.map((e, i) => {
-                const act = ACTION[e.id];
+                const c = cta(e.id);
                 return (
                   <li key={e.id} className={e.fait ? 'done' : ''}>
                     <span className="onb-check" aria-hidden="true">
@@ -120,9 +136,9 @@ export function OnboardingChecklist({ onEntrerConsole }: { onEntrerConsole: () =
                       <div className="onb-step-titre">{e.titre}</div>
                       <div className="onb-step-desc">{e.description}</div>
                     </div>
-                    {!e.fait && act && (
-                      <button className="onb-cta" disabled={busy === e.id} onClick={() => action(e.id, act.path)}>
-                        {busy === e.id ? '…' : act.label}
+                    {!e.fait && c && (
+                      <button className="onb-cta" disabled={busy === e.id} onClick={c.onClick}>
+                        {busy === e.id ? '…' : c.label}
                       </button>
                     )}
                   </li>
@@ -176,6 +192,14 @@ export function OnboardingChecklist({ onEntrerConsole }: { onEntrerConsole: () =
           )}
         </div>
       )}
+      {(modal === 'fiche' || modal === 'fiche-paiement') && (
+        <FicheEntreprise
+          focusPaiement={modal === 'fiche-paiement'}
+          onClose={() => setModal(null)}
+          onSaved={() => charger()}
+        />
+      )}
+      {modal === 'import' && <ImportPanel onClose={() => setModal(null)} onImported={() => charger()} />}
     </div>
   );
 }

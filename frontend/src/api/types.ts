@@ -15,6 +15,21 @@ export interface Entreprise {
 export type RoleOperations = 'directrice_operations' | 'charge_compte' | 'direction_generale';
 export type RoleOrg = 'proprietaire' | 'administrateur' | 'gestionnaire' | 'lecture';
 
+export interface Organisation {
+  id: string;
+  raisonSociale: string;
+  slug: string;
+  pays: 'SN' | 'CI';
+  identifiantFiscal: string | null;
+  rccm: string | null;
+  adresse: string | null;
+  logoUrl: string | null;
+  instructionsPaiement: string | null;
+  contactRecouvrement: string | null;
+  formule: string;
+  statut: string;
+}
+
 export interface CurrentUser {
   id: string;
   nom: string;
