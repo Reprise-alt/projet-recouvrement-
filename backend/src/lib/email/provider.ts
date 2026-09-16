@@ -9,7 +9,15 @@ import nodemailer, { Transporter } from 'nodemailer';
 // Sélection via EMAIL_PROVIDER :
 //   - 'smtp'            -> SmtpEmailProvider (production ; requiert SMTP_HOST…)
 //   - absent / autre    -> StubEmailProvider (dev/test : journalise, n'envoie rien)
+export interface EmailMessage {
+  to: string;
+  subject: string;
+  text: string;
+  html?: string;
+}
+
 export interface EmailProvider {
+  send(msg: EmailMessage): Promise<void>;
   sendOtp(to: string, code: string): Promise<void>;
 }
 
@@ -37,6 +45,11 @@ function corpsHtml(code: string): string {
 }
 
 class StubEmailProvider implements EmailProvider {
+  async send(msg: EmailMessage): Promise<void> {
+    // eslint-disable-next-line no-console
+    console.log(`[email:stub] à ${msg.to} — ${msg.subject}`);
+  }
+
   async sendOtp(to: string, code: string): Promise<void> {
     // eslint-disable-next-line no-console
     console.log(`[email:stub] Code de connexion OLU 360 pour ${to} : ${code}`);
@@ -61,6 +74,10 @@ class SmtpEmailProvider implements EmailProvider {
         secure: process.env.SMTP_SECURE === 'true',
         auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } : undefined,
       });
+  }
+
+  async send(msg: EmailMessage): Promise<void> {
+    await this.transporter.sendMail({ from: this.from, to: msg.to, subject: msg.subject, text: msg.text, html: msg.html });
   }
 
   async sendOtp(to: string, code: string): Promise<void> {
