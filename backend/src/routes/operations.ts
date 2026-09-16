@@ -461,7 +461,7 @@ operationsRouter.post(
           horsPerimetre++;
           continue;
         }
-        let client = await prisma.client.findUnique({ where: { nom_entite: { nom: row.nom, entite: row.entite } } });
+        let client = await prisma.client.findUnique({ where: { organisationId_nom_entite: { organisationId: req.user!.organisationId, nom: row.nom, entite: row.entite } } });
         if (!client) {
           client = await prisma.client.create({ data: { nom: row.nom, entite: row.entite } });
         }
@@ -510,7 +510,7 @@ operationsRouter.post('/clients', requireModuleOperations('directrice_operations
     }
     if (!secteur) return res.status(400).json({ error: 'Secteur requis' });
 
-    let client = await prisma.client.findUnique({ where: { nom_entite: { nom, entite } } });
+    let client = await prisma.client.findUnique({ where: { organisationId_nom_entite: { organisationId: req.user!.organisationId, nom, entite } } });
     if (!client) {
       client = await prisma.client.create({ data: { nom, entite, codeClient: codeClient || null } });
     } else if (codeClient && !client.codeClient) {

@@ -231,7 +231,7 @@ tachesRouter.post('/modeles/import', requireRole(...ADV_ROLES), uploadTaches.sin
     let created = 0;
     let dejaExistant = 0;
     for (const row of rows) {
-      let client = await prisma.client.findUnique({ where: { nom_entite: { nom: row.nom, entite } } });
+      let client = await prisma.client.findUnique({ where: { organisationId_nom_entite: { organisationId: req.user!.organisationId, nom: row.nom, entite } } });
       if (!client) {
         client = await prisma.client.create({ data: { nom: row.nom, entite } });
       }
