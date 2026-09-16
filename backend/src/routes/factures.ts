@@ -5,7 +5,9 @@ import { assertEntiteInScope, requireAccesRecouvrement, requireAuth, requireRole
 import { fmtDate, fmtFCFA } from '../lib/dates';
 
 export const facturesRouter = Router();
-facturesRouter.use(requireAuth, requireAccesRecouvrement);
+import { tenantScope } from '../middleware/tenant';
+
+facturesRouter.use(requireAuth, requireAccesRecouvrement, tenantScope);
 
 facturesRouter.patch(
   '/:factureId/toggle-paid',

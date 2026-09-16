@@ -12,7 +12,9 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 
 // L'import de fichiers touche potentiellement les 3 entités et crée des
 // clients — traité comme une opération globale, réservée à l'admin (§4),
 // au même titre que la configuration et les futurs connecteurs.
-importRouter.use(requireAuth, requireRole('admin'));
+import { tenantScope } from '../middleware/tenant';
+
+importRouter.use(requireAuth, requireRole('admin'), tenantScope);
 
 importRouter.get('/template', (_req, res) => {
   const csv = buildTemplateCsv();

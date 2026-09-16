@@ -4,7 +4,9 @@ import { requireAuth, requireRole } from '../middleware/auth';
 import { listEntreprises } from '../services/entrepriseService';
 
 export const usersRouter = Router();
-usersRouter.use(requireAuth, requireRole('admin'));
+import { tenantScope } from '../middleware/tenant';
+
+usersRouter.use(requireAuth, requireRole('admin'), tenantScope);
 
 const VALID_ROLES = ['admin', 'manager_entite', 'comptable'];
 const VALID_ROLES_OPERATIONS = ['directrice_operations', 'charge_compte', 'direction_generale'];

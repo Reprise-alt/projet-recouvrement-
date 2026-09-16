@@ -51,7 +51,9 @@ import { logoEntite, mentionsLegales } from '../lib/actes/mentionsLegales';
 import { IssueDossier, StatutActe, StatutDossierContentieux, StatutProposition, TypePiece, TypeActe } from '@prisma/client';
 
 export const contentieuxRouter = Router();
-contentieuxRouter.use(requireAuth, requireAccesContentieux);
+import { tenantScope } from '../middleware/tenant';
+
+contentieuxRouter.use(requireAuth, requireAccesContentieux, tenantScope);
 
 // Refuse une action d'écriture à un collaborateur juridique externe (avocat /
 // huissier) : il consulte et valide/signe, mais ne crée ni ne modifie un
