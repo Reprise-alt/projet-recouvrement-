@@ -30,17 +30,17 @@ const BENEFICES = [
 
 const FORMULES = [
   {
-    nom: 'Petite structure', prix: '20 000', unite: 'FCFA / mois', tagline: 'Jusqu’à 50 débiteurs actifs',
+    nom: 'Petite structure', prix: '35 000', unite: 'FCFA HT / mois', tagline: 'Jusqu’à 50 débiteurs actifs',
     points: ['Factures illimitées', 'Relances email illimitées', 'Email + SMS', 'Portail débiteur', '2 utilisateurs'],
     populaire: false,
   },
   {
-    nom: 'PME', prix: '65 000', unite: 'FCFA / mois', tagline: 'Jusqu’à 500 débiteurs actifs',
+    nom: 'PME', prix: '65 000', unite: 'FCFA HT / mois', tagline: 'Jusqu’à 500 débiteurs actifs',
     points: ['Tout « Petite structure »', 'Email + SMS + WhatsApp', 'Rôles et droits', 'Tableau de bord complet', '2 dossiers contentieux / mois inclus', 'Utilisateurs illimités'],
     populaire: true,
   },
   {
-    nom: 'Grands comptes', prix: 'Sur devis', unite: 'à partir de 250 000 FCFA / mois', tagline: 'Au-delà de 500 débiteurs',
+    nom: 'Grands comptes', prix: 'Sur devis', unite: 'à partir de 250 000 FCFA HT / mois', tagline: 'Au-delà de 500 débiteurs',
     points: ['Plusieurs sociétés dans un compte', 'Domaine d’envoi propre', 'Contentieux illimité', 'Tableau de bord consolidé', 'Accompagnement dédié'],
     populaire: false,
   },
@@ -110,7 +110,7 @@ export function PresentationView() {
       {/* TARIFS */}
       <section className="lp-section" id="tarifs">
         <h2>Un prix simple, prépayé.</h2>
-        <p className="lp-section-sub">Sans engagement. Facturé au volume de débiteurs actifs. Économisez 2 mois en paiement annuel.</p>
+        <p className="lp-section-sub">Prix hors taxes, sans engagement. Facturé au volume de débiteurs actifs. La TVA (18 %) est calculée automatiquement au moment de la souscription. Économisez 2 mois en paiement annuel.</p>
         <div className="lp-plans">
           {FORMULES.map((f) => (
             <div key={f.nom} className={`lp-plan${f.populaire ? ' lp-plan-pop' : ''}`}>
@@ -133,7 +133,7 @@ export function PresentationView() {
           ))}
         </div>
         <div className="lp-note" style={{ textAlign: 'center' }}>
-          Prix indicatifs HT · SMS / WhatsApp par crédits · module contentieux au dossier ou inclus selon la formule.
+          Prix hors taxes · TVA 18 % ajoutée à la souscription · SMS / WhatsApp par crédits · module contentieux au dossier ou inclus selon la formule.
         </div>
       </section>
 
