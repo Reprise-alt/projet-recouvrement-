@@ -484,3 +484,33 @@ label{font-family:var(--font-mono);font-size:10.5px;text-transform:uppercase;let
 /* Rotation d'icône pour les états de chargement (boutons Contentieux, etc.). */
 @keyframes spin{to{transform:rotate(360deg);}}
 .spin{animation:spin .9s linear infinite;}
+
+/* ===== Démarrage guidé SaaS (addendum §4.3) ===== */
+.onb-wrap{max-width:660px;margin:0 auto;padding:28px 20px 64px;}
+.onb-head{display:flex;align-items:center;gap:12px;margin-bottom:18px;}
+.onb-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow-md);padding:26px 28px;}
+.onb-card h1{font-size:24px;}
+.onb-progress{margin-bottom:16px;}
+.onb-progress-bar{height:8px;background:var(--line-soft);border-radius:99px;overflow:hidden;}
+.onb-progress-bar span{display:block;height:100%;background:var(--accent);border-radius:99px;transition:width .3s ease;}
+.onb-steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;}
+.onb-steps li{display:flex;align-items:center;gap:14px;padding:13px 4px;border-bottom:1px solid var(--line-soft);}
+.onb-steps li:last-child{border-bottom:none;}
+.onb-check{flex:none;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:1.5px solid var(--line);color:var(--ink-soft);}
+.onb-steps li.done .onb-check{background:var(--accent);border-color:var(--accent);}
+.onb-num{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;font-weight:700;}
+.onb-step-titre{font-size:14px;font-weight:600;}
+.onb-steps li.done .onb-step-titre{color:var(--ink-soft);}
+.onb-step-desc{font-size:12px;color:var(--ink-soft);margin-top:1px;}
+.onb-cta{flex:none;background:var(--accent-soft);color:var(--accent-dark);border:1px solid transparent;border-radius:var(--radius-sm);padding:7px 12px;font-size:12.5px;font-weight:600;cursor:pointer;}
+.onb-cta:hover{border-color:var(--accent);}
+.onb-actions{display:flex;justify-content:space-between;gap:12px;margin-top:22px;}
+.onb-apercu{margin-top:16px;background:var(--accent-soft);border:1px solid var(--line);border-radius:var(--radius-md);padding:14px 16px;}
+.onb-apercu pre{margin:0;white-space:pre-wrap;font-size:11.5px;line-height:1.55;color:var(--ink);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;}
+.onb-demo-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;}
+.onb-demo-kpis>div{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius-md);padding:12px 14px;display:flex;flex-direction:column;}
+.onb-demo-kpis b{font-size:18px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;}
+.onb-demo-kpis span{font-size:11px;color:var(--ink-soft);margin-top:2px;}
+.onb-demo-table{width:100%;border-collapse:collapse;font-size:13px;}
+.onb-demo-table th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);padding:8px 10px;border-bottom:1px solid var(--line);}
+.onb-demo-table td{padding:10px;border-bottom:1px solid var(--line-soft);}
