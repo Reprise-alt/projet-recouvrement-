@@ -14,6 +14,10 @@ interface AuthState {
   supabaseAvailable: boolean;
   loginWithPassword: (email: string, password: string) => Promise<void>;
   loginDev: (email: string) => Promise<void>;
+  // SaaS self-service (OTP par email) : demande d'un code, puis vérification qui
+  // connecte — ou inscrit si l'email est inconnu (création de l'organisation).
+  requestOtp: (email: string) => Promise<void>;
+  verifyOtp: (email: string, code: string, raisonSociale?: string) => Promise<{ inscription: boolean }>;
   logout: () => Promise<void>;
 }
 
@@ -84,6 +88,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function requestOtp(email: string) {
+    setError(null);
+    try {
+      await api.post('/api/auth/otp/request', { email });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Échec de l'envoi du code");
+      throw err;
+    }
+  }
+
+  async function verifyOtp(email: string, code: string, raisonSociale?: string) {
+    setError(null);
+    try {
+      const res = await api.post<{ token: string; inscription: boolean }>('/api/auth/otp/verify', {
+        email,
+        code,
+        raisonSociale,
+      });
+      await applyToken(res.token);
+      return { inscription: res.inscription };
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Code invalide ou expiré');
+      throw err;
+    }
+  }
+
   async function logout() {
     // Mode SSO : la session est partagée (hub) — se déconnecter d'une console
     // seule n'aurait pas de sens. On renvoie au hub, où l'utilisateur ferme sa
@@ -108,6 +138,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       supabaseAvailable: !!supabase,
       loginWithPassword,
       loginDev,
+      requestOtp,
+      verifyOtp,
       logout,
     }),
     [user, loading, error],
