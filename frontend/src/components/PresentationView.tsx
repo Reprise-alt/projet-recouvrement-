@@ -1,0 +1,152 @@
+// Page d'arrivée publique (addendum §4.1) + tarifs (§8.2). Aucune authentification :
+// route /presentation, servie avant la logique de session. Le CTA renvoie vers « / »
+// (inscription self-service en mode SaaS). Prix indicatifs HT, à ajuster en back-office.
+
+const CTA = '/';
+
+function Logo() {
+  return (
+    <span className="lp-brand">
+      <svg viewBox="0 0 100 100" width="26" height="26" aria-hidden="true">
+        <circle cx="50" cy="50" r="34" fill="none" stroke="var(--accent)" strokeWidth="13" strokeLinecap="round" strokeDasharray="168 46" transform="rotate(100 50 50)" />
+      </svg>
+      <b>OLU 360</b>
+    </span>
+  );
+}
+
+const ETAPES = [
+  { n: 1, t: 'Importez votre fichier', d: 'Votre Excel ou CSV de suivi : clients, factures et échéances repris en un clic, sans double saisie.' },
+  { n: 2, t: 'Les relances partent seules', d: 'Chaque créance suit une échelle de paliers — avis d’échéance, rappels, mise en demeure — par email, au bon moment, à votre nom.' },
+  { n: 3, t: 'Vous encaissez plus vite', d: 'Vos débiteurs proposent un échéancier ou signalent un paiement via un lien sécurisé. Vous pilotez tout depuis un tableau de bord.' },
+];
+
+const BENEFICES = [
+  { t: 'Tout votre portefeuille en un écran', d: 'Encours, clients en alerte, à relancer cette semaine — classés par palier.' },
+  { t: 'Relance automatique multicanal', d: 'Email inclus et illimité ; SMS et WhatsApp en option, depuis votre identité.' },
+  { t: 'Portail débiteur', d: 'Vos clients consultent leur dette, proposent un échéancier, signalent un paiement.' },
+  { t: 'Du rappel au contentieux', d: 'Générez un commandement de payer et préparez le dossier — sur la même plateforme.' },
+];
+
+const FORMULES = [
+  {
+    nom: 'Petite structure', prix: '20 000', unite: 'FCFA / mois', tagline: 'Jusqu’à 50 débiteurs actifs',
+    points: ['Factures illimitées', 'Relances email illimitées', 'Email + SMS', 'Portail débiteur', '2 utilisateurs'],
+    populaire: false,
+  },
+  {
+    nom: 'PME', prix: '65 000', unite: 'FCFA / mois', tagline: 'Jusqu’à 500 débiteurs actifs',
+    points: ['Tout « Petite structure »', 'Email + SMS + WhatsApp', 'Rôles et droits', 'Tableau de bord complet', '2 dossiers contentieux / mois inclus', 'Utilisateurs illimités'],
+    populaire: true,
+  },
+  {
+    nom: 'Grands comptes', prix: 'Sur devis', unite: 'à partir de 250 000 FCFA / mois', tagline: 'Au-delà de 500 débiteurs',
+    points: ['Plusieurs sociétés dans un compte', 'Domaine d’envoi propre', 'Contentieux illimité', 'Tableau de bord consolidé', 'Accompagnement dédié'],
+    populaire: false,
+  },
+];
+
+export function PresentationView() {
+  return (
+    <div className="lp">
+      <header className="lp-nav">
+        <Logo />
+        <nav className="lp-nav-links">
+          <a href="#tarifs">Tarifs</a>
+          <a href={CTA}>Se connecter</a>
+          <a className="lp-btn lp-btn-primary" href={CTA}>Essai gratuit</a>
+        </nav>
+      </header>
+
+      {/* HERO */}
+      <section className="lp-hero">
+        <div className="lp-eyebrow">Logiciel de recouvrement pour PME · Sénégal</div>
+        <h1>Reprenez la main sur vos impayés.</h1>
+        <p className="lp-lead">
+          Importez votre suivi, laissez les relances partir toutes seules — de l’avis d’échéance au contentieux — et
+          encaissez plus vite. Sans changer vos habitudes.
+        </p>
+        <div className="lp-hero-cta">
+          <a className="lp-btn lp-btn-primary lp-btn-lg" href={CTA}>Démarrer l’essai gratuit — 14 jours</a>
+          <a className="lp-btn lp-btn-ghost lp-btn-lg" href="#comment">Voir comment ça marche</a>
+        </div>
+        <div className="lp-proof">
+          <span>Déjà utilisé par <b>SORAM</b>, <b>IRIS</b> et <b>SIS</b></span>
+          <span className="lp-dot" />
+          <span><b>−15 jours</b> de délai de recouvrement</span>
+          <span className="lp-dot" />
+          <span><b>−25 %</b> d’impayés</span>
+        </div>
+        <div className="lp-note">Aucune carte bancaire requise.</div>
+      </section>
+
+      {/* COMMENT ÇA MARCHE */}
+      <section className="lp-section" id="comment">
+        <h2>Trois étapes, dix minutes.</h2>
+        <div className="lp-steps">
+          {ETAPES.map((e) => (
+            <div key={e.n} className="lp-step">
+              <div className="lp-step-n">{e.n}</div>
+              <div className="lp-step-t">{e.t}</div>
+              <div className="lp-step-d">{e.d}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* BÉNÉFICES */}
+      <section className="lp-section lp-section-soft">
+        <h2>Tout ce qu’il faut pour être payé.</h2>
+        <div className="lp-benefits">
+          {BENEFICES.map((b) => (
+            <div key={b.t} className="lp-benefit">
+              <div className="lp-benefit-t">{b.t}</div>
+              <div className="lp-benefit-d">{b.d}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* TARIFS */}
+      <section className="lp-section" id="tarifs">
+        <h2>Un prix simple, prépayé.</h2>
+        <p className="lp-section-sub">Sans engagement. Facturé au volume de débiteurs actifs. Économisez 2 mois en paiement annuel.</p>
+        <div className="lp-plans">
+          {FORMULES.map((f) => (
+            <div key={f.nom} className={`lp-plan${f.populaire ? ' lp-plan-pop' : ''}`}>
+              {f.populaire && <div className="lp-plan-badge">Le plus choisi</div>}
+              <div className="lp-plan-nom">{f.nom}</div>
+              <div className="lp-plan-tagline">{f.tagline}</div>
+              <div className="lp-plan-prix"><b>{f.prix}</b> <span>{f.unite}</span></div>
+              <ul className="lp-plan-points">
+                {f.points.map((p) => (
+                  <li key={p}>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+                    {p}
+                  </li>
+                ))}
+              </ul>
+              <a className={`lp-btn ${f.populaire ? 'lp-btn-primary' : 'lp-btn-ghost'}`} href={CTA} style={{ width: '100%', justifyContent: 'center' }}>
+                {f.prix === 'Sur devis' ? 'Nous contacter' : 'Commencer'}
+              </a>
+            </div>
+          ))}
+        </div>
+        <div className="lp-note" style={{ textAlign: 'center' }}>
+          Prix indicatifs HT · SMS / WhatsApp par crédits · module contentieux au dossier ou inclus selon la formule.
+        </div>
+      </section>
+
+      {/* CTA FINAL */}
+      <section className="lp-final">
+        <h2>Moins d’impayés, moins d’efforts, plus de trésorerie.</h2>
+        <a className="lp-btn lp-btn-primary lp-btn-lg" href={CTA}>Créer mon compte gratuitement</a>
+      </section>
+
+      <footer className="lp-footer">
+        <Logo />
+        <span>© {new Date().getFullYear()} OLU 360 — Olu Ecosystems. Tous droits réservés.</span>
+      </footer>
+    </div>
+  );
+}

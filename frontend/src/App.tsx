@@ -9,6 +9,7 @@ import { OperationsView } from './components/OperationsView';
 import { CoursierPublicView } from './components/CoursierPublicView';
 import { SalleCoursierView } from './components/SalleCoursierView';
 import { PortailDebiteurView } from './components/PortailDebiteurView';
+import { PresentationView } from './components/PresentationView';
 import { SettingsModal } from './components/SettingsModal';
 import { ImportPanel } from './components/ImportPanel';
 import { UsersPanel } from './components/UsersPanel';
@@ -56,6 +57,10 @@ export function App() {
   if (window.location.pathname.startsWith('/portail/')) {
     const token = window.location.pathname.slice('/portail/'.length);
     return <PortailDebiteurView token={token} />;
+  }
+  // Page vitrine publique (présentation + tarifs), sans session.
+  if (window.location.pathname.startsWith('/presentation')) {
+    return <PresentationView />;
   }
 
   const [recouvrementTab, setRecouvrementTab] = useState<RecouvrementTab>('recouvrement');
