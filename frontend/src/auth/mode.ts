@@ -1,9 +1,15 @@
 // Mode d'authentification du front, figé au build (comme VITE_CONSOLE) :
 //   'sso'      → connexion unique du hub OLU 360 (cookie olu360_session).
 //               Pas de formulaire local : si pas connecté, on renvoie au hub.
+//   'otp'      → SaaS self-service : inscription/connexion par code email (OTP).
 //   'supabase' → comportement historique (formulaire Supabase). Défaut, pour
 //               ne rien changer tant qu'on n'a pas basculé.
-export const AUTH_MODE: 'supabase' | 'sso' = import.meta.env.VITE_AUTH_MODE === 'sso' ? 'sso' : 'supabase';
+export const AUTH_MODE: 'supabase' | 'sso' | 'otp' =
+  import.meta.env.VITE_AUTH_MODE === 'sso'
+    ? 'sso'
+    : import.meta.env.VITE_AUTH_MODE === 'otp'
+      ? 'otp'
+      : 'supabase';
 
 // URL du hub vers laquelle renvoyer un visiteur non connecté (mode SSO).
 export const HUB_URL = ((import.meta.env.VITE_HUB_URL as string | undefined) || 'https://app.olu360.com').replace(/\/+$/, '');

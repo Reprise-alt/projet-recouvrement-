@@ -13,6 +13,7 @@ export interface Entreprise {
 }
 
 export type RoleOperations = 'directrice_operations' | 'charge_compte' | 'direction_generale';
+export type RoleOrg = 'proprietaire' | 'administrateur' | 'gestionnaire' | 'lecture';
 
 export interface CurrentUser {
   id: string;
@@ -27,6 +28,9 @@ export interface CurrentUser {
   // Accès au seul onglet Contentieux (collaborateur juridique externe).
   accesContentieux: boolean;
   derniereConnexion?: string | null;
+  // Multi-tenant SaaS (présents pour les comptes SaaS ; absents/neutres côté groupe).
+  organisationId?: string;
+  roleOrg?: RoleOrg | null;
 }
 
 export interface DerniereAction {

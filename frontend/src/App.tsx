@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from './auth/AuthContext';
 import { LoginPage } from './components/LoginPage';
+import { InscriptionOtpPage } from './components/InscriptionOtpPage';
 import { RecouvrementView } from './components/RecouvrementView';
 import { ContractsView } from './components/ContractsView';
 import { ContentieuxView } from './components/ContentieuxView';
@@ -135,6 +136,8 @@ export function App() {
       redirigerVersHub();
       return null;
     }
+    // Mode SaaS self-service : inscription/connexion par code email.
+    if (AUTH_MODE === 'otp') return <InscriptionOtpPage />;
     return <LoginPage />;
   }
 
