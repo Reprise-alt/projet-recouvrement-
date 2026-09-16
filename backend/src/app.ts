@@ -15,6 +15,7 @@ import { sendEmailRouter } from './routes/sendEmail';
 import { entreprisesRouter } from './routes/entreprises';
 import { reportingRouter } from './routes/reporting';
 import { relancesRouter } from './routes/relances';
+import { relancesCronRouter } from './routes/relancesCron';
 import { contactRouter } from './routes/contact';
 import { tachesRouter } from './routes/taches';
 import { operationsRouter } from './routes/operations';
@@ -54,6 +55,7 @@ export function createApp() {
   app.use('/api/entreprises', entreprisesRouter);
   app.use('/api/reporting', reportingRouter);
   app.use('/api/relances', relancesRouter);
+  app.use('/api/cron/relances', relancesCronRouter);
   app.use('/api/contact', contactRouter);
   app.use('/api/taches', tachesRouter);
   app.use('/api/operations', operationsRouter);

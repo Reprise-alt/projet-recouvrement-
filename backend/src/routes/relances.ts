@@ -3,7 +3,8 @@ import { prisma, currentOrganisationId } from '../db';
 import { getConfig } from '../services/configService';
 import { clientEncours, PALIERS } from '../lib/paliers';
 import { ClientRelance, dansFenetreEnvoi, relancesDues } from '../lib/moteurRelances';
-import { requireAccesRecouvrement, requireAuth } from '../middleware/auth';
+import { executerRelancesTenant } from '../lib/executerRelances';
+import { requireAccesRecouvrement, requireAuth, requireRole } from '../middleware/auth';
 import { tenantScope } from '../middleware/tenant';
 
 // Moteur de relances automatiques — aperçu (addendum §5). Slice 1 : lecture
@@ -60,6 +61,22 @@ relancesRouter.get('/dues', async (_req, res, next) => {
       total: dues.length,
       relances: dues,
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Déclenchement (ou simulation) de l'envoi des relances dues pour le tenant
+// courant. Réservé aux administrateurs. Par SÉCURITÉ, le dry-run est le défaut :
+// il faut explicitement { dryRun: false } pour envoyer réellement (et rester
+// dans la fenêtre d'envoi, sauf forcerHorsFenetre). Paliers ≥ 6 jamais envoyés
+// automatiquement (action juridique manuelle).
+relancesRouter.post('/executer', requireRole('admin'), async (req, res, next) => {
+  try {
+    const dryRun = req.body?.dryRun !== false; // défaut : true (simulation)
+    const forcerHorsFenetre = req.body?.forcerHorsFenetre === true;
+    const rapport = await executerRelancesTenant({ dryRun, forcerHorsFenetre });
+    res.json(rapport);
   } catch (err) {
     next(err);
   }
