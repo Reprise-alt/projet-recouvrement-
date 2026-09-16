@@ -3,6 +3,7 @@ import cors from 'cors';
 import { authRouter } from './routes/auth';
 import { authOtpRouter } from './routes/authOtp';
 import { onboardingRouter } from './routes/onboarding';
+import { organisationRouter } from './routes/organisation';
 import { usersRouter } from './routes/users';
 import { clientsRouter } from './routes/clients';
 import { facturesRouter } from './routes/factures';
@@ -40,6 +41,7 @@ export function createApp() {
   app.use('/api/auth', authRouter);
   app.use('/api/auth/otp', authOtpRouter);
   app.use('/api/onboarding', onboardingRouter);
+  app.use('/api/organisation', organisationRouter);
   app.use('/api/users', usersRouter);
   app.use('/api/clients', clientsRouter);
   app.use('/api/factures', facturesRouter);

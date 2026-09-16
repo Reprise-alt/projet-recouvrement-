@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from './auth/AuthContext';
 import { LoginPage } from './components/LoginPage';
 import { InscriptionOtpPage } from './components/InscriptionOtpPage';
+import { OnboardingChecklist } from './components/OnboardingChecklist';
 import { RecouvrementView } from './components/RecouvrementView';
 import { ContractsView } from './components/ContractsView';
 import { ContentieuxView } from './components/ContentieuxView';
@@ -72,6 +73,9 @@ export function App() {
   const [integrationsOpen, setIntegrationsOpen] = useState(false);
   const [entreprisesOpen, setEntreprisesOpen] = useState(false);
   const [dataVersion, setDataVersion] = useState(0);
+  // Démarrage guidé SaaS : les comptes d'organisation (roleOrg) atterrissent sur
+  // la checklist tant qu'ils ne sont pas entrés dans la console.
+  const [enConsole, setEnConsole] = useState(false);
   const bumpDataVersion = () => setDataVersion((v) => v + 1);
   const { theme, toggle: toggleTheme } = useTheme();
 
@@ -163,6 +167,11 @@ export function App() {
 
   const isAdmin = user.role === 'admin';
   const roleBadge = CONSOLE === 'operations' ? ROLE_OPERATIONS_LABELS[user.roleOperations!] ?? '' : ROLE_LABELS[user.role] ?? user.role;
+
+  // Comptes SaaS : écran de démarrage guidé tant qu'ils n'entrent pas dans la console.
+  if (user.roleOrg && !enConsole) {
+    return <OnboardingChecklist onEntrerConsole={() => setEnConsole(true)} />;
+  }
 
   return (
     <div className="shell" data-entite={effectiveEntity === 'ALL' ? 'OLU' : effectiveEntity}>
