@@ -14,6 +14,7 @@ import { integrationsRouter } from './routes/integrations';
 import { sendEmailRouter } from './routes/sendEmail';
 import { entreprisesRouter } from './routes/entreprises';
 import { reportingRouter } from './routes/reporting';
+import { relancesRouter } from './routes/relances';
 import { contactRouter } from './routes/contact';
 import { tachesRouter } from './routes/taches';
 import { operationsRouter } from './routes/operations';
@@ -52,6 +53,7 @@ export function createApp() {
   app.use('/api/send-email', sendEmailRouter);
   app.use('/api/entreprises', entreprisesRouter);
   app.use('/api/reporting', reportingRouter);
+  app.use('/api/relances', relancesRouter);
   app.use('/api/contact', contactRouter);
   app.use('/api/taches', tachesRouter);
   app.use('/api/operations', operationsRouter);
