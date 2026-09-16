@@ -127,6 +127,15 @@ model Organisation {
   contactRecouvrement  String?
   formule              FormuleAbo         @default(pme)
   statut               StatutOrganisation @default(actif)
+
+  // Démarrage guidé (addendum §4.3). Indicateurs d'étapes qui ne se déduisent pas
+  // des données : « scénario vérifié », « relance test reçue », « relances
+  // activées ». Les autres étapes (fiche complétée, instructions de paiement,
+  // créances importées) se calculent à la volée depuis les données.
+  scenarioVu           Boolean            @default(false)
+  relanceTestEnvoyee   Boolean            @default(false)
+  relancesActivees     Boolean            @default(false)
+
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
 
