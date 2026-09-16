@@ -31,11 +31,25 @@ progressivement sur les routes pour restreindre selon ce rôle.
 |---|---|
 | `OTP_SECRET` | secret de hachage des codes OTP (repli : `SESSION_SECRET`) |
 | `OTP_JWT_SECRET` | secret de signature des sessions SaaS (repli : `SESSION_SECRET`) |
-| `EMAIL_PROVIDER` | choix du fournisseur d'email transactionnel (défaut : `stub`) |
+| `EMAIL_PROVIDER` | `smtp` en production, sinon `stub` (dev/test : journalise, n'envoie rien) |
+| `SMTP_HOST` / `SMTP_PORT` | serveur SMTP (port 587 par défaut) |
+| `SMTP_SECURE` | `true` pour le port 465 (TLS implicite) |
+| `SMTP_USER` / `SMTP_PASS` | identifiants SMTP |
+| `EMAIL_FROM` | expéditeur (ex. `OLU 360 <no-reply@olu360.com>`) |
 
-## À brancher (décisions §17)
+## Fournisseur d'email
 
-- **Fournisseur email réel** : implémenter un `EmailProvider` (SMTP / Resend /
-  SendGrid…) dans `src/lib/email/provider.ts` et le sélectionner via `EMAIL_PROVIDER`.
-  Seul l'émetteur `stub` (journalisation, aucun envoi) est fourni.
-- Enforcement fin des rôles (`requireOrgRole`) sur les routes, au fil de l'eau.
+Choix d'archi : l'envoi passe par un **SMTP standard** (`nodemailer`), donc
+**n'importe quel fournisseur** se branche par la seule configuration, sans
+changement de code (pas d'enfermement). Recommandés :
+
+- **Resend** — meilleure délivrabilité + offre gratuite (~3 000 emails/mois), DX simple ;
+- **Brevo** — alternative UE/francophone (aligné §11 protection des données).
+
+Mise en route : vérifier le domaine d'envoi (SPF, DKIM, DMARC) chez le fournisseur,
+créer des identifiants SMTP, renseigner les variables ci-dessus et `EMAIL_PROVIDER=smtp`.
+
+## À brancher (au fil de l'eau)
+
+- Enforcement fin des rôles (`requireOrgRole`) sur les routes du parcours SaaS.
+- Domaine d'envoi propre au client (option formule PME/Grands comptes, §6).
