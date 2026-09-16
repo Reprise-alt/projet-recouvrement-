@@ -1,6 +1,13 @@
 import { FormEvent, useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
 
+// Formule recommandée selon la tranche déclarée (addendum §4.2 → §8.2).
+const FORMULE_PAR_TRANCHE: Record<string, string> = {
+  moins_50: 'Petite structure',
+  entre_50_500: 'PME',
+  plus_500: 'Grands comptes',
+};
+
 // Inscription / connexion self-service par code email (addendum §4). Deux étapes :
 //   1) saisie de l'email → envoi d'un code ;
 //   2) saisie du code (+ nom de l'entreprise si c'est une première connexion) →
@@ -11,6 +18,11 @@ export function InscriptionOtpPage() {
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [raisonSociale, setRaisonSociale] = useState('');
+  // Profilage facultatif (addendum §4.2) — utilisé seulement à la première
+  // connexion (création du compte), ignoré côté serveur pour une reconnexion.
+  const [secteur, setSecteur] = useState('');
+  const [tranche, setTranche] = useState<'' | 'moins_50' | 'entre_50_500' | 'plus_500'>('');
+  const [outil, setOutil] = useState('');
   const [busy, setBusy] = useState(false);
   const [renvoye, setRenvoye] = useState(false);
 
@@ -31,7 +43,12 @@ export function InscriptionOtpPage() {
     e.preventDefault();
     setBusy(true);
     try {
-      await verifyOtp(email.trim(), code.trim(), raisonSociale.trim() || undefined);
+      await verifyOtp(email.trim(), code.trim(), {
+        raisonSociale: raisonSociale.trim() || undefined,
+        secteur: secteur.trim() || undefined,
+        trancheDebiteurs: tranche || undefined,
+        outilFacturation: outil.trim() || undefined,
+      });
       // Succès : AuthContext charge l'utilisateur et l'app bascule automatiquement.
     } catch {
       // erreur exposée via useAuth().error
@@ -134,6 +151,42 @@ export function InscriptionOtpPage() {
                   placeholder="Ex. Alpha SA"
                 />
               </div>
+
+              {/* Profilage (§4.2) : trois questions facultatives pour préparer l'espace. */}
+              <div className="otp-profil-head">Pour préparer votre espace (facultatif)</div>
+              <div className="field">
+                <label>Votre secteur d'activité</label>
+                <input
+                  type="text"
+                  value={secteur}
+                  onChange={(e) => setSecteur(e.target.value)}
+                  placeholder="Ex. Distribution, BTP, services…"
+                />
+              </div>
+              <div className="field">
+                <label>Combien de clients en retard de paiement, environ ?</label>
+                <select value={tranche} onChange={(e) => setTranche(e.target.value as typeof tranche)}>
+                  <option value="">Je ne sais pas encore</option>
+                  <option value="moins_50">Moins de 50</option>
+                  <option value="entre_50_500">Entre 50 et 500</option>
+                  <option value="plus_500">Plus de 500</option>
+                </select>
+                {tranche && (
+                  <div className="otp-reco">
+                    Formule recommandée : <b>{FORMULE_PAR_TRANCHE[tranche]}</b>
+                  </div>
+                )}
+              </div>
+              <div className="field">
+                <label>Votre outil de facturation actuel</label>
+                <input
+                  type="text"
+                  value={outil}
+                  onChange={(e) => setOutil(e.target.value)}
+                  placeholder="Ex. Excel, Sage, Odoo, aucun…"
+                />
+              </div>
+
               <button className="primary" type="submit" disabled={busy} style={{ width: '100%' }}>
                 {busy ? 'Vérification…' : 'Valider'}
               </button>

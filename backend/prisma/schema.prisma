@@ -111,6 +111,15 @@ enum FormuleAbo {
   grands_comptes
 }
 
+// Tranche de débiteurs en retard déclarée à l'inscription (addendum §4.2).
+// Sert à recommander la formule (§8.2 : ≤50 → petite, ≤500 → pme, sinon grands
+// comptes). Une fourchette, pas un nombre exact : le prospect estime.
+enum TrancheDebiteurs {
+  moins_50
+  entre_50_500
+  plus_500
+}
+
 model Organisation {
   id                   String             @id @default(cuid())
   raisonSociale        String
@@ -127,6 +136,13 @@ model Organisation {
   contactRecouvrement  String?
   formule              FormuleAbo         @default(pme)
   statut               StatutOrganisation @default(actif)
+
+  // Profilage à l'inscription (addendum §4.2) : trois questions qui servent à
+  // préremplir la formule recommandée, les modèles et le scénario. Optionnelles
+  // (l'inscription reste possible sans y répondre).
+  secteur              String?
+  trancheDebiteurs     TrancheDebiteurs?
+  outilFacturation     String?
 
   // Démarrage guidé (addendum §4.3). Indicateurs d'étapes qui ne se déduisent pas
   // des données : « scénario vérifié », « relance test reçue », « relances

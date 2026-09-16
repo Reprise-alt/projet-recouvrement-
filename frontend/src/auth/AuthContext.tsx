@@ -6,6 +6,14 @@ import { AUTH_MODE, redirigerVersHub } from './mode';
 
 const TOKEN_STORAGE_KEY = 'recouvrement:token';
 
+// Réponses de profilage à l'inscription (addendum §4.2). Toutes optionnelles.
+export interface ProfilInscription {
+  raisonSociale?: string;
+  secteur?: string;
+  trancheDebiteurs?: 'moins_50' | 'entre_50_500' | 'plus_500';
+  outilFacturation?: string;
+}
+
 interface AuthState {
   user: CurrentUser | null;
   loading: boolean;
@@ -17,7 +25,7 @@ interface AuthState {
   // SaaS self-service (OTP par email) : demande d'un code, puis vérification qui
   // connecte — ou inscrit si l'email est inconnu (création de l'organisation).
   requestOtp: (email: string) => Promise<void>;
-  verifyOtp: (email: string, code: string, raisonSociale?: string) => Promise<{ inscription: boolean }>;
+  verifyOtp: (email: string, code: string, profil?: ProfilInscription) => Promise<{ inscription: boolean }>;
   logout: () => Promise<void>;
 }
 
@@ -98,13 +106,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  async function verifyOtp(email: string, code: string, raisonSociale?: string) {
+  async function verifyOtp(email: string, code: string, profil?: ProfilInscription) {
     setError(null);
     try {
       const res = await api.post<{ token: string; inscription: boolean }>('/api/auth/otp/verify', {
         email,
         code,
-        raisonSociale,
+        raisonSociale: profil?.raisonSociale,
+        secteur: profil?.secteur,
+        trancheDebiteurs: profil?.trancheDebiteurs,
+        outilFacturation: profil?.outilFacturation,
       });
       await applyToken(res.token);
       return { inscription: res.inscription };

@@ -13,6 +13,17 @@ export const authOtpRouter = Router();
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
+const TRANCHES = ['moins_50', 'entre_50_500', 'plus_500'] as const;
+type Tranche = (typeof TRANCHES)[number];
+
+// Formule recommandée d'après le volume déclaré (addendum §4.2 → §8.2).
+// Simple aiguillage ; le prospect reste libre de choisir à la souscription.
+function formuleRecommandee(tranche: Tranche | null): 'petite' | 'pme' | 'grands_comptes' {
+  if (tranche === 'moins_50') return 'petite';
+  if (tranche === 'plus_500') return 'grands_comptes';
+  return 'pme';
+}
+
 authOtpRouter.post('/request', async (req, res, next) => {
   try {
     const email = normaliserEmail(req.body?.email);
@@ -45,8 +56,25 @@ authOtpRouter.post('/verify', async (req, res, next) => {
       // ces insertions, l'organisationId étant fixé explicitement.
       inscription = true;
       const raisonSociale = String(req.body?.raisonSociale ?? '').trim() || email.split('@')[0];
+      // Profilage optionnel (§4.2). Le secteur et l'outil de facturation sont du
+      // texte libre ; la tranche est validée contre l'énumération.
+      const secteur = String(req.body?.secteur ?? '').trim() || null;
+      const outilFacturation = String(req.body?.outilFacturation ?? '').trim() || null;
+      const trancheBrute = String(req.body?.trancheDebiteurs ?? '').trim();
+      const trancheDebiteurs = (TRANCHES as readonly string[]).includes(trancheBrute)
+        ? (trancheBrute as Tranche)
+        : null;
       const org = await prisma.organisation.create({
-        data: { raisonSociale, slug: await slugUnique(raisonSociale), statut: 'essai' },
+        data: {
+          raisonSociale,
+          slug: await slugUnique(raisonSociale),
+          statut: 'essai',
+          secteur,
+          outilFacturation,
+          trancheDebiteurs,
+          // Préremplit la formule recommandée (le client la confirme/ajuste plus tard).
+          formule: formuleRecommandee(trancheDebiteurs),
+        },
       });
       utilisateur = await prisma.utilisateur.create({
         data: {
