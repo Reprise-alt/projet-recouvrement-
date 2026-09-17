@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import { rlsActive } from './db';
 import { authRouter } from './routes/auth';
 import { authOtpRouter } from './routes/authOtp';
 import { onboardingRouter } from './routes/onboarding';
@@ -38,7 +39,10 @@ export function createApp() {
   app.use(cors({ origin: allowedOrigins?.length ? allowedOrigins : true, credentials: ssoMode }));
   app.use(express.json());
 
-  app.get('/health', (_req, res) => res.json({ ok: true }));
+  // `rls` expose l'état effectif de l'isolation multi-tenant (RLS_ENABLED) sur
+  // l'instance en cours — diagnostic ops : sur un back-end SaaS il DOIT valoir
+  // true, sinon les données de tous les tenants retombent dans l'org par défaut.
+  app.get('/health', (_req, res) => res.json({ ok: true, rls: rlsActive() }));
 
   app.use('/api/auth', authRouter);
   app.use('/api/auth/otp', authOtpRouter);
