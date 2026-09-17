@@ -76,6 +76,8 @@ export interface CurrentUser {
   // Abonnement (essai/actif/bloqué) et statut exploitant plateforme.
   abonnement?: AbonnementInfo | null;
   superAdmin?: boolean;
+  // Formule recommandée/retenue de l'organisation (pour surligner l'offre).
+  formule?: string | null;
 }
 
 export interface DerniereAction {

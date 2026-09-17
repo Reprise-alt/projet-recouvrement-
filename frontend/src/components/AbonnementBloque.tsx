@@ -1,5 +1,6 @@
 import { useAuth } from '../auth/AuthContext';
 import { EtatAbonnement } from '../api/types';
+import { OffresAbonnement } from './OffresAbonnement';
 
 // Écran de blocage doux (addendum §8) : affiché à la place de la console quand
 // l'essai est terminé ou le compte suspendu. On ne supprime rien — les données
@@ -9,7 +10,7 @@ export function AbonnementBloque({ etat }: { etat: EtatAbonnement }) {
   const suspendu = etat === 'suspendu';
 
   return (
-    <div className="empty-state" style={{ maxWidth: 520, margin: '80px auto', textAlign: 'center' }}>
+    <div className="empty-state" style={{ maxWidth: 760, margin: '64px auto', textAlign: 'center' }}>
       <h2 style={{ marginBottom: 8 }}>{suspendu ? 'Compte suspendu' : "Votre essai est terminé"}</h2>
       <p style={{ color: 'var(--ink-soft)', lineHeight: 1.6 }}>
         {suspendu ? (
@@ -22,21 +23,8 @@ export function AbonnementBloque({ etat }: { etat: EtatAbonnement }) {
           </>
         )}
       </p>
-      <div
-        style={{
-          marginTop: 20,
-          padding: '16px 18px',
-          background: 'var(--surface)',
-          border: '1px solid var(--line)',
-          borderRadius: 12,
-          textAlign: 'left',
-        }}
-      >
-        <div style={{ fontWeight: 600, marginBottom: 6 }}>Activer mon abonnement</div>
-        <div style={{ fontSize: 13, color: 'var(--ink-soft)', lineHeight: 1.6 }}>
-          Écrivez à <a href="mailto:contact@olu360.com">contact@olu360.com</a> ou appelez-nous : nous activons
-          votre espace sous 24 h après confirmation.
-        </div>
+      <div style={{ marginTop: 20, textAlign: 'left' }}>
+        <OffresAbonnement formuleRecommandee={user?.formule} />
       </div>
       <button onClick={() => logout()} style={{ marginTop: 20 }}>
         Se déconnecter
