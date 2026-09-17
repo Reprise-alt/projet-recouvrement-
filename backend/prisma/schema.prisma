@@ -535,6 +535,7 @@ enum TypeDemandeContact {
   investir
   poc
   autre
+  rappel
 }
 
 model DemandeContact {
@@ -542,6 +543,7 @@ model DemandeContact {
   type      TypeDemandeContact
   nom       String
   email     String
+  telephone String?
   societe   String?
   message   String
   createdAt DateTime           @default(now())

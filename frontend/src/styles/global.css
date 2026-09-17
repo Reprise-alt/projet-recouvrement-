@@ -302,7 +302,7 @@ tr.row-hover:hover{background:var(--paper);cursor:pointer;}
 .timeline-date{font-family:var(--font-mono);color:var(--ink-soft);font-size:11px;}
 .action-box{background:linear-gradient(180deg,var(--accent-soft) 0%,var(--paper) 90px);border:1px solid var(--line);border-radius:var(--radius-md);padding:18px;margin-top:8px;box-shadow:var(--shadow-sm);}
 .letter-preview{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);padding:16px;font-size:12.5px;white-space:pre-wrap;line-height:1.6;font-family:var(--font-mono);max-height:340px;overflow-y:auto;margin-top:10px;}
-textarea,input[type=text],input[type=number],input[type=date],input[type=email],select{width:100%;font-family:var(--font-body);font-size:13px;border:1px solid var(--line);border-radius:var(--radius-sm);padding:9px 10px;resize:vertical;transition:border-color .15s var(--ease),box-shadow .15s var(--ease);background:var(--surface);color:var(--ink);}
+textarea,input[type=text],input[type=number],input[type=date],input[type=email],input[type=tel],select{width:100%;font-family:var(--font-body);font-size:13px;border:1px solid var(--line);border-radius:var(--radius-sm);padding:9px 10px;resize:vertical;transition:border-color .15s var(--ease),box-shadow .15s var(--ease);background:var(--surface);color:var(--ink);}
 textarea:focus,input:focus,select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
 label{font-family:var(--font-mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);display:block;margin-bottom:4px;}
 

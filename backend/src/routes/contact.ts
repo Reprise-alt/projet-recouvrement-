@@ -2,12 +2,21 @@ import { Router } from 'express';
 import { prisma } from '../db';
 import { getGmailCredential } from '../services/gmailCredentialService';
 import { sendViaGmail } from '../lib/gmail';
+import { emailMode, getEmailProvider } from '../lib/email/provider';
 
 export const contactRouter = Router();
 
-const TYPES = ['investir', 'poc', 'autre'] as const;
+const TYPES = ['investir', 'poc', 'autre', 'rappel'] as const;
 type TypeDemande = (typeof TYPES)[number];
 
+const TYPE_LABELS: Record<TypeDemande, string> = {
+  investir: 'Investir',
+  poc: 'Devenir client pilote',
+  autre: 'Autre',
+  rappel: 'Demande de rappel (grand compte)',
+};
+
+const DESTINATAIRE = 'f.baudoin@iris-afrique.com';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // Formulaire public (page vitrine, non authentifiée) — limite naïve en
@@ -26,26 +35,46 @@ function isRateLimited(ip: string): boolean {
   return timestamps.length > RATE_LIMIT_MAX;
 }
 
-// Notification best-effort vers Florian via le compte Gmail IRIS déjà
-// connecté pour les relances — la soumission reste enregistrée en base même
-// si l'envoi échoue (aucun compte connecté, quota Google, etc.), pour ne
-// jamais perdre un message faute d'intégration active.
-async function notifyByEmail(type: TypeDemande, nom: string, email: string, societe: string | undefined, message: string) {
-  const credential = await getGmailCredential('IRIS');
-  if (!credential?.refreshToken || credential.statut !== 'actif') return;
-  const typeLabel = type === 'investir' ? 'Investir' : type === 'poc' ? 'Devenir client pilote' : 'Autre';
-  const subject = `[Olu 360 — vitrine] Nouvelle demande : ${typeLabel}`;
+interface Demande {
+  type: TypeDemande;
+  nom: string;
+  email: string;
+  telephone?: string;
+  societe?: string;
+  message: string;
+}
+
+// Notification best-effort vers Florian. La demande est TOUJOURS enregistrée en
+// base : une notification manquée ne doit jamais faire perdre un prospect.
+// Deux canaux, dans l'ordre :
+//   1) Gmail IRIS s'il est connecté (console groupe / relances) ;
+//   2) sinon le fournisseur email configuré (SaaS Feyma : Resend en HTTP).
+// replyTo = email du prospect → Florian répond directement depuis sa boîte.
+async function notifyByEmail(d: Demande) {
+  const typeLabel = TYPE_LABELS[d.type];
+  const subject = `[Feyma — vitrine] Nouvelle demande : ${typeLabel}`;
   const body = [
     `Type : ${typeLabel}`,
-    `Nom : ${nom}`,
-    `Email : ${email}`,
-    societe ? `Société : ${societe}` : null,
+    `Nom : ${d.nom}`,
+    `Email : ${d.email}`,
+    d.telephone ? `Téléphone : ${d.telephone}` : null,
+    d.societe ? `Société : ${d.societe}` : null,
     '',
-    message,
+    d.message || '(aucun message)',
   ]
     .filter((l) => l !== null)
     .join('\n');
-  await sendViaGmail(credential.refreshToken, 'f.baudoin@iris-afrique.com', subject, body, []);
+
+  const credential = await getGmailCredential('IRIS');
+  if (credential?.refreshToken && credential.statut === 'actif') {
+    await sendViaGmail(credential.refreshToken, DESTINATAIRE, subject, body, []);
+    return;
+  }
+  if (emailMode() !== 'stub') {
+    await getEmailProvider().send({ to: DESTINATAIRE, subject, text: body, replyTo: d.email });
+    return;
+  }
+  console.warn('Contact : aucun canal email disponible — demande enregistrée en base uniquement');
 }
 
 contactRouter.post('/', async (req, res, next) => {
@@ -55,10 +84,11 @@ contactRouter.post('/', async (req, res, next) => {
       return res.status(429).json({ error: 'Trop de demandes envoyées récemment — réessayez plus tard.' });
     }
 
-    const { type, nom, email, societe, message } = (req.body ?? {}) as {
+    const { type, nom, email, telephone, societe, message } = (req.body ?? {}) as {
       type?: string;
       nom?: string;
       email?: string;
+      telephone?: string;
       societe?: string;
       message?: string;
     };
@@ -66,31 +96,54 @@ contactRouter.post('/', async (req, res, next) => {
     if (!type || !TYPES.includes(type as TypeDemande)) {
       return res.status(400).json({ error: 'type invalide' });
     }
+    const t = type as TypeDemande;
     if (!nom?.trim() || nom.length > 200) {
       return res.status(400).json({ error: 'nom requis' });
     }
     if (!email?.trim() || email.length > 320 || !EMAIL_RE.test(email.trim())) {
       return res.status(400).json({ error: 'email invalide' });
     }
-    if (!message?.trim() || message.length > 5000) {
-      return res.status(400).json({ error: 'message requis (5000 caractères maximum)' });
+    if (telephone && telephone.length > 40) {
+      return res.status(400).json({ error: 'téléphone invalide' });
     }
     if (societe && societe.length > 200) {
       return res.status(400).json({ error: 'société trop longue' });
     }
+    // Pour une demande de rappel, le téléphone est requis et le message
+    // facultatif (on rappelle) ; pour les autres types, le message est requis.
+    if (t === 'rappel') {
+      if (!telephone?.trim()) {
+        return res.status(400).json({ error: 'téléphone requis pour être rappelé' });
+      }
+    } else if (!message?.trim()) {
+      return res.status(400).json({ error: 'message requis' });
+    }
+    if (message && message.length > 5000) {
+      return res.status(400).json({ error: 'message trop long (5000 caractères maximum)' });
+    }
+
+    const demande: Demande = {
+      type: t,
+      nom: nom.trim(),
+      email: email.trim(),
+      telephone: telephone?.trim() || undefined,
+      societe: societe?.trim() || undefined,
+      message: message?.trim() || '',
+    };
 
     await prisma.demandeContact.create({
       data: {
-        type: type as TypeDemande,
-        nom: nom.trim(),
-        email: email.trim(),
-        societe: societe?.trim() || null,
-        message: message.trim(),
+        type: demande.type,
+        nom: demande.nom,
+        email: demande.email,
+        telephone: demande.telephone ?? null,
+        societe: demande.societe ?? null,
+        message: demande.message,
       },
     });
 
     try {
-      await notifyByEmail(type as TypeDemande, nom.trim(), email.trim(), societe?.trim(), message.trim());
+      await notifyByEmail(demande);
     } catch (emailErr) {
       // La demande est déjà enregistrée — une notification manquée n'est
       // jamais une raison de renvoyer une erreur à l'utilisateur.
