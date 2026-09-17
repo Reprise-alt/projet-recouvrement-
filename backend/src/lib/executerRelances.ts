@@ -9,6 +9,7 @@ import { generateLetter, LetterClient } from './letters';
 import { PALIERS } from './paliers';
 import { ClientRelance, dansFenetreEnvoi, relancesDues } from './moteurRelances';
 import { construireRelanceMarque, OrgIdentite } from './modelesRelance';
+import { chargerModelesOrg } from '../services/modeleRelanceService';
 
 // Au-delà de ce palier, la relance n'est jamais envoyée automatiquement :
 // pénalités, commandement de payer et contentieux (§5.1) impliquent une action
@@ -147,6 +148,9 @@ export async function executerRelancesTenant(opts: OptionsExecution = {}): Promi
       }
     : null;
 
+  // Modèles personnalisés du tenant (§5.3) — surchargent les modèles par défaut.
+  const modelesOrg = orgIdentite ? await chargerModelesOrg() : null;
+
   const provider = getEmailProvider();
   const envoyees: RelanceEnvoyee[] = [];
   const ignorees: RelanceIgnoree[] = [];
@@ -170,7 +174,12 @@ export async function executerRelancesTenant(opts: OptionsExecution = {}): Promi
     let texte: string;
     let html: string | undefined;
     if (orgIdentite) {
-      const r = construireRelanceMarque({ nom: c.nom, factures: c.factures, frequenceFacturation: c.frequenceFacturation }, orgIdentite, d.palier);
+      const r = construireRelanceMarque(
+        { nom: c.nom, factures: c.factures, frequenceFacturation: c.frequenceFacturation },
+        orgIdentite,
+        d.palier,
+        modelesOrg?.get(d.palier),
+      );
       sujet = r.sujet;
       texte = r.texte;
       html = r.html;
