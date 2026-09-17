@@ -5,6 +5,7 @@ import { InscriptionOtpPage } from './components/InscriptionOtpPage';
 import { OnboardingChecklist } from './components/OnboardingChecklist';
 import { RecouvrementView } from './components/RecouvrementView';
 import { RelancesAVenirView } from './components/RelancesAVenirView';
+import { ModelesRelancePanel } from './components/ModelesRelancePanel';
 import { ContractsView } from './components/ContractsView';
 import { ContentieuxView } from './components/ContentieuxView';
 import { PlanningView } from './components/PlanningView';
@@ -71,6 +72,7 @@ export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [usersOpen, setUsersOpen] = useState(false);
+  const [modelesOpen, setModelesOpen] = useState(false);
   const [integrationsOpen, setIntegrationsOpen] = useState(false);
   const [entreprisesOpen, setEntreprisesOpen] = useState(false);
   const [dataVersion, setDataVersion] = useState(0);
@@ -274,6 +276,7 @@ export function App() {
             <div className="rail-section-label">Administration</div>
             <div className="rail-nav">
               <button onClick={() => setSettingsOpen(true)}>Paramètres des paliers</button>
+              <button onClick={() => setModelesOpen(true)}>Modèles de relance</button>
               <button onClick={() => setImportOpen(true)}>Importer un fichier</button>
               <button onClick={() => setUsersOpen(true)}>Utilisateurs</button>
               <button onClick={() => setIntegrationsOpen(true)}>Intégrations</button>
@@ -336,6 +339,7 @@ export function App() {
       {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} onSaved={bumpDataVersion} />}
       {importOpen && <ImportPanel onClose={() => setImportOpen(false)} onImported={bumpDataVersion} />}
       {usersOpen && <UsersPanel onClose={() => setUsersOpen(false)} />}
+      {modelesOpen && <ModelesRelancePanel onClose={() => setModelesOpen(false)} />}
       {integrationsOpen && <IntegrationsPanel onClose={() => setIntegrationsOpen(false)} />}
       {entreprisesOpen && <EntreprisesPanel onClose={() => setEntreprisesOpen(false)} onChanged={refetchEntreprises} />}
     </div>

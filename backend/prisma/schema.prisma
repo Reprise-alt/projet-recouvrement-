@@ -158,8 +158,25 @@ model Organisation {
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
 
-  clients      Client[]
-  utilisateurs Utilisateur[]
+  clients        Client[]
+  utilisateurs   Utilisateur[]
+  modelesRelance ModeleRelanceOrg[]
+}
+
+// Modèle de relance personnalisé par une organisation (addendum §5.3). Surcharge
+// le modèle par défaut (lib/modelesRelance) pour un palier donné : sujet + corps
+// avec variables. Absence de ligne = modèle par défaut. Table tenant (RLS).
+model ModeleRelanceOrg {
+  id             String       @id @default(cuid())
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  organisationId String       @default(dbgenerated("coalesce(current_setting('app.organisation_id', true), 'org-groupe-olu360')"))
+  palier         Int
+  sujet          String
+  corps          String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organisationId, palier])
 }
 
 model Client {
