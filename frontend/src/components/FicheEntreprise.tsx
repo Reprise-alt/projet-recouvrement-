@@ -40,6 +40,10 @@ export function FicheEntreprise({
         pays: org.pays,
         identifiantFiscal: org.identifiantFiscal,
         rccm: org.rccm,
+        formeJuridique: org.formeJuridique,
+        capitalSocial: org.capitalSocial,
+        nomDirigeant: org.nomDirigeant,
+        cniDirigeant: org.cniDirigeant,
         adresse: org.adresse,
         logoUrl: org.logoUrl,
         instructionsPaiement: org.instructionsPaiement,
@@ -98,6 +102,28 @@ export function FicheEntreprise({
                   onChange={(e) => champ('contactRecouvrement', e.target.value)}
                   placeholder="email ou téléphone"
                 />
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="field">
+                <label>Forme juridique</label>
+                <input value={org.formeJuridique ?? ''} onChange={(e) => champ('formeJuridique', e.target.value)} placeholder="Ex. SARL, SAS…" />
+              </div>
+              <div className="field">
+                <label>Capital social</label>
+                <input value={org.capitalSocial ?? ''} onChange={(e) => champ('capitalSocial', e.target.value)} placeholder="Ex. 500 000 FCFA" />
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="field">
+                <label>Nom du dirigeant</label>
+                <input value={org.nomDirigeant ?? ''} onChange={(e) => champ('nomDirigeant', e.target.value)} placeholder="Représentant légal" />
+              </div>
+              <div className="field">
+                <label>CNI du dirigeant</label>
+                <input value={org.cniDirigeant ?? ''} onChange={(e) => champ('cniDirigeant', e.target.value)} />
               </div>
             </div>
 

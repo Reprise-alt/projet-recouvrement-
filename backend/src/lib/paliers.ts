@@ -16,7 +16,7 @@ export interface PalierConfig {
 // Les autres seuils j1..j7 sont inchangés (comptés depuis l'échéance).
 export const DEFAULT_CONFIG: PalierConfig = { j0: 1, j1: 7, j2: 15, j3: 30, j4: 45, j5: 60, j6: 75, j7: 90 };
 
-export type FrequenceFacturation = 'mensuelle' | 'trimestrielle' | 'annuelle';
+export type FrequenceFacturation = 'mensuelle' | 'trimestrielle' | 'annuelle' | 'ponctuelle';
 
 // Multiplie l'échelle de paliers pour les clients qui ne payent pas chaque
 // mois — un compte trimestriel à J+80 est simplement dans son cycle normal,
@@ -25,6 +25,8 @@ export const FREQUENCE_MULTIPLIER: Record<FrequenceFacturation, number> = {
   mensuelle: 1,
   trimestrielle: 3,
   annuelle: 12,
+  // Facturation à l'acte : aucun cycle à étirer, l'échéance fait foi (× 1).
+  ponctuelle: 1,
 };
 
 export type PalierTone = 'success' | 'amber' | 'danger';

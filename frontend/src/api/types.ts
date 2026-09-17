@@ -2,7 +2,7 @@
 // une chaîne quelconque, validée côté serveur contre la table Entreprise.
 export type Entite = string;
 export type RoleUtilisateur = 'admin' | 'manager_entite' | 'comptable';
-export type FrequenceFacturation = 'mensuelle' | 'trimestrielle' | 'annuelle';
+export type FrequenceFacturation = 'mensuelle' | 'trimestrielle' | 'annuelle' | 'ponctuelle';
 
 export interface Entreprise {
   id: string;
@@ -22,6 +22,10 @@ export interface Organisation {
   pays: 'SN' | 'CI';
   identifiantFiscal: string | null;
   rccm: string | null;
+  formeJuridique: string | null;
+  capitalSocial: string | null;
+  nomDirigeant: string | null;
+  cniDirigeant: string | null;
   adresse: string | null;
   logoUrl: string | null;
   instructionsPaiement: string | null;

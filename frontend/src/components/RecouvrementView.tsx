@@ -352,8 +352,20 @@ export function RecouvrementView({ entityFilter, role, reloadKey, onImport }: Pr
                           </span>
                         )}
                         {c.frequenceFacturation !== 'mensuelle' && (
-                          <span className="entity-tag" style={{ marginLeft: 8, fontSize: 10 }} title="L'échelle de paliers est adaptée à ce rythme de facturation">
-                            {c.frequenceFacturation === 'trimestrielle' ? 'Trimestriel' : 'Annuel'}
+                          <span
+                            className="entity-tag"
+                            style={{ marginLeft: 8, fontSize: 10 }}
+                            title={
+                              c.frequenceFacturation === 'ponctuelle'
+                                ? "Facturation à l'acte : l'échéance fait foi telle quelle"
+                                : "L'échelle de paliers est adaptée à ce rythme de facturation"
+                            }
+                          >
+                            {c.frequenceFacturation === 'trimestrielle'
+                              ? 'Trimestriel'
+                              : c.frequenceFacturation === 'annuelle'
+                                ? 'Annuel'
+                                : 'Ponctuel'}
                           </span>
                         )}
                         {c.note && (

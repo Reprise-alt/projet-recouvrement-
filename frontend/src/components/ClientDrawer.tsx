@@ -4,7 +4,7 @@ import { api, ApiError } from '../api/client';
 import { ClientDetail, Contact, DossierRef, EcheancierPaiement, RoleUtilisateur, SignalOperations } from '../api/types';
 import { useResource } from '../hooks/useResource';
 import { useToast } from '../hooks/useToast';
-import { fmtDate, fmtFCFA, PALIERS } from '../lib/constants';
+import { fmtDate, fmtFCFA, FREQUENCE_LABELS, PALIERS } from '../lib/constants';
 import { usePaliersConfig } from '../lib/paliersConfig';
 
 interface Props {
@@ -606,15 +606,19 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
                 <option value="mensuelle">Mensuelle</option>
                 <option value="trimestrielle">Trimestrielle</option>
                 <option value="annuelle">Annuelle</option>
+                <option value="ponctuelle">Ponctuelle (facturation à l'acte)</option>
               </select>
             ) : (
-              <div style={{ fontSize: 13 }}>
-                {client.frequenceFacturation === 'trimestrielle' ? 'Trimestrielle' : client.frequenceFacturation === 'annuelle' ? 'Annuelle' : 'Mensuelle'}
-              </div>
+              <div style={{ fontSize: 13 }}>{FREQUENCE_LABELS[client.frequenceFacturation] ?? 'Mensuelle'}</div>
             )}
-            {client.frequenceFacturation !== 'mensuelle' && (
+            {(client.frequenceFacturation === 'trimestrielle' || client.frequenceFacturation === 'annuelle') && (
               <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 4 }}>
                 L'échelle de paliers est adaptée en conséquence (seuils ×{client.frequenceFacturation === 'trimestrielle' ? 3 : 12}).
+              </div>
+            )}
+            {client.frequenceFacturation === 'ponctuelle' && (
+              <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 4 }}>
+                Facturation à l'acte : pas de cycle récurrent, l'échéance de la facture fait foi telle quelle.
               </div>
             )}
 

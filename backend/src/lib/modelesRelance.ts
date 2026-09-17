@@ -78,6 +78,8 @@ export interface OrgIdentite {
   adresse?: string | null;
   identifiantFiscal?: string | null;
   rccm?: string | null;
+  formeJuridique?: string | null;
+  capitalSocial?: string | null;
   contactRecouvrement?: string | null;
   instructionsPaiement?: string | null;
   pays?: 'SN' | 'CI' | null;
@@ -128,7 +130,18 @@ export function emailRelanceHtml(org: OrgIdentite, corpsRendu: string, instructi
          <div style="font-size:14px;line-height:1.5;color:#22262a">${escapeHtml(instructionsPaiement.trim()).replace(/\n/g, '<br/>')}</div>
        </div>`
     : '';
+  // Mention légale « <forme> au capital de <montant> » (OHADA) — assemblée des
+  // deux champs, ou l'un des deux s'il manque l'autre.
+  const mentionLegale =
+    org.formeJuridique && org.capitalSocial
+      ? `${escapeHtml(org.formeJuridique)} au capital de ${escapeHtml(org.capitalSocial)}`
+      : org.formeJuridique
+        ? escapeHtml(org.formeJuridique)
+        : org.capitalSocial
+          ? `Capital : ${escapeHtml(org.capitalSocial)}`
+          : '';
   const piedInfos = [
+    mentionLegale,
     org.adresse ? escapeHtml(org.adresse) : '',
     org.identifiantFiscal ? `${org.pays === 'CI' ? 'IFU' : 'NINEA'} : ${escapeHtml(org.identifiantFiscal)}` : '',
     org.rccm ? `RCCM : ${escapeHtml(org.rccm)}` : '',

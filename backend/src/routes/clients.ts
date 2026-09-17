@@ -279,7 +279,7 @@ clientsRouter.post('/:id/contacts', requireRole('admin', 'manager_entite'), asyn
   }
 });
 
-const FREQUENCES_VALIDES = ['mensuelle', 'trimestrielle', 'annuelle'];
+const FREQUENCES_VALIDES = ['mensuelle', 'trimestrielle', 'annuelle', 'ponctuelle'];
 
 clientsRouter.patch('/:id/frequence-facturation', requireRole('admin', 'manager_entite'), async (req, res, next) => {
   try {
