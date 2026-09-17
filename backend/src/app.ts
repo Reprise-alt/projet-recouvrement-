@@ -51,32 +51,6 @@ export function createApp() {
   // true, sinon les données de tous les tenants retombent dans l'org par défaut.
   app.get('/health', (_req, res) => res.json({ ok: true, rls: rlsActive(), email: emailMode() }));
 
-  // Auto-test email PUBLIC (sans authentification) — diagnostic de dépannage
-  // quand l'exploitant est verrouillé dehors (l'OTP de connexion part par email,
-  // donc une clé invalide bloque aussi la connexion). Interroge l'API Resend
-  // avec la clé configurée et renvoie sa VALIDITÉ, sans jamais exposer la clé
-  // (ni aperçu) : seulement mode, source, longueur, valide/invalide et le code.
-  app.get('/email-selftest', async (_req, res) => {
-    const mode = emailMode();
-    const key = (process.env.RESEND_API_KEY || process.env.SMTP_PASS || '').trim();
-    const keySource = process.env.RESEND_API_KEY ? 'RESEND_API_KEY' : process.env.SMTP_PASS ? 'SMTP_PASS' : 'aucune';
-    let keyValid: boolean | null = null;
-    let status: number | null = null;
-    if (key) {
-      try {
-        const r = await fetch('https://api.resend.com/domains', {
-          headers: { Authorization: `Bearer ${key}` },
-          signal: AbortSignal.timeout(10_000),
-        });
-        status = r.status;
-        keyValid = r.ok;
-      } catch {
-        keyValid = null; // réseau/timeout
-      }
-    }
-    res.json({ mode, keySource, keyLength: key.length, keyValid, status });
-  });
-
   app.use('/api/auth', authRouter);
   app.use('/api/auth/otp', authOtpRouter);
   app.use('/api/onboarding', onboardingRouter);
