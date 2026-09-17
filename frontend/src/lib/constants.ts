@@ -115,6 +115,14 @@ export function tachesDoublons<T extends { id: string; coursierId: string | null
   return doublons;
 }
 
+// Libellés des fréquences de facturation (miroir de FrequenceFacturation).
+export const FREQUENCE_LABELS: Record<string, string> = {
+  mensuelle: 'Mensuelle',
+  trimestrielle: 'Trimestrielle',
+  annuelle: 'Annuelle',
+  ponctuelle: 'Ponctuelle',
+};
+
 export function fmtFCFA(n: number): string {
   return n.toLocaleString('fr-FR') + ' FCFA';
 }

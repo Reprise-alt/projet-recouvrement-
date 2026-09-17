@@ -66,6 +66,9 @@ enum FrequenceFacturation {
   mensuelle
   trimestrielle
   annuelle
+  // Facturation à l'acte (one-shot) : pas de cycle récurrent, l'échéance de la
+  // facture fait foi telle quelle (multiplicateur de paliers = 1).
+  ponctuelle
 }
 
 // Liste des entités du groupe (SORAM, SIS, IRIS…), gérable depuis
@@ -139,6 +142,13 @@ model Organisation {
   // NINEA / IFU selon le pays.
   identifiantFiscal    String?
   rccm                 String?
+  // Forme juridique (ex. « SARL au capital de 500 000 FCFA ») et capital social,
+  // affichés sur les entêtes de courriers et les actes juridiques (OHADA).
+  formeJuridique       String?
+  capitalSocial        String?
+  // Représentant légal — sert aux actes (mise en demeure, commandement).
+  nomDirigeant         String?
+  cniDirigeant         String?
   adresse              String?
   logoUrl              String?
   // Affichées au débiteur sur les messages et le portail (§3, §7.1).

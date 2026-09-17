@@ -168,14 +168,16 @@ relancesRouter.post('/modeles/:palier/apercu', async (req, res, next) => {
           where: { id: orgId },
           select: {
             raisonSociale: true, logoUrl: true, adresse: true, identifiantFiscal: true,
-            rccm: true, contactRecouvrement: true, instructionsPaiement: true, pays: true,
+            rccm: true, formeJuridique: true, capitalSocial: true, contactRecouvrement: true,
+            instructionsPaiement: true, pays: true,
           },
         })
       : null;
     const identite: OrgIdentite = {
       raisonSociale: org?.raisonSociale ?? 'Votre entreprise',
       logoUrl: org?.logoUrl, adresse: org?.adresse, identifiantFiscal: org?.identifiantFiscal,
-      rccm: org?.rccm, contactRecouvrement: org?.contactRecouvrement,
+      rccm: org?.rccm, formeJuridique: org?.formeJuridique, capitalSocial: org?.capitalSocial,
+      contactRecouvrement: org?.contactRecouvrement,
       instructionsPaiement: org?.instructionsPaiement, pays: org?.pays,
     };
     const sujet = req.body?.sujet != null ? String(req.body.sujet) : MODELES_DEFAUT[palier].sujet;
