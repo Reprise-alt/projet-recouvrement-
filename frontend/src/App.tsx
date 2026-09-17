@@ -22,6 +22,7 @@ import { EntreprisesPanel } from './components/EntreprisesPanel';
 import { FicheEntreprise } from './components/FicheEntreprise';
 import { AbonnementBloque } from './components/AbonnementBloque';
 import { SuperAdminPanel } from './components/SuperAdminPanel';
+import { OffresAbonnement } from './components/OffresAbonnement';
 import { EntityLogo } from './components/EntityLogo';
 import { Entite, Entreprise } from './api/types';
 import { useResource } from './hooks/useResource';
@@ -80,6 +81,7 @@ export function App() {
   const [entreprisesOpen, setEntreprisesOpen] = useState(false);
   const [ficheOpen, setFicheOpen] = useState(false);
   const [superAdminOpen, setSuperAdminOpen] = useState(false);
+  const [offresOpen, setOffresOpen] = useState(false);
   const [dataVersion, setDataVersion] = useState(0);
   // Démarrage guidé SaaS : les comptes d'organisation (roleOrg) atterrissent sur
   // la checklist tant qu'ils ne sont pas entrés dans la console.
@@ -395,9 +397,12 @@ export function App() {
                 ? `Il vous reste ${abo.joursRestants} jour${abo.joursRestants > 1 ? 's' : ''} d'essai.`
                 : "Vous êtes en période d'essai."}
             </span>
-            <a href="mailto:contact@olu360.com" style={{ marginLeft: 'auto', fontWeight: 600 }}>
-              Activer mon abonnement →
-            </a>
+            <button
+              onClick={() => setOffresOpen(true)}
+              style={{ marginLeft: 'auto', fontWeight: 600, background: 'none', border: 'none', color: 'var(--accent, #177f5e)', cursor: 'pointer', padding: 0, font: 'inherit' }}
+            >
+              Voir les offres & activer →
+            </button>
           </div>
         )}
 
@@ -438,6 +443,22 @@ export function App() {
       {entreprisesOpen && <EntreprisesPanel onClose={() => setEntreprisesOpen(false)} onChanged={refetchEntreprises} />}
       {ficheOpen && <FicheEntreprise onClose={() => setFicheOpen(false)} onSaved={bumpDataVersion} />}
       {superAdminOpen && <SuperAdminPanel onClose={() => setSuperAdminOpen(false)} />}
+      {offresOpen && (
+        <div className="modal-overlay open" onClick={(e) => e.target === e.currentTarget && setOffresOpen(false)}>
+          <div className="modal" style={{ width: 'min(760px, 96%)' }}>
+            <h2 style={{ marginBottom: 4 }}>Nos offres</h2>
+            <div style={{ color: 'var(--ink-soft)', fontSize: 12.5, marginBottom: 16 }}>
+              {abo?.etat === 'essai' && abo.joursRestants != null
+                ? `Il vous reste ${abo.joursRestants} jour${abo.joursRestants > 1 ? 's' : ''} d'essai. Choisissez votre formule pour continuer sans interruption.`
+                : 'Choisissez la formule adaptée à votre volume de débiteurs.'}
+            </div>
+            <OffresAbonnement formuleRecommandee={user.formule} />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
+              <button onClick={() => setOffresOpen(false)}>Fermer</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

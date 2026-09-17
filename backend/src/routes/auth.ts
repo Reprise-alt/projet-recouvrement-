@@ -23,13 +23,14 @@ authRouter.get('/me', requireAuth, async (req, res, next) => {
     const org = await prisma.organisation
       .findUnique({
         where: { id: req.user!.organisationId },
-        select: { raisonSociale: true, logoUrl: true, statut: true, dateFinEssai: true },
+        select: { raisonSociale: true, logoUrl: true, statut: true, dateFinEssai: true, formule: true },
       })
       .catch(() => null);
     res.json({
       ...req.user,
       raisonSociale: org?.raisonSociale ?? null,
       logoUrl: org?.logoUrl ?? null,
+      formule: org?.formule ?? null,
       // État d'abonnement (essai / actif / bloqué) : le front affiche le bandeau
       // de compte à rebours ou l'écran « essai terminé » selon ce champ.
       abonnement: org ? etatAbonnement(org) : null,
