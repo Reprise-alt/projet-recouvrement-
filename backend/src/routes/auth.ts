@@ -2,6 +2,8 @@ import { Router } from 'express';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../db';
 import { requireAuth } from '../middleware/auth';
+import { etatAbonnement } from '../lib/abonnement';
+import { estSuperAdmin } from '../lib/superAdmin';
 
 export const authRouter = Router();
 
@@ -19,9 +21,21 @@ authRouter.get('/me', requireAuth, async (req, res, next) => {
     // du branding groupe. Lecture unique par ouverture d'app (pas de polling),
     // donc c'est l'endroit naturel — inutile d'alourdir chaque requête protégée.
     const org = await prisma.organisation
-      .findUnique({ where: { id: req.user!.organisationId }, select: { raisonSociale: true, logoUrl: true } })
+      .findUnique({
+        where: { id: req.user!.organisationId },
+        select: { raisonSociale: true, logoUrl: true, statut: true, dateFinEssai: true },
+      })
       .catch(() => null);
-    res.json({ ...req.user, raisonSociale: org?.raisonSociale ?? null, logoUrl: org?.logoUrl ?? null });
+    res.json({
+      ...req.user,
+      raisonSociale: org?.raisonSociale ?? null,
+      logoUrl: org?.logoUrl ?? null,
+      // État d'abonnement (essai / actif / bloqué) : le front affiche le bandeau
+      // de compte à rebours ou l'écran « essai terminé » selon ce champ.
+      abonnement: org ? etatAbonnement(org) : null,
+      // L'exploitant plateforme voit le back-office d'activation (§8).
+      superAdmin: estSuperAdmin(req.user!.email),
+    });
   } catch (err) {
     next(err);
   }

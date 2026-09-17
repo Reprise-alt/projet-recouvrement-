@@ -69,6 +69,8 @@ authOtpRouter.post('/verify', async (req, res, next) => {
           raisonSociale,
           slug: await slugUnique(raisonSociale),
           statut: 'essai',
+          // Essai de 14 jours (cf. vitrine §8) — l'exploitant active ensuite.
+          dateFinEssai: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
           secteur,
           outilFacturation,
           trancheDebiteurs,

@@ -20,6 +20,7 @@ import { UsersPanel } from './components/UsersPanel';
 import { IntegrationsPanel } from './components/IntegrationsPanel';
 import { EntreprisesPanel } from './components/EntreprisesPanel';
 import { FicheEntreprise } from './components/FicheEntreprise';
+import { AbonnementBloque } from './components/AbonnementBloque';
 import { EntityLogo } from './components/EntityLogo';
 import { Entite, Entreprise } from './api/types';
 import { useResource } from './hooks/useResource';
@@ -168,6 +169,14 @@ export function App() {
         </button>
       </div>
     );
+  }
+
+  // Abonnement bloqué (essai terminé / compte suspendu) : écran doux à la place
+  // de la console, données conservées. Ne concerne que le SaaS (les comptes
+  // groupe sont « actif »).
+  const abo = user.abonnement;
+  if (abo && (abo.etat === 'essai_expire' || abo.etat === 'suspendu')) {
+    return <AbonnementBloque etat={abo.etat} />;
   }
 
   const isAdmin = user.role === 'admin';
@@ -349,6 +358,35 @@ export function App() {
       </nav>
 
       <main className="app-main">
+        {/* Bandeau d'essai : compte à rebours discret tant que le compte est en
+            période d'essai. */}
+        {abo?.etat === 'essai' && (
+          <div
+            style={{
+              margin: '0 0 16px',
+              padding: '10px 16px',
+              borderRadius: 10,
+              background: 'var(--amber-soft, #fff4e0)',
+              border: '1px solid var(--amber, #e0a13a)',
+              fontSize: 13,
+              display: 'flex',
+              gap: 10,
+              alignItems: 'center',
+              flexWrap: 'wrap',
+            }}
+          >
+            <b>Essai gratuit</b>
+            <span>
+              {abo.joursRestants != null
+                ? `Il vous reste ${abo.joursRestants} jour${abo.joursRestants > 1 ? 's' : ''} d'essai.`
+                : "Vous êtes en période d'essai."}
+            </span>
+            <a href="mailto:contact@olu360.com" style={{ marginLeft: 'auto', fontWeight: 600 }}>
+              Activer mon abonnement →
+            </a>
+          </div>
+        )}
+
         <div className="app-main-head">
           <h1>{meta.titre}</h1>
           {/* Le sous-titre du groupe se termine par « — SORAM · IRIS · SIS » ;

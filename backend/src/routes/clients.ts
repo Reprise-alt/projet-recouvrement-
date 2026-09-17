@@ -17,8 +17,9 @@ import { fmtDate, fmtFCFA } from '../lib/dates';
 
 export const clientsRouter = Router();
 import { tenantScope } from '../middleware/tenant';
+import { requireAbonnementActif } from '../middleware/abonnement';
 
-clientsRouter.use(requireAuth, requireAccesRecouvrement, tenantScope);
+clientsRouter.use(requireAuth, requireAbonnementActif, requireAccesRecouvrement, tenantScope);
 
 function entiteWhere(entiteFilter: Entite | 'ALL') {
   if (entiteFilter === 'ALL') return {};

@@ -13,6 +13,7 @@ import {
 import { chargerModelesOrg } from '../services/modeleRelanceService';
 import { requireAccesRecouvrement, requireAuth, requireRole } from '../middleware/auth';
 import { tenantScope } from '../middleware/tenant';
+import { requireAbonnementActif } from '../middleware/abonnement';
 
 // Paliers dont le message part automatiquement (amiable) — l'éditeur ne porte
 // que sur ceux-là (cf. PALIER_MAX_AUTO).
@@ -24,7 +25,7 @@ const PALIERS_MODIFIABLES = [1, 2, 3, 4, 5];
 // lib/moteurRelances), plus l'état de la fenêtre d'envoi (§5.2) et le drapeau
 // « relances activées » de l'organisation (posé par la checklist §4.3).
 export const relancesRouter = Router();
-relancesRouter.use(requireAuth, requireAccesRecouvrement, tenantScope);
+relancesRouter.use(requireAuth, requireAbonnementActif, requireAccesRecouvrement, tenantScope);
 
 relancesRouter.get('/dues', async (_req, res, next) => {
   try {

@@ -165,6 +165,11 @@ model Organisation {
   emailReponse         String?
   formule              FormuleAbo         @default(pme)
   statut               StatutOrganisation @default(actif)
+  // Fin de la période d'essai (addendum §8) : posée à l'inscription (14 j).
+  // Passé cette date, un compte encore en statut « essai » est bloqué en douceur
+  // jusqu'à activation par l'exploitant. Null = pas d'essai (comptes « actif »,
+  // ex. le groupe socle).
+  dateFinEssai         DateTime?
 
   // Profilage à l'inscription (addendum §4.2) : trois questions qui servent à
   // préremplir la formule recommandée, les modèles et le scénario. Optionnelles
