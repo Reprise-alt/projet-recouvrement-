@@ -19,6 +19,7 @@ import { ImportPanel } from './components/ImportPanel';
 import { UsersPanel } from './components/UsersPanel';
 import { IntegrationsPanel } from './components/IntegrationsPanel';
 import { EntreprisesPanel } from './components/EntreprisesPanel';
+import { FicheEntreprise } from './components/FicheEntreprise';
 import { EntityLogo } from './components/EntityLogo';
 import { Entite, Entreprise } from './api/types';
 import { useResource } from './hooks/useResource';
@@ -75,6 +76,7 @@ export function App() {
   const [modelesOpen, setModelesOpen] = useState(false);
   const [integrationsOpen, setIntegrationsOpen] = useState(false);
   const [entreprisesOpen, setEntreprisesOpen] = useState(false);
+  const [ficheOpen, setFicheOpen] = useState(false);
   const [dataVersion, setDataVersion] = useState(0);
   // Démarrage guidé SaaS : les comptes d'organisation (roleOrg) atterrissent sur
   // la checklist tant qu'ils ne sont pas entrés dans la console.
@@ -301,6 +303,10 @@ export function App() {
           <div className="rail-section">
             <div className="rail-section-label">Administration</div>
             <div className="rail-nav">
+              {/* Fiche entreprise : profil de la société (logo, NINEA/IFU, RCCM,
+                  adresse, contact, instructions de paiement). Accessible en
+                  permanence en SaaS — plus seulement pendant l'onboarding. */}
+              {IS_SAAS && <button onClick={() => setFicheOpen(true)}>Fiche entreprise</button>}
               <button onClick={() => setSettingsOpen(true)}>Paramètres des paliers</button>
               <button onClick={() => setModelesOpen(true)}>Modèles de relance</button>
               <button onClick={() => setImportOpen(true)}>Importer un fichier</button>
@@ -372,6 +378,7 @@ export function App() {
       {modelesOpen && <ModelesRelancePanel onClose={() => setModelesOpen(false)} />}
       {integrationsOpen && <IntegrationsPanel onClose={() => setIntegrationsOpen(false)} />}
       {entreprisesOpen && <EntreprisesPanel onClose={() => setEntreprisesOpen(false)} onChanged={refetchEntreprises} />}
+      {ficheOpen && <FicheEntreprise onClose={() => setFicheOpen(false)} onSaved={bumpDataVersion} />}
     </div>
   );
 }

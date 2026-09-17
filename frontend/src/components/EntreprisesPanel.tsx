@@ -3,6 +3,7 @@ import { api, ApiError } from '../api/client';
 import { Entreprise } from '../api/types';
 import { useResource } from '../hooks/useResource';
 import { useToast } from '../hooks/useToast';
+import { IS_SAAS } from '../auth/mode';
 
 export function EntreprisesPanel({ onClose, onChanged }: { onClose: () => void; onChanged: () => void }) {
   const { showToast } = useToast();
@@ -47,9 +48,12 @@ export function EntreprisesPanel({ onClose, onChanged }: { onClose: () => void; 
       <div className="modal" style={{ width: 'min(560px, 92%)' }}>
         <h2 style={{ marginBottom: 4 }}>Entreprises</h2>
         <div style={{ color: 'var(--ink-soft)', fontSize: 12.5, marginBottom: 16 }}>
-          Les entités du groupe (SORAM, SIS, IRIS…). En ajouter une la rend disponible partout : filtre par entité,
-          import de fichiers (reconnue si son nom apparaît dans le bandeau du classeur), rattachement des utilisateurs.
-          Une entité désactivée n'apparaît plus dans les filtres, mais ses données existantes sont conservées.
+          {IS_SAAS
+            ? 'Vos entités : établissements, agences ou filiales que vous suivez séparément. '
+            : 'Les entités du groupe (SORAM, SIS, IRIS…). '}
+          En ajouter une la rend disponible partout : filtre par entité, import de fichiers (reconnue si son nom apparaît
+          dans le bandeau du classeur), rattachement des utilisateurs. Une entité désactivée n'apparaît plus dans les
+          filtres, mais ses données existantes sont conservées.
         </div>
 
         <div className="section-title">Entités</div>
