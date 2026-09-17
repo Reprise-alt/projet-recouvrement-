@@ -134,6 +134,9 @@ model Organisation {
   // Affichées au débiteur sur les messages et le portail (§3, §7.1).
   instructionsPaiement String?
   contactRecouvrement  String?
+  // Adresse email de réponse affichée sur les relances (Reply-To) — §5.3/§6 :
+  // le débiteur voit et répond à l'entreprise cliente, pas à OLU.
+  emailReponse         String?
   formule              FormuleAbo         @default(pme)
   statut               StatutOrganisation @default(actif)
 
