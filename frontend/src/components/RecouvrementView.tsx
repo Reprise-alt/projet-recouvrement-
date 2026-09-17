@@ -17,6 +17,8 @@ interface Props {
   // Ouvre l'import (fourni uniquement si l'utilisateur a le droit d'importer).
   // Sert l'écran vide pédagogique d'un compte sans aucune créance (addendum §4.3).
   onImport?: () => void;
+  // Reporting inclus dans la formule ? (masque l'onglet Reporting sinon.)
+  canReporting?: boolean;
 }
 
 function needsAction(c: ClientListItem): boolean {
@@ -25,7 +27,7 @@ function needsAction(c: ClientListItem): boolean {
   return actionStale || relanceOverdue;
 }
 
-export function RecouvrementView({ entityFilter, role, reloadKey, onImport }: Props) {
+export function RecouvrementView({ entityFilter, role, reloadKey, onImport, canReporting = true }: Props) {
   const { libelle } = usePaliersConfig();
   const [palierFilter, setPalierFilter] = useState<number | null>(null);
   const [sortKey, setSortKey] = useState<'nom' | 'encours' | 'joursRetard'>('joursRetard');
@@ -82,16 +84,19 @@ export function RecouvrementView({ entityFilter, role, reloadKey, onImport }: Pr
 
   return (
     <div>
-      <div className="entity-toggle" style={{ display: 'inline-flex', marginBottom: 22 }}>
-        <button className={!showReporting ? 'active' : ''} onClick={() => setShowReporting(false)}>
-          Vue d'ensemble
-        </button>
-        <button className={showReporting ? 'active' : ''} onClick={() => setShowReporting(true)}>
-          Reporting
-        </button>
-      </div>
+      {/* L'onglet Reporting est réservé aux formules PME/Grands comptes (SaaS). */}
+      {canReporting && (
+        <div className="entity-toggle" style={{ display: 'inline-flex', marginBottom: 22 }}>
+          <button className={!showReporting ? 'active' : ''} onClick={() => setShowReporting(false)}>
+            Vue d'ensemble
+          </button>
+          <button className={showReporting ? 'active' : ''} onClick={() => setShowReporting(true)}>
+            Reporting
+          </button>
+        </div>
+      )}
 
-      {showReporting ? (
+      {canReporting && showReporting ? (
         <ReportingView entityFilter={entityFilter} role={role} />
       ) : !list.loading && !list.error && list.data && list.data.length === 0 ? (
         // Écran vide pédagogique : compte neuf, aucune créance importée (addendum §4.3).

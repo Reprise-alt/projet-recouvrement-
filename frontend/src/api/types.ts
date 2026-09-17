@@ -53,6 +53,15 @@ export interface AbonnementInfo {
   dateFinEssai?: string | null;
 }
 
+// Capacités de la formule d'abonnement (le front masque ce qui n'est pas inclus).
+export interface Capacites {
+  maxUtilisateurs: number | null;
+  maxDebiteurs: number | null;
+  reporting: boolean;
+  contentieux: boolean;
+  multiEntites: boolean;
+}
+
 export interface CurrentUser {
   id: string;
   nom: string;
@@ -78,6 +87,8 @@ export interface CurrentUser {
   superAdmin?: boolean;
   // Formule recommandée/retenue de l'organisation (pour surligner l'offre).
   formule?: string | null;
+  // Capacités incluses dans la formule (onglets/actions masqués sinon).
+  capacites?: Capacites | null;
 }
 
 export interface DerniereAction {

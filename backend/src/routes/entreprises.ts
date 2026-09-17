@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { requireAuth, requireRole } from '../middleware/auth';
 import { tenantScope } from '../middleware/tenant';
+import { requireCapacite } from '../middleware/capacite';
 import { createEntreprise, EntrepriseValidationError, listEntreprises, updateEntreprise } from '../services/entrepriseService';
 
 export const entreprisesRouter = Router();
@@ -23,7 +24,8 @@ entreprisesRouter.get('/', async (req, res, next) => {
   }
 });
 
-entreprisesRouter.post('/', requireRole('admin'), async (req, res, next) => {
+// Créer une entité = fonction multi-entités (réservée PME/Grands comptes).
+entreprisesRouter.post('/', requireRole('admin'), requireCapacite('multiEntites'), async (req, res, next) => {
   try {
     const { code, nom } = req.body ?? {};
     if (!code || typeof code !== 'string') return res.status(400).json({ error: 'Code requis' });

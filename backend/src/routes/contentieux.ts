@@ -53,8 +53,9 @@ import { IssueDossier, StatutActe, StatutDossierContentieux, StatutProposition, 
 export const contentieuxRouter = Router();
 import { tenantScope } from '../middleware/tenant';
 import { requireAbonnementActif } from '../middleware/abonnement';
+import { requireCapacite } from '../middleware/capacite';
 
-contentieuxRouter.use(requireAuth, requireAbonnementActif, requireAccesContentieux, tenantScope);
+contentieuxRouter.use(requireAuth, requireAbonnementActif, requireCapacite('contentieux'), requireAccesContentieux, tenantScope);
 
 // Refuse une action d'écriture à un collaborateur juridique externe (avocat /
 // huissier) : il consulte et valide/signe, mais ne crée ni ne modifie un

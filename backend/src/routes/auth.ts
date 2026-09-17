@@ -4,6 +4,7 @@ import { prisma } from '../db';
 import { requireAuth } from '../middleware/auth';
 import { etatAbonnement } from '../lib/abonnement';
 import { estSuperAdmin } from '../lib/superAdmin';
+import { capacites } from '../lib/formules';
 
 export const authRouter = Router();
 
@@ -23,7 +24,14 @@ authRouter.get('/me', requireAuth, async (req, res, next) => {
     const org = await prisma.organisation
       .findUnique({
         where: { id: req.user!.organisationId },
-        select: { raisonSociale: true, logoUrl: true, statut: true, dateFinEssai: true, formule: true },
+        select: {
+          raisonSociale: true,
+          logoUrl: true,
+          statut: true,
+          dateFinEssai: true,
+          formule: true,
+          optionContentieux: true,
+        },
       })
       .catch(() => null);
     res.json({
@@ -31,6 +39,8 @@ authRouter.get('/me', requireAuth, async (req, res, next) => {
       raisonSociale: org?.raisonSociale ?? null,
       logoUrl: org?.logoUrl ?? null,
       formule: org?.formule ?? null,
+      // Capacités de la formule : le front masque les onglets/actions non inclus.
+      capacites: org ? capacites(org.formule, org.optionContentieux) : null,
       // État d'abonnement (essai / actif / bloqué) : le front affiche le bandeau
       // de compte à rebours ou l'écran « essai terminé » selon ce champ.
       abonnement: org ? etatAbonnement(org) : null,
