@@ -11,6 +11,12 @@ export const AUTH_MODE: 'supabase' | 'sso' | 'otp' =
       ? 'otp'
       : 'supabase';
 
+// Ce build sert-il le SaaS self-service ? (déploiement OTP.) Sert à masquer le
+// « chrome » propre au groupe OLU 360 — sélecteur multi-consoles, entités et
+// branding SORAM/IRIS/SIS — qui n'a aucun sens pour un client SaaS autonome :
+// il ne doit voir QUE sa propre marque et ses propres données.
+export const IS_SAAS = AUTH_MODE === 'otp';
+
 // URL du hub vers laquelle renvoyer un visiteur non connecté (mode SSO).
 export const HUB_URL = ((import.meta.env.VITE_HUB_URL as string | undefined) || 'https://app.olu360.com').replace(/\/+$/, '');
 

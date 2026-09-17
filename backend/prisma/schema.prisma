@@ -75,13 +75,23 @@ enum FrequenceFacturation {
 // (pas de clé étrangère stricte, pour ne pas bloquer un import sur une entité
 // pas encore créée) ; `estCommun` marque l'entité spéciale partagée par
 // toutes les autres (remplace l'ancienne valeur figée "COMMUN").
+// Entité opérationnelle (business unit / société) DANS une organisation. Pour
+// le groupe OLU, ce sont ses sociétés historiques (SORAM, IRIS, SIS). Pour un
+// client SaaS, ce sont ses propres segments — jamais ceux d'un autre client :
+// la table est donc isolée par organisation (RLS), comme les données produit.
+// Un nouveau client démarre sans entité groupe ; les siennes se créent depuis
+// ses imports (ou l'admin). `code` n'est unique QUE dans son organisation.
 model Entreprise {
-  id        String   @id @default(cuid())
-  code      String   @unique
-  nom       String
-  estCommun Boolean  @default(false)
-  actif     Boolean  @default(true)
-  createdAt DateTime @default(now())
+  id             String       @id @default(cuid())
+  organisationId String       @default(dbgenerated("coalesce(current_setting('app.organisation_id', true), 'org-groupe-olu360')"))
+  code           String
+  nom            String
+  estCommun      Boolean      @default(false)
+  actif          Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  @@unique([organisationId, code])
 }
 
 // ============================================================================
@@ -161,6 +171,7 @@ model Organisation {
   clients        Client[]
   utilisateurs   Utilisateur[]
   modelesRelance ModeleRelanceOrg[]
+  entreprises    Entreprise[]
 }
 
 // Modèle de relance personnalisé par une organisation (addendum §5.3). Surcharge

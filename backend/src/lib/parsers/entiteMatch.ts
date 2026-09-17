@@ -41,3 +41,28 @@ export function matchKnownEntite(text: string, candidates: KnownEntite[]): strin
   }
   return null;
 }
+
+// Normalise un intitulé (bandeau de section, cellule « entité ») en code
+// d'entité stable : majuscules, espaces → « _ », caractères parasites retirés.
+export function bannerToEntiteCode(text: string): string {
+  return text
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, '_')
+    .replace(/[^A-Z0-9_]/g, '')
+    .slice(0, 40);
+}
+
+// Résout l'entité d'une section de classeur. Comportement GROUPE inchangé :
+// on privilégie une entité déjà connue (matchKnownEntite). Nouveauté SaaS :
+// quand aucune entité connue ne correspond — cas d'une organisation qui n'a pas
+// encore déclaré ses entités —, l'intitulé lui-même devient une entité
+// (auto-découverte à l'import). On écarte les intitulés implausibles (trop
+// courts/longs, sans lettre) pour ne pas fabriquer d'entités parasites.
+export function resolveBannerEntite(text: string, candidates: KnownEntite[]): string | null {
+  const matched = matchKnownEntite(text, candidates);
+  if (matched) return matched;
+  const t = text.trim();
+  if (t.length < 2 || t.length > 40 || !/[A-Za-zÀ-ÿ]/.test(t)) return null;
+  return bannerToEntiteCode(t) || null;
+}

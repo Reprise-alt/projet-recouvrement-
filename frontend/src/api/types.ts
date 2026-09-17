@@ -47,6 +47,10 @@ export interface CurrentUser {
   // Multi-tenant SaaS (présents pour les comptes SaaS ; absents/neutres côté groupe).
   organisationId?: string;
   roleOrg?: RoleOrg | null;
+  // Identité de l'organisation, jointe par /api/auth/me — sert au branding du
+  // bandeau côté SaaS (marque du client, pas celle du groupe).
+  raisonSociale?: string | null;
+  logoUrl?: string | null;
 }
 
 export interface DerniereAction {

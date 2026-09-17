@@ -14,7 +14,14 @@ export const authRouter = Router();
 authRouter.get('/me', requireAuth, async (req, res, next) => {
   try {
     await prisma.utilisateur.update({ where: { id: req.user!.id }, data: { derniereConnexion: new Date() } });
-    res.json(req.user);
+    // On joint l'identité de l'organisation (raison sociale + logo) : le front
+    // SaaS s'en sert pour afficher la marque DU CLIENT dans le bandeau, au lieu
+    // du branding groupe. Lecture unique par ouverture d'app (pas de polling),
+    // donc c'est l'endroit naturel — inutile d'alourdir chaque requête protégée.
+    const org = await prisma.organisation
+      .findUnique({ where: { id: req.user!.organisationId }, select: { raisonSociale: true, logoUrl: true } })
+      .catch(() => null);
+    res.json({ ...req.user, raisonSociale: org?.raisonSociale ?? null, logoUrl: org?.logoUrl ?? null });
   } catch (err) {
     next(err);
   }

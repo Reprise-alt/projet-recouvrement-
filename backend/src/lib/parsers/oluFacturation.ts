@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx';
 import { toISODate } from '../dates';
 import { ParsedClient } from './types';
-import { DEFAULT_KNOWN_ENTITES, KnownEntite, matchKnownEntite } from './entiteMatch';
+import { DEFAULT_KNOWN_ENTITES, KnownEntite, resolveBannerEntite } from './entiteMatch';
 
 // Préfixes courts plutôt que noms complets : certains classeurs abrègent les
 // onglets ("JAN", "FEV") quand d'autres utilisent le nom complet
@@ -80,7 +80,10 @@ export function parseOluFacturationWorkbook(
         return;
       }
       if (typeof c0 === 'string' && c0.trim() && !c1 && !c3) {
-        currentEntity = matchKnownEntite(c0, knownEntites);
+        // Section d'entité : une entité connue (groupe) ou, à défaut, l'intitulé
+        // lui-même devient l'entité (auto-découverte SaaS). Les entités ainsi
+        // rencontrées sont créées dans l'organisation à l'import.
+        currentEntity = resolveBannerEntite(c0, knownEntites);
         return;
       }
       if (!currentEntity) return;
