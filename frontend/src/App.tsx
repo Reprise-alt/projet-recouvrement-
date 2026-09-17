@@ -25,7 +25,7 @@ import { useResource } from './hooks/useResource';
 import { useTheme } from './hooks/useTheme';
 import { Moon, Sun } from 'lucide-react';
 import { CONSOLE, CONSOLE_META, ECOSYSTEME } from './console';
-import { AUTH_MODE, redirigerVersHub } from './auth/mode';
+import { AUTH_MODE, IS_SAAS, redirigerVersHub } from './auth/mode';
 
 type EntityFilter = Entite | 'ALL';
 type RecouvrementTab = 'recouvrement' | 'relances' | 'contrats' | 'contentieux';
@@ -180,22 +180,36 @@ export function App() {
     <div className="shell" data-entite={effectiveEntity === 'ALL' ? 'OLU' : effectiveEntity}>
       <nav className="rail">
         <div className="rail-brand">
-          <img className="rail-brand-logo" src="/logos/olu360-blanc.svg" alt="OLU 360" />
+          <img
+            className="rail-brand-logo"
+            src={IS_SAAS && user.logoUrl ? user.logoUrl : '/logos/olu360-blanc.svg'}
+            alt={IS_SAAS && user.raisonSociale ? user.raisonSociale : 'OLU 360'}
+          />
           <b>{meta.marque}</b>
           <small>By Olu360</small>
-          <span className="rail-eyebrow">SORAM · IRIS · SIS</span>
+          {/* Bandeau des entités du groupe : réservé à la console interne. En
+              SaaS, on affiche la marque du client (jamais SORAM/IRIS/SIS). */}
+          {IS_SAAS ? (
+            user.raisonSociale ? <span className="rail-eyebrow">{user.raisonSociale}</span> : null
+          ) : (
+            <span className="rail-eyebrow">SORAM · IRIS · SIS</span>
+          )}
         </div>
 
-        <details className="rail-switch">
-          <summary>Changer de console</summary>
-          <div className="rail-switch-list">
-            {ECOSYSTEME.map((c) => (
-              <a key={c.id} href={c.url} aria-current={c.id === CONSOLE ? 'page' : undefined}>
-                {c.label}
-              </a>
-            ))}
-          </div>
-        </details>
+        {/* Sélecteur multi-consoles = navigation interne du groupe. Un client
+            SaaS n'a accès à aucune autre console : on le masque entièrement. */}
+        {!IS_SAAS && (
+          <details className="rail-switch">
+            <summary>Changer de console</summary>
+            <div className="rail-switch-list">
+              {ECOSYSTEME.map((c) => (
+                <a key={c.id} href={c.url} aria-current={c.id === CONSOLE ? 'page' : undefined}>
+                  {c.label}
+                </a>
+              ))}
+            </div>
+          </details>
+        )}
 
         <div className="rail-section">
           <div className="rail-section-label">Entité</div>
@@ -313,7 +327,9 @@ export function App() {
       <main className="app-main">
         <div className="app-main-head">
           <h1>{meta.titre}</h1>
-          <div className="app-sub">{meta.sous}</div>
+          {/* Le sous-titre du groupe se termine par « — SORAM · IRIS · SIS » ;
+              en SaaS on retire ce suffixe d'entités groupe. */}
+          <div className="app-sub">{IS_SAAS ? meta.sous.split(' — ')[0] : meta.sous}</div>
         </div>
 
         {CONSOLE === 'operations' ? (
