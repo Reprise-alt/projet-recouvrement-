@@ -186,6 +186,12 @@ export function App() {
             className="rail-brand-logo"
             src={IS_SAAS && user.logoUrl ? user.logoUrl : '/logos/olu360-blanc.svg'}
             alt={IS_SAAS && user.raisonSociale ? user.raisonSociale : 'OLU 360'}
+            // Si le logo du client ne charge pas, on retombe proprement sur le
+            // logo OLU plutôt que d'afficher une image cassée.
+            onError={(e) => {
+              const img = e.currentTarget;
+              if (!img.src.endsWith('/logos/olu360-blanc.svg')) img.src = '/logos/olu360-blanc.svg';
+            }}
           />
           <b>{meta.marque}</b>
           <small>By Olu360</small>
