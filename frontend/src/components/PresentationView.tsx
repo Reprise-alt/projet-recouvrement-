@@ -176,6 +176,7 @@ export function PresentationView() {
         <Logo />
         <nav className="lp-nav-links">
           <a href="#tarifs">Tarifs</a>
+          <a href="/blog">Actualités</a>
           <a href={CTA}>Se connecter</a>
           <a className="lp-btn lp-btn-primary" href={CTA}>Essai gratuit</a>
         </nav>
