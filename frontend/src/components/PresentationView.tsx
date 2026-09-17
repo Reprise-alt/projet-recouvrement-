@@ -7,20 +7,106 @@ import { useEffect } from 'react';
 
 const CTA = '/inscription';
 
-// SEO : titre + description injectés au rendu (SPA). Modernes moteurs exécutent
-// le JS, donc ces balises sont lues au crawl. À faire indexer via Search Console.
+// Coordonnées publiques (NAP — Name/Address/Phone). Doivent rester IDENTIQUES
+// partout (vitrine, fiche Google, annuaires) : Google recoupe ces mentions pour
+// juger de la fiabilité locale d'un établissement.
+const SITE_URL = 'https://feyma.olu360.com';
+const NAP = {
+  nom: 'Feyma — OLU 360',
+  rue: 'Amitié 3, École de Police',
+  ville: 'Dakar',
+  pays: 'SN',
+  telAffiche: '+221 77 099 89 52',
+  telE164: '+221770998952',
+  email: 'f.baudoin@iris-afrique.com',
+};
+
+// Pose ou met à jour une balise <meta> (par name ou property) de façon idempotente.
+function setMeta(attr: 'name' | 'property', key: string, content: string) {
+  let tag = document.head.querySelector(`meta[${attr}="${key}"]`);
+  if (!tag) {
+    tag = document.createElement('meta');
+    tag.setAttribute(attr, key);
+    document.head.appendChild(tag);
+  }
+  tag.setAttribute('content', content);
+}
+
+// SEO : titre, description, Open Graph, canonique et données structurées injectés
+// au rendu (SPA). Googlebot exécute le JS, donc ces balises sont lues au crawl.
+// Ciblage local « recouvrement Dakar / Sénégal ». À faire indexer via Search
+// Console + fiche Google Business.
 function useSeo() {
   useEffect(() => {
-    document.title = 'Feyma — Recouvrement de créances automatisé | OLU 360';
+    const title = 'Feyma — Logiciel de recouvrement de créances à Dakar, Sénégal | OLU 360';
     const desc =
-      "Feyma (OLU 360) : relancez automatiquement vos impayés, à votre nom. Relances par email, paliers personnalisables, portail débiteur et contentieux. Essai gratuit 14 jours.";
-    let tag = document.querySelector('meta[name="description"]');
-    if (!tag) {
-      tag = document.createElement('meta');
-      tag.setAttribute('name', 'description');
-      document.head.appendChild(tag);
+      'Feyma (OLU 360) : logiciel de recouvrement de créances à Dakar, au Sénégal. Relances automatiques par email à votre nom, paliers personnalisables, portail débiteur et contentieux. Zone OHADA, francs CFA. Essai gratuit 14 jours.';
+
+    document.title = title;
+    setMeta('name', 'description', desc);
+    setMeta('name', 'robots', 'index, follow');
+
+    // Open Graph / partage social
+    setMeta('property', 'og:type', 'website');
+    setMeta('property', 'og:site_name', 'Feyma — OLU 360');
+    setMeta('property', 'og:locale', 'fr_SN');
+    setMeta('property', 'og:title', title);
+    setMeta('property', 'og:description', desc);
+    setMeta('property', 'og:url', SITE_URL + '/');
+
+    // URL canonique (évite le contenu dupliqué entre domaines)
+    let canon = document.head.querySelector('link[rel="canonical"]');
+    if (!canon) {
+      canon = document.createElement('link');
+      canon.setAttribute('rel', 'canonical');
+      document.head.appendChild(canon);
     }
-    tag.setAttribute('content', desc);
+    canon.setAttribute('href', SITE_URL + '/');
+
+    // Données structurées JSON-LD : établissement local + application logicielle.
+    // Aide Google à comprendre « éditeur de logiciel de recouvrement à Dakar ».
+    const jsonLd = {
+      '@context': 'https://schema.org',
+      '@graph': [
+        {
+          '@type': ['Organization', 'LocalBusiness'],
+          '@id': SITE_URL + '/#organisation',
+          name: NAP.nom,
+          url: SITE_URL,
+          email: NAP.email,
+          telephone: NAP.telE164,
+          address: {
+            '@type': 'PostalAddress',
+            streetAddress: NAP.rue,
+            addressLocality: NAP.ville,
+            addressCountry: NAP.pays,
+          },
+          areaServed: [
+            { '@type': 'City', name: 'Dakar' },
+            { '@type': 'Country', name: 'Sénégal' },
+          ],
+        },
+        {
+          '@type': 'SoftwareApplication',
+          name: 'Feyma',
+          applicationCategory: 'BusinessApplication',
+          operatingSystem: 'Web',
+          description:
+            'Logiciel de recouvrement de créances : relances automatiques, paliers, portail débiteur et contentieux.',
+          url: SITE_URL,
+          publisher: { '@id': SITE_URL + '/#organisation' },
+          offers: { '@type': 'Offer', price: '35000', priceCurrency: 'XOF' },
+        },
+      ],
+    };
+    let script = document.getElementById('ld-json-feyma');
+    if (!script) {
+      script = document.createElement('script');
+      script.id = 'ld-json-feyma';
+      script.setAttribute('type', 'application/ld+json');
+      document.head.appendChild(script);
+    }
+    script.textContent = JSON.stringify(jsonLd);
   }, []);
 }
 
@@ -81,7 +167,7 @@ export function PresentationView() {
 
       {/* HERO */}
       <section className="lp-hero">
-        <div className="lp-eyebrow">Logiciel de recouvrement pour PME · Sénégal</div>
+        <div className="lp-eyebrow">Logiciel de recouvrement de créances · Dakar, Sénégal</div>
         <h1>Reprenez la main sur vos impayés.</h1>
         <p className="lp-lead">
           Importez votre suivi, laissez les relances partir toutes seules — de l’avis d’échéance au contentieux — et
@@ -166,6 +252,12 @@ export function PresentationView() {
 
       <footer className="lp-footer">
         <Logo />
+        <address style={{ fontStyle: 'normal', fontSize: 13, lineHeight: 1.6, color: 'var(--ink-soft)' }}>
+          <b>Feyma — OLU 360</b>, logiciel de recouvrement de créances à Dakar.
+          <br />
+          {NAP.rue}, {NAP.ville}, Sénégal · <a href={`tel:${NAP.telE164}`}>{NAP.telAffiche}</a> ·{' '}
+          <a href={`mailto:${NAP.email}`}>{NAP.email}</a>
+        </address>
         <span>© {new Date().getFullYear()} OLU 360 — Olu Ecosystems. Tous droits réservés.</span>
       </footer>
     </div>

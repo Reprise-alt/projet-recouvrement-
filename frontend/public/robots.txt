@@ -1,0 +1,5 @@
+User-agent: *
+Disallow: /inscription
+Disallow: /api/
+
+Sitemap: https://feyma.olu360.com/sitemap.xml
