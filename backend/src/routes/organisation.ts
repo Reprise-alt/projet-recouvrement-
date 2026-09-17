@@ -110,7 +110,9 @@ organisationRouter.post('/logo', requireOrgRole('proprietaire', 'administrateur'
     // URL publique absolue de l'endpoint de service (les emails ont besoin d'un
     // lien http(s) complet). Derrière le proxy Render, le schéma réel est dans
     // x-forwarded-proto.
-    const proto = (req.headers['x-forwarded-proto'] as string | undefined)?.split(',')[0] || req.protocol;
+    // En production (Render), le schéma est TOUJOURS https ; on le force pour ne
+    // pas risquer une URL http bloquée en « contenu mixte » sur la page https.
+    const proto = process.env.NODE_ENV === 'production' ? 'https' : req.protocol;
     const host = req.get('host');
     const orgId = req.user!.organisationId;
     const logoUrl = `${proto}://${host}/api/logo/${orgId}?v=${Date.now()}`;

@@ -196,6 +196,9 @@ export function FicheEntreprise({
                     src={org.logoUrl}
                     alt="Logo"
                     style={{ maxHeight: 44, maxWidth: 160, objectFit: 'contain', border: '1px solid var(--line)', borderRadius: 6, padding: 4, background: '#fff' }}
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
                   />
                 ) : (
                   <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}>Aucun logo</span>

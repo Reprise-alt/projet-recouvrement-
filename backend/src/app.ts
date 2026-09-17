@@ -32,6 +32,11 @@ import { errorHandler } from './middleware/errorHandler';
 
 export function createApp() {
   const app = express();
+  // Derrière le proxy TLS de Render : faire confiance à l'en-tête
+  // x-forwarded-proto pour que req.protocol reflète le vrai schéma (https),
+  // sinon les URL absolues construites côté serveur (ex. logo) sortent en
+  // http et sont bloquées comme « contenu mixte » sur une page https.
+  app.set('trust proxy', true);
   // CORS_ORIGIN: comma-separated allowlist for production (e.g. the deployed
   // frontend's URL). Left permissive by default for local development.
   const allowedOrigins = process.env.CORS_ORIGIN?.split(',').map((o) => o.trim()).filter(Boolean);
