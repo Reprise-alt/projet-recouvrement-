@@ -8,6 +8,7 @@ import { getConfig } from '../services/configService';
 import { generateLetter, LetterClient } from './letters';
 import { PALIERS } from './paliers';
 import { ClientRelance, dansFenetreEnvoi, relancesDues } from './moteurRelances';
+import { construireRelanceMarque, OrgIdentite } from './modelesRelance';
 
 // Au-delà de ce palier, la relance n'est jamais envoyée automatiquement :
 // pénalités, commandement de payer et contentieux (§5.1) impliquent une action
@@ -115,13 +116,36 @@ export async function executerRelancesTenant(opts: OptionsExecution = {}): Promi
   const org = orgId
     ? await prisma.organisation.findUnique({
         where: { id: orgId },
-        select: { instructionsPaiement: true, raisonSociale: true, emailReponse: true },
+        select: {
+          instructionsPaiement: true,
+          raisonSociale: true,
+          emailReponse: true,
+          logoUrl: true,
+          adresse: true,
+          identifiantFiscal: true,
+          rccm: true,
+          contactRecouvrement: true,
+          pays: true,
+        },
       })
     : null;
   // Identité d'expéditeur du tenant (§6) : nom affiché = raison sociale, réponses
   // renvoyées à l'adresse de l'organisation. L'adresse d'envoi reste mutualisée.
   const fromName = org?.raisonSociale ?? undefined;
   const replyTo = org?.emailReponse ?? undefined;
+  // Identité de marque pour l'email (logo + coordonnées) — §5.3.
+  const orgIdentite: OrgIdentite | null = org
+    ? {
+        raisonSociale: org.raisonSociale,
+        logoUrl: org.logoUrl,
+        adresse: org.adresse,
+        identifiantFiscal: org.identifiantFiscal,
+        rccm: org.rccm,
+        contactRecouvrement: org.contactRecouvrement,
+        instructionsPaiement: org.instructionsPaiement,
+        pays: org.pays,
+      }
+    : null;
 
   const provider = getEmailProvider();
   const envoyees: RelanceEnvoyee[] = [];
@@ -139,19 +163,34 @@ export async function executerRelancesTenant(opts: OptionsExecution = {}): Promi
       ignorees.push({ ...base, raison: 'email_manquant' });
       continue;
     }
-    const letterClient: LetterClient = {
-      nom: c.nom,
-      entite: c.entite as LetterClient['entite'],
-      contact: c.contact ?? '',
-      factures: c.factures,
-      frequenceFacturation: c.frequenceFacturation,
-      actions: c.actions,
-    };
-    const msg = construireMessage(letterClient, d.palier, org?.instructionsPaiement);
+    // Tenant SaaS : message NEUTRE au nom du client + email de marque (logo,
+    // coordonnées) — §5.3. Sans contexte d'organisation (groupe, mode legacy),
+    // on garde les courriers historiques (letters.ts), en texte seul.
+    let sujet: string;
+    let texte: string;
+    let html: string | undefined;
+    if (orgIdentite) {
+      const r = construireRelanceMarque({ nom: c.nom, factures: c.factures, frequenceFacturation: c.frequenceFacturation }, orgIdentite, d.palier);
+      sujet = r.sujet;
+      texte = r.texte;
+      html = r.html;
+    } else {
+      const letterClient: LetterClient = {
+        nom: c.nom,
+        entite: c.entite as LetterClient['entite'],
+        contact: c.contact ?? '',
+        factures: c.factures,
+        frequenceFacturation: c.frequenceFacturation,
+        actions: c.actions,
+      };
+      const msg = construireMessage(letterClient, d.palier, org?.instructionsPaiement);
+      sujet = msg.sujet;
+      texte = msg.corps;
+    }
     if (envoiEffectif) {
       // Envoi réel puis trace — l'action n'est enregistrée que si l'envoi a
       // réussi (une exception interrompt et remonte, rien n'est marqué envoyé).
-      await provider.send({ to: c.email, subject: msg.sujet, text: msg.corps, fromName, replyTo });
+      await provider.send({ to: c.email, subject: sujet, text: texte, html, fromName, replyTo });
       await prisma.actionRecouvrement.create({
         data: {
           clientId: c.id,
@@ -167,7 +206,7 @@ export async function executerRelancesTenant(opts: OptionsExecution = {}): Promi
       palier: d.palier,
       palierLabel: PALIERS[d.palier].label,
       email: c.email,
-      sujet: msg.sujet,
+      sujet,
     });
   }
 
