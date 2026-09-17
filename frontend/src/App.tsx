@@ -14,6 +14,7 @@ import { CoursierPublicView } from './components/CoursierPublicView';
 import { SalleCoursierView } from './components/SalleCoursierView';
 import { PortailDebiteurView } from './components/PortailDebiteurView';
 import { PresentationView } from './components/PresentationView';
+import { ArticlePage, BlogIndex } from './components/BlogView';
 import { SettingsModal } from './components/SettingsModal';
 import { ImportPanel } from './components/ImportPanel';
 import { UsersPanel } from './components/UsersPanel';
@@ -69,6 +70,11 @@ export function App() {
   // Page vitrine publique (présentation + tarifs), sans session.
   if (window.location.pathname.startsWith('/presentation')) {
     return <PresentationView />;
+  }
+  // Blog / Actualités — pages publiques indexables (SEO / content marketing).
+  if (window.location.pathname.startsWith('/blog')) {
+    const rest = window.location.pathname.slice('/blog'.length).replace(/^\/+|\/+$/g, '');
+    return rest ? <ArticlePage slug={rest} /> : <BlogIndex />;
   }
   // Inscription / connexion self-service (SaaS) — page dédiée pour laisser la
   // racine servir la vitrine (accueil public, indexable). Une fois connecté, on
