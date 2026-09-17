@@ -536,6 +536,7 @@ enum TypeDemandeContact {
   poc
   autre
   rappel
+  demo
 }
 
 model DemandeContact {
