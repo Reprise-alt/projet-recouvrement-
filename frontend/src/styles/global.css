@@ -573,7 +573,60 @@ label{font-family:var(--font-mono);font-size:10.5px;text-transform:uppercase;let
 .blog-cta{margin-top:38px;background:var(--accent-soft);border-radius:var(--radius-lg);padding:28px 26px;text-align:center;}
 .blog-cta h3{font-size:20px;margin-bottom:8px;text-wrap:balance;}
 .blog-cta p{font-size:14px;color:var(--ink-soft);line-height:1.55;max-width:440px;margin:0 auto 18px;}
-@media(max-width:760px){.lp-steps,.lp-benefits,.lp-plans,.lp-stats,.lp-enjeux,.blog-list{grid-template-columns:1fr;}.lp-nav-links a:not(.lp-btn){display:none;}}
+/* Aperçu illustré de la plateforme (maquettes) */
+.mock-frame{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow-md);overflow:hidden;margin-top:30px;}
+.mock-bar{display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--paper-2);border-bottom:1px solid var(--line);}
+.mock-dots{display:inline-flex;gap:6px;}
+.mock-dots i{width:9px;height:9px;border-radius:50%;background:var(--line);display:block;}
+.mock-url{font-family:var(--font-mono);font-size:11.5px;color:var(--ink-soft);background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:3px 12px;}
+.mock-body{padding:20px 22px;background:var(--paper);}
+.mock-head{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;}
+.mock-h{font-size:16px;font-weight:700;letter-spacing:-.01em;}
+.mock-sub{font-size:12px;color:var(--ink-soft);margin-top:2px;}
+.mock-user{width:30px;height:30px;border-radius:50%;background:var(--accent-soft);color:var(--accent-dark);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;}
+.mock-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;}
+.mock-kpi{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-md);padding:14px 16px;}
+.mock-kpi-label{font-size:11.5px;color:var(--ink-soft);}
+.mock-kpi-val{font-size:20px;font-weight:700;margin-top:6px;font-variant-numeric:tabular-nums;letter-spacing:-.01em;}
+.mock-kpi-val span{font-size:11.5px;font-weight:600;color:var(--ink-soft);}
+.mock-kpi-trend{font-size:11px;color:var(--success);font-weight:600;margin-top:4px;}
+.mock-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-md);padding:14px 16px;margin-top:12px;}
+.mock-card-h{font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-bottom:10px;}
+.mock-aging-bar{display:flex;gap:2px;height:16px;border-radius:5px;overflow:hidden;}
+.mock-aging-bar span{display:block;height:100%;}
+.mock-legend{display:flex;flex-wrap:wrap;gap:12px;margin-top:10px;}
+.mock-legend-item{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--ink-soft);font-variant-numeric:tabular-nums;}
+.mock-legend-item i{width:9px;height:9px;border-radius:3px;display:block;}
+.mock-table{display:flex;flex-direction:column;}
+.mock-row{display:grid;grid-template-columns:1.6fr 1fr auto auto;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line-soft);font-size:12.5px;}
+.mock-row:first-child{border-top:none;}
+.mock-cell-nom{font-weight:600;}
+.mock-cell-montant{font-variant-numeric:tabular-nums;color:var(--ink-soft);}
+.mock-cell-retard{font-variant-numeric:tabular-nums;font-size:11.5px;color:var(--ink-soft);text-align:right;}
+.mock-pill{font-family:var(--font-mono);font-size:10.5px;font-weight:600;padding:2px 9px;border-radius:20px;white-space:nowrap;}
+.mock-pill-neutral{background:var(--accent-soft);color:var(--accent-dark);}
+.mock-pill-amber{background:var(--amber-soft);color:var(--amber);}
+.mock-pill-danger{background:var(--danger-soft);color:var(--danger);}
+.mock-duo{display:grid;grid-template-columns:1fr 1fr;gap:22px;}
+.mock-steps{display:flex;flex-direction:column;gap:2px;margin-top:12px;}
+.mock-step{display:flex;align-items:center;gap:11px;padding:9px 0;position:relative;font-size:13px;}
+.mock-step-dot{width:15px;height:15px;border-radius:50%;flex:none;border:2px solid var(--line);background:var(--surface);}
+.mock-step-done .mock-step-dot{background:var(--accent);border-color:var(--accent);}
+.mock-step-active .mock-step-dot{border-color:var(--accent);box-shadow:0 0 0 4px var(--accent-soft);}
+.mock-step-done .mock-step-t{color:var(--ink-soft);}
+.mock-step-todo .mock-step-t{color:var(--ink-soft);opacity:.7;}
+.mock-step-tag{font-family:var(--font-mono);font-size:10px;font-weight:600;color:var(--accent-dark);background:var(--accent-soft);padding:2px 8px;border-radius:20px;margin-left:auto;}
+.mock-foot{font-size:11.5px;color:var(--ink-soft);line-height:1.5;margin-top:14px;padding-top:12px;border-top:1px solid var(--line-soft);}
+.mock-portail{text-align:center;}
+.mock-portail-hi{font-size:14px;font-weight:600;margin-bottom:16px;}
+.mock-portail-label{font-size:11.5px;color:var(--ink-soft);}
+.mock-portail-montant{font-size:30px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums;margin:4px 0 18px;}
+.mock-portail-montant span{font-size:13px;font-weight:600;color:var(--ink-soft);}
+.mock-portail-actions{display:flex;flex-direction:column;gap:8px;}
+.mock-btn{font-size:13px;font-weight:600;padding:10px 14px;border-radius:var(--radius-md);}
+.mock-btn-primary{background:var(--accent);color:#fff;}
+.mock-btn-ghost{background:var(--surface);color:var(--ink);border:1px solid var(--line);}
+@media(max-width:760px){.lp-steps,.lp-benefits,.lp-plans,.lp-stats,.lp-enjeux,.blog-list,.mock-kpis,.mock-duo{grid-template-columns:1fr;}.lp-nav-links a:not(.lp-btn){display:none;}}
 
 /* ===== Démarrage guidé SaaS (addendum §4.3) ===== */
 .onb-wrap{max-width:660px;margin:0 auto;padding:28px 20px 64px;}

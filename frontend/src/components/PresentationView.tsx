@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ContactRappelModal } from './ContactRappelModal';
+import { PlateformeApercu } from './PlateformeApercu';
 
 // Page d'arrivée publique (addendum §4.1) + tarifs (§8.2). Aucune authentification.
 // Sert de PAGE D'ACCUEIL (racine) en mode SaaS ET sur /presentation. Le CTA
@@ -261,6 +262,9 @@ export function PresentationView() {
           ))}
         </div>
       </section>
+
+      {/* APERÇU DE LA PLATEFORME */}
+      <PlateformeApercu />
 
       {/* TARIFS */}
       <section className="lp-section" id="tarifs">
