@@ -162,7 +162,7 @@ services:
     name: olu360-saas-relances-cron
     runtime: node
     rootDir: backend
-    plan: free
+    plan: starter
     schedule: "0 * * * *"
     buildCommand: echo "no build"
     startCommand: 'curl -fsS -X POST "https://$SAAS_BACKEND_HOST/api/cron/relances" -H "X-Cron-Secret: $CRON_SECRET"'
