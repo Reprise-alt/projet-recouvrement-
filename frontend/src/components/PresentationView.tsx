@@ -1,8 +1,28 @@
-// Page d'arrivée publique (addendum §4.1) + tarifs (§8.2). Aucune authentification :
-// route /presentation, servie avant la logique de session. Le CTA renvoie vers « / »
-// (inscription self-service en mode SaaS). Prix indicatifs HT, à ajuster en back-office.
+import { useEffect } from 'react';
 
-const CTA = '/';
+// Page d'arrivée publique (addendum §4.1) + tarifs (§8.2). Aucune authentification.
+// Sert de PAGE D'ACCUEIL (racine) en mode SaaS ET sur /presentation. Le CTA
+// renvoie vers l'inscription self-service. Prix indicatifs HT, ajustables en
+// back-office.
+
+const CTA = '/inscription';
+
+// SEO : titre + description injectés au rendu (SPA). Modernes moteurs exécutent
+// le JS, donc ces balises sont lues au crawl. À faire indexer via Search Console.
+function useSeo() {
+  useEffect(() => {
+    document.title = 'Feyma — Recouvrement de créances automatisé | OLU 360';
+    const desc =
+      "Feyma (OLU 360) : relancez automatiquement vos impayés, à votre nom. Relances par email, paliers personnalisables, portail débiteur et contentieux. Essai gratuit 14 jours.";
+    let tag = document.querySelector('meta[name="description"]');
+    if (!tag) {
+      tag = document.createElement('meta');
+      tag.setAttribute('name', 'description');
+      document.head.appendChild(tag);
+    }
+    tag.setAttribute('content', desc);
+  }, []);
+}
 
 function Logo() {
   return (
@@ -47,6 +67,7 @@ const FORMULES = [
 ];
 
 export function PresentationView() {
+  useSeo();
   return (
     <div className="lp">
       <header className="lp-nav">

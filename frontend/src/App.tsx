@@ -70,6 +70,12 @@ export function App() {
   if (window.location.pathname.startsWith('/presentation')) {
     return <PresentationView />;
   }
+  // Inscription / connexion self-service (SaaS) — page dédiée pour laisser la
+  // racine servir la vitrine (accueil public, indexable). Une fois connecté, on
+  // ne bloque pas ici : la logique normale prend le relais (console).
+  if (window.location.pathname.startsWith('/inscription') && AUTH_MODE === 'otp' && !user) {
+    return <InscriptionOtpPage />;
+  }
 
   const [recouvrementTab, setRecouvrementTab] = useState<RecouvrementTab>('recouvrement');
   const [entityFilter, setEntityFilter] = useState<EntityFilter>('ALL');
@@ -155,8 +161,10 @@ export function App() {
       redirigerVersHub();
       return null;
     }
-    // Mode SaaS self-service : inscription/connexion par code email.
-    if (AUTH_MODE === 'otp') return <InscriptionOtpPage />;
+    // Mode SaaS self-service : la racine sert la VITRINE (accueil public,
+    // indexable, vendeur) ; l'inscription/connexion est sur /inscription
+    // (bouton « Commencer / Se connecter »).
+    if (AUTH_MODE === 'otp') return <PresentationView />;
     return <LoginPage />;
   }
 

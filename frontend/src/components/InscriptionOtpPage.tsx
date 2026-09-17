@@ -50,6 +50,10 @@ export function InscriptionOtpPage() {
         outilFacturation: outil.trim() || undefined,
       });
       // Succès : AuthContext charge l'utilisateur et l'app bascule automatiquement.
+      // On nettoie l'URL /inscription → racine (la console prend le relais).
+      if (window.location.pathname.startsWith('/inscription')) {
+        window.history.replaceState({}, '', '/');
+      }
     } catch {
       // erreur exposée via useAuth().error
     } finally {
