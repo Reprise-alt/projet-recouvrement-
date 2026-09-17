@@ -104,10 +104,14 @@ services:
       # Isolation multi-tenant Postgres (indispensable au SaaS).
       - key: RLS_ENABLED
         value: "true"
-      # Envoi transactionnel via Resend (SMTP). Le nom affiché de l'expéditeur
-      # est remplacé par la raison sociale de chaque client à l'envoi.
+      # Envoi transactionnel via Resend. On privilégie l'API HTTP (`resend`) :
+      # elle passe par https/443, jamais bloqué, contrairement au SMTP sortant
+      # que certains hébergeurs filtrent (la connexion « pend »). La clé API est
+      # lue depuis SMTP_PASS (pas de secret en double). Le nom affiché de
+      # l'expéditeur est remplacé par la raison sociale de chaque client.
+      # Pour repasser en SMTP : EMAIL_PROVIDER=smtp (les SMTP_* ci-dessous servent).
       - key: EMAIL_PROVIDER
-        value: smtp
+        value: resend
       - key: EMAIL_FROM
         value: OLU 360 <relances@mail.olu360.com>
       - key: SMTP_HOST
@@ -118,7 +122,8 @@ services:
         value: "true"
       - key: SMTP_USER
         value: resend
-      # Clé API Resend (secret) — à renseigner dans Render.
+      # Clé API Resend (secret) — à renseigner dans Render. Sert au SMTP ET à
+      # l'API HTTP (le code lit RESEND_API_KEY, sinon SMTP_PASS).
       - key: SMTP_PASS
         sync: false
       # Secrets d'auth/relances générés automatiquement par Render.

@@ -82,13 +82,13 @@ organisationRouter.post('/test-email', requireOrgRole('proprietaire', 'administr
     });
     // En mode stub, aucun email n'est réellement parti (juste journalisé).
     res.json({
-      ok: mode === 'smtp',
+      ok: mode !== 'stub',
       mode,
       to,
       message:
-        mode === 'smtp'
-          ? `Email de test envoyé à ${to}. Vérifiez la réception (et les spams).`
-          : "Mode « stub » actif : aucun email n'est réellement envoyé. Configurez EMAIL_PROVIDER=smtp et les identifiants SMTP.",
+        mode !== 'stub'
+          ? `Email de test envoyé à ${to} (via ${mode}). Vérifiez la réception (et les spams).`
+          : "Mode « stub » actif : aucun email n'est réellement envoyé. Configurez EMAIL_PROVIDER=resend (ou smtp).",
     });
   } catch (e) {
     // On renvoie l'erreur exacte (auth SMTP, domaine non vérifié…) au lieu d'un

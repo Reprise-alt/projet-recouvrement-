@@ -26,12 +26,14 @@ export interface EmailProvider {
   sendOtp(to: string, code: string): Promise<void>;
 }
 
-// Mode d'envoi effectivement actif d'après la configuration : 'smtp' = envois
-// réels, 'stub' = journalisé seulement (aucun email ne part). Sert au
-// diagnostic (l'exploitant doit pouvoir vérifier d'un coup d'œil qu'il n'est
-// pas resté en mode stub en production).
-export function emailMode(): 'smtp' | 'stub' {
-  return process.env.EMAIL_PROVIDER === 'smtp' ? 'smtp' : 'stub';
+// Mode d'envoi effectivement actif d'après la configuration :
+//   'resend' = API HTTP Resend (recommandé : passe par https/443, jamais bloqué)
+//   'smtp'   = SMTP standard (peut échouer si l'hébergeur bloque 465/587)
+//   'stub'   = journalisé seulement (aucun email ne part)
+// Sert au diagnostic (vérifier d'un coup d'œil qu'on n'est pas resté en stub).
+export function emailMode(): 'resend' | 'smtp' | 'stub' {
+  const p = process.env.EMAIL_PROVIDER;
+  return p === 'resend' ? 'resend' : p === 'smtp' ? 'smtp' : 'stub';
 }
 
 function corpsTexte(code: string): string {
@@ -93,6 +95,11 @@ class SmtpEmailProvider implements EmailProvider {
         port: Number(process.env.SMTP_PORT || 587),
         secure: process.env.SMTP_SECURE === 'true',
         auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } : undefined,
+        // Délais courts : si l'hébergeur bloque le port SMTP sortant, on échoue
+        // vite avec une erreur claire au lieu de rester suspendu indéfiniment.
+        connectionTimeout: 10_000,
+        greetingTimeout: 10_000,
+        socketTimeout: 20_000,
       });
   }
 
@@ -119,11 +126,67 @@ class SmtpEmailProvider implements EmailProvider {
   }
 }
 
+// Envoi via l'API HTTP de Resend (https, port 443). À préférer sur les
+// hébergeurs qui bloquent les ports SMTP sortants (cas fréquent : la connexion
+// SMTP « pend » sans jamais aboutir). Clé lue depuis RESEND_API_KEY, ou à défaut
+// SMTP_PASS (déjà renseignée pour le SMTP) — pas de config en double.
+class ResendApiProvider implements EmailProvider {
+  private apiKey: string;
+  private from: string;
+  private baseAddress: string;
+
+  constructor() {
+    this.apiKey = process.env.RESEND_API_KEY || process.env.SMTP_PASS || '';
+    this.from = process.env.EMAIL_FROM || 'OLU 360 <no-reply@olu360.com>';
+    const m = this.from.match(/<([^>]+)>/);
+    this.baseAddress = (m ? m[1] : this.from).trim();
+  }
+
+  private async post(payload: Record<string, unknown>): Promise<void> {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${this.apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '');
+      throw new Error(`Resend API ${res.status} — ${detail.slice(0, 300)}`);
+    }
+  }
+
+  async send(msg: EmailMessage): Promise<void> {
+    // Nom d'expéditeur par organisation, adresse mutualisée (comme le SMTP).
+    const from = msg.fromName ? `${msg.fromName} <${this.baseAddress}>` : this.from;
+    await this.post({
+      from,
+      to: msg.to,
+      subject: msg.subject,
+      text: msg.text,
+      html: msg.html,
+      reply_to: msg.replyTo || undefined,
+    });
+  }
+
+  async sendOtp(to: string, code: string): Promise<void> {
+    await this.post({
+      from: this.from,
+      to,
+      subject: `Votre code de connexion OLU 360 : ${code}`,
+      text: corpsTexte(code),
+      html: corpsHtml(code),
+    });
+  }
+}
+
 let instance: EmailProvider | null = null;
 
 export function getEmailProvider(): EmailProvider {
   if (instance) return instance;
   switch (process.env.EMAIL_PROVIDER) {
+    case 'resend':
+      instance = new ResendApiProvider();
+      break;
     case 'smtp':
       instance = new SmtpEmailProvider();
       break;
@@ -138,4 +201,4 @@ export function setEmailProvider(p: EmailProvider | null): void {
   instance = p;
 }
 
-export { SmtpEmailProvider, StubEmailProvider };
+export { ResendApiProvider, SmtpEmailProvider, StubEmailProvider };
