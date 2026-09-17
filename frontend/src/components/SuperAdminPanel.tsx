@@ -11,6 +11,7 @@ interface OrgAdmin {
   pays: string;
   statut: string;
   formule: string;
+  optionContentieux: boolean;
   dateFinEssai: string | null;
   createdAt: string;
   emailProprietaire: string | null;
@@ -109,6 +110,19 @@ export function SuperAdminPanel({ onClose }: { onClose: () => void }) {
                             </option>
                           ))}
                         </select>
+                        {/* Option contentieux (+10k) — sans objet pour Grands comptes (inclus). */}
+                        {o.formule !== 'grands_comptes' && (
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, marginTop: 4, color: 'var(--ink-soft)', cursor: 'pointer' }}>
+                            <input
+                              type="checkbox"
+                              checked={o.optionContentieux}
+                              disabled={busy}
+                              onChange={(e) => patch(o.id, { optionContentieux: e.target.checked }, 'Option contentieux mise à jour')}
+                              style={{ width: 'auto' }}
+                            />
+                            Option contentieux
+                          </label>
+                        )}
                       </td>
                       <td className="mono">{o.nbClients}</td>
                       <td style={{ fontSize: 11.5, color: 'var(--ink-soft)' }}>

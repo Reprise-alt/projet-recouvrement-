@@ -188,6 +188,13 @@ export function App() {
   const isAdmin = user.role === 'admin';
   const roleBadge = CONSOLE === 'operations' ? ROLE_OPERATIONS_LABELS[user.roleOperations!] ?? '' : ROLE_LABELS[user.role] ?? user.role;
 
+  // Capacités de la formule (SaaS uniquement — la console groupe n'est pas
+  // bridée). `!== false` : non renseigné ou hors SaaS = tout autorisé.
+  const caps = user.capacites;
+  const canReporting = !IS_SAAS || caps?.reporting !== false;
+  const canContentieux = !IS_SAAS || caps?.contentieux !== false;
+  const canMultiEntites = !IS_SAAS || caps?.multiEntites !== false;
+
   // Comptes SaaS : écran de démarrage guidé tant qu'ils n'entrent pas dans la console.
   if (user.roleOrg && !enConsole) {
     return <OnboardingChecklist onEntrerConsole={() => setEnConsole(true)} />;
@@ -284,6 +291,9 @@ export function App() {
                     )}
                   </>
                 )}
+                {/* Contentieux : inclus Grands comptes, sinon option payante —
+                    masqué si la formule ne l'inclut pas (SaaS). */}
+                {canContentieux && (
                 <button
                   className={recouvrementTab === 'contentieux' ? 'active' : ''}
                   onClick={() => setRecouvrementTab('contentieux')}
@@ -311,6 +321,7 @@ export function App() {
                     </span>
                   )}
                 </button>
+                )}
               </>
             ) : CONSOLE === 'operations' ? (
               <button className="active">Opérations</button>
@@ -333,7 +344,8 @@ export function App() {
               <button onClick={() => setImportOpen(true)}>Importer un fichier</button>
               <button onClick={() => setUsersOpen(true)}>Utilisateurs</button>
               <button onClick={() => setIntegrationsOpen(true)}>Intégrations</button>
-              <button onClick={() => setEntreprisesOpen(true)}>Entreprises</button>
+              {/* Gestion multi-entités : réservée PME / Grands comptes en SaaS. */}
+              {canMultiEntites && <button onClick={() => setEntreprisesOpen(true)}>Entreprises</button>}
             </div>
           </div>
         )}
@@ -417,7 +429,7 @@ export function App() {
           <OperationsView entityFilter={effectiveEntity} user={user} reloadKey={dataVersion} />
         ) : CONSOLE === 'coursier' ? (
           <PlanningView entityFilter={effectiveEntity} role={user.role} />
-        ) : contentieuxSeul || recouvrementTab === 'contentieux' ? (
+        ) : contentieuxSeul || (recouvrementTab === 'contentieux' && canContentieux) ? (
           <ContentieuxView entityFilter={effectiveEntity} role={user.role} avocat={contentieuxSeul} />
         ) : recouvrementTab === 'relances' ? (
           <RelancesAVenirView reloadKey={dataVersion} canManage={isAdmin} />
@@ -430,6 +442,7 @@ export function App() {
             entityFilter={effectiveEntity}
             role={user.role}
             reloadKey={dataVersion}
+            canReporting={canReporting}
             onImport={isAdmin ? () => setImportOpen(true) : undefined}
           />
         )}

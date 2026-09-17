@@ -14,27 +14,35 @@ interface Formule {
   points: string[];
 }
 
+// Fonctions communes à toutes les formules (le « socle »).
+const SOCLE = [
+  'Relances automatiques à votre nom (email + logo)',
+  'Échelle de paliers & modèles personnalisables',
+  'Import Excel/CSV & tableau de bord des encours',
+  'Réponses de vos débiteurs directement chez vous',
+];
+
 const FORMULES: Formule[] = [
   {
     v: 'petite',
     nom: 'Petite structure',
     prixMensuel: 35000,
-    cible: "Jusqu'à 50 débiteurs actifs",
-    points: ['Relances automatiques de marque', 'Paliers & modèles personnalisables', 'Portail débiteur & reçus'],
+    cible: "Jusqu'à 50 débiteurs",
+    points: ['2 utilisateurs', 'Module contentieux en option (+10 000/mois)'],
   },
   {
     v: 'pme',
     nom: 'PME',
     prixMensuel: 65000,
-    cible: "Jusqu'à 500 débiteurs actifs",
-    points: ['Tout Petite structure', 'Plusieurs utilisateurs & entités', 'Reporting & suivi de performance'],
+    cible: "Jusqu'à 500 débiteurs",
+    points: ["Jusqu'à 5 utilisateurs", 'Reporting & suivi de performance', 'Gestion multi-entités', 'Contentieux en option (+10 000/mois)'],
   },
   {
     v: 'grands_comptes',
     nom: 'Grands comptes',
     prixMensuel: null,
-    cible: 'Au-delà de 500 débiteurs',
-    points: ['Tout PME', 'Accompagnement dédié', 'Volumétrie & intégrations sur mesure'],
+    cible: '500 débiteurs et plus',
+    points: ['Utilisateurs illimités', 'Module contentieux inclus', 'Intégrations sur mesure & accompagnement'],
   },
 ];
 
@@ -86,6 +94,26 @@ export function OffresAbonnement({ formuleRecommandee }: { formuleRecommandee?: 
           </button>
         </div>
         <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--accent, #177f5e)' }}>2 mois offerts</span>
+      </div>
+
+      {/* Socle commun à toutes les formules */}
+      <div
+        style={{
+          marginBottom: 12,
+          padding: '12px 14px',
+          background: 'var(--paper-2, #f4f6f5)',
+          border: '1px solid var(--line)',
+          borderRadius: 12,
+        }}
+      >
+        <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--ink-soft)', marginBottom: 6 }}>
+          Inclus dans toutes les formules
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', fontSize: 12.5 }}>
+          {SOCLE.map((s) => (
+            <span key={s}>✓ {s}</span>
+          ))}
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 12 }}>
@@ -149,7 +177,10 @@ export function OffresAbonnement({ formuleRecommandee }: { formuleRecommandee?: 
                   soit {fcfa(f.prixMensuel!)}/mois — 2 mois offerts
                 </div>
               )}
-              <ul style={{ margin: '6px 0 0', paddingLeft: 16, fontSize: 12, color: 'var(--ink)', lineHeight: 1.6 }}>
+              <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--ink-soft)', margin: '8px 0 2px' }}>
+                En plus
+              </div>
+              <ul style={{ margin: '2px 0 0', paddingLeft: 16, fontSize: 12, color: 'var(--ink)', lineHeight: 1.6 }}>
                 {f.points.map((p) => (
                   <li key={p}>{p}</li>
                 ))}

@@ -1,7 +1,8 @@
 import { Router } from 'express';
-import { prisma } from '../db';
+import { prisma, rlsActive } from '../db';
 import { requireAuth, requireRole } from '../middleware/auth';
 import { listEntreprises } from '../services/entrepriseService';
+import { getCapacites } from '../middleware/capacite';
 
 export const usersRouter = Router();
 import { tenantScope } from '../middleware/tenant';
@@ -42,6 +43,20 @@ usersRouter.post('/', async (req, res, next) => {
     }
     if (roleOperations && roleOperations !== 'direction_generale' && !entite) {
       return res.status(400).json({ error: 'Une directrice ou un chargé de compte Opérations doit être rattaché à une entité' });
+    }
+    // Limite d'utilisateurs de la formule (SaaS uniquement ; le groupe n'est
+    // pas bridé). Le compte est scopé au tenant courant par tenantScope.
+    if (rlsActive()) {
+      const caps = await getCapacites(req.user!.organisationId);
+      if (caps.maxUtilisateurs != null) {
+        const nb = await prisma.utilisateur.count();
+        if (nb >= caps.maxUtilisateurs) {
+          return res.status(403).json({
+            error: `Votre formule est limitée à ${caps.maxUtilisateurs} utilisateurs. Passez à une formule supérieure pour en ajouter.`,
+            capacite: 'maxUtilisateurs',
+          });
+        }
+      }
     }
     const created = await prisma.utilisateur.create({
       data: {

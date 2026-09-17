@@ -35,6 +35,7 @@ adminOrganisationsRouter.get('/organisations', async (_req, res, next) => {
         pays: o.pays,
         statut: o.statut,
         formule: o.formule,
+        optionContentieux: o.optionContentieux,
         dateFinEssai: o.dateFinEssai,
         createdAt: o.createdAt,
         emailProprietaire: parOrgProprio.get(o.id) ?? null,
@@ -62,6 +63,10 @@ adminOrganisationsRouter.patch('/organisations/:id', async (req, res, next) => {
       if (!FORMULES.includes(body.formule)) return res.status(400).json({ error: 'Formule invalide' });
       data.formule = body.formule;
     }
+    // Option payante « contentieux » (+10 000/mois) pour Petite/PME.
+    if (typeof body.optionContentieux === 'boolean') {
+      data.optionContentieux = body.optionContentieux;
+    }
     // Prolonger l'essai de N jours à partir de maintenant (repasse en essai).
     if (typeof body.prolongerJours === 'number' && body.prolongerJours > 0) {
       data.statut = 'essai';
@@ -80,6 +85,7 @@ adminOrganisationsRouter.patch('/organisations/:id', async (req, res, next) => {
       id: org.id,
       statut: org.statut,
       formule: org.formule,
+      optionContentieux: org.optionContentieux,
       dateFinEssai: org.dateFinEssai,
       abonnement: etatAbonnement(org),
     });

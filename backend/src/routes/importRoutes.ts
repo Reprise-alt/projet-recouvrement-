@@ -1,10 +1,12 @@
 import { Router } from 'express';
 import multer from 'multer';
+import { prisma, rlsActive } from '../db';
 import { buildTemplateCsv } from '../lib/csvTemplate';
 import { parseImportBuffer } from '../lib/parsers';
 import { applyImport } from '../services/importService';
 import { getKnownEntitesForImport } from '../services/entrepriseService';
 import { requireAuth, requireRole } from '../middleware/auth';
+import { getCapacites } from '../middleware/capacite';
 
 export const importRouter = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
@@ -32,6 +34,21 @@ importRouter.post('/', upload.single('file'), async (req, res, next) => {
     const { clients, message } = parseImportBuffer(req.file.buffer, knownEntites);
     if (!clients.length) {
       return res.status(422).json({ error: 'Aucune donnée exploitable dans ce fichier.', message });
+    }
+
+    // Limite de débiteurs de la formule (SaaS uniquement). On bloque tant que le
+    // seuil est déjà atteint — un import ne fait alors qu'augmenter le dépassement.
+    if (rlsActive()) {
+      const caps = await getCapacites(req.user!.organisationId);
+      if (caps.maxDebiteurs != null) {
+        const existant = await prisma.client.count();
+        if (existant >= caps.maxDebiteurs) {
+          return res.status(403).json({
+            error: `Votre formule est limitée à ${caps.maxDebiteurs} débiteurs (vous en avez ${existant}). Passez à une formule supérieure pour en importer davantage.`,
+            capacite: 'maxDebiteurs',
+          });
+        }
+      }
     }
 
     const summary = await applyImport(clients, req.user!.organisationId);

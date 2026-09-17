@@ -170,6 +170,9 @@ model Organisation {
   // jusqu'à activation par l'exploitant. Null = pas d'essai (comptes « actif »,
   // ex. le groupe socle).
   dateFinEssai         DateTime?
+  // Option payante « module contentieux » (+10 000 FCFA/mois) pour les formules
+  // Petite/PME (incluse d'office pour Grands comptes). Activée par l'exploitant.
+  optionContentieux    Boolean            @default(false)
 
   // Profilage à l'inscription (addendum §4.2) : trois questions qui servent à
   // préremplir la formule recommandée, les modèles et le scénario. Optionnelles
