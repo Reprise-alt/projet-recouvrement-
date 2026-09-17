@@ -138,6 +138,10 @@ services:
       # Origine autorisée = l'URL du front SaaS (ex. https://essai.olu360.com).
       - key: CORS_ORIGIN
         sync: false
+      # Exploitant(s) plateforme : emails (séparés par des virgules) autorisés à
+      # accéder au back-office d'activation des comptes (§8). À renseigner.
+      - key: SUPERADMIN_EMAILS
+        sync: false
 
   # ── SaaS : front-end (inscription self-service par code email) ────────────
   - type: web

@@ -21,6 +21,7 @@ import { IntegrationsPanel } from './components/IntegrationsPanel';
 import { EntreprisesPanel } from './components/EntreprisesPanel';
 import { FicheEntreprise } from './components/FicheEntreprise';
 import { AbonnementBloque } from './components/AbonnementBloque';
+import { SuperAdminPanel } from './components/SuperAdminPanel';
 import { EntityLogo } from './components/EntityLogo';
 import { Entite, Entreprise } from './api/types';
 import { useResource } from './hooks/useResource';
@@ -78,6 +79,7 @@ export function App() {
   const [integrationsOpen, setIntegrationsOpen] = useState(false);
   const [entreprisesOpen, setEntreprisesOpen] = useState(false);
   const [ficheOpen, setFicheOpen] = useState(false);
+  const [superAdminOpen, setSuperAdminOpen] = useState(false);
   const [dataVersion, setDataVersion] = useState(0);
   // Démarrage guidé SaaS : les comptes d'organisation (roleOrg) atterrissent sur
   // la checklist tant qu'ils ne sont pas entrés dans la console.
@@ -175,7 +177,9 @@ export function App() {
   // de la console, données conservées. Ne concerne que le SaaS (les comptes
   // groupe sont « actif »).
   const abo = user.abonnement;
-  if (abo && (abo.etat === 'essai_expire' || abo.etat === 'suspendu')) {
+  // L'exploitant plateforme n'est jamais bloqué (il doit toujours pouvoir
+  // atteindre le back-office d'activation, même si son propre essai a expiré).
+  if (!user.superAdmin && abo && (abo.etat === 'essai_expire' || abo.etat === 'suspendu')) {
     return <AbonnementBloque etat={abo.etat} />;
   }
 
@@ -332,6 +336,16 @@ export function App() {
           </div>
         )}
 
+        {/* Exploitant plateforme : back-office d'activation des comptes (§8). */}
+        {user.superAdmin && (
+          <div className="rail-section">
+            <div className="rail-section-label">Exploitant</div>
+            <div className="rail-nav">
+              <button onClick={() => setSuperAdminOpen(true)}>Organisations (activation)</button>
+            </div>
+          </div>
+        )}
+
         <div className="rail-foot">
           <div className="rail-user">
             <div className="avatar">
@@ -423,6 +437,7 @@ export function App() {
       {integrationsOpen && <IntegrationsPanel onClose={() => setIntegrationsOpen(false)} />}
       {entreprisesOpen && <EntreprisesPanel onClose={() => setEntreprisesOpen(false)} onChanged={refetchEntreprises} />}
       {ficheOpen && <FicheEntreprise onClose={() => setFicheOpen(false)} onSaved={bumpDataVersion} />}
+      {superAdminOpen && <SuperAdminPanel onClose={() => setSuperAdminOpen(false)} />}
     </div>
   );
 }

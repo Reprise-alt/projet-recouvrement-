@@ -7,6 +7,7 @@ import { authOtpRouter } from './routes/authOtp';
 import { onboardingRouter } from './routes/onboarding';
 import { organisationRouter } from './routes/organisation';
 import { logoPublicRouter } from './routes/logoPublic';
+import { adminOrganisationsRouter } from './routes/adminOrganisations';
 import { usersRouter } from './routes/users';
 import { clientsRouter } from './routes/clients';
 import { facturesRouter } from './routes/factures';
@@ -57,6 +58,8 @@ export function createApp() {
   app.use('/api/organisation', organisationRouter);
   // Service public du logo (sans auth) — chargé par les emails et le front.
   app.use('/api/logo', logoPublicRouter);
+  // Back-office exploitant (super-admin) — activation des comptes.
+  app.use('/api/admin', adminOrganisationsRouter);
   app.use('/api/users', usersRouter);
   app.use('/api/clients', clientsRouter);
   app.use('/api/factures', facturesRouter);
