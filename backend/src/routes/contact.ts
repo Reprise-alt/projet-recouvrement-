@@ -6,7 +6,7 @@ import { emailMode, getEmailProvider } from '../lib/email/provider';
 
 export const contactRouter = Router();
 
-const TYPES = ['investir', 'poc', 'autre', 'rappel'] as const;
+const TYPES = ['investir', 'poc', 'autre', 'rappel', 'demo'] as const;
 type TypeDemande = (typeof TYPES)[number];
 
 const TYPE_LABELS: Record<TypeDemande, string> = {
@@ -14,7 +14,12 @@ const TYPE_LABELS: Record<TypeDemande, string> = {
   poc: 'Devenir client pilote',
   autre: 'Autre',
   rappel: 'Demande de rappel (grand compte)',
+  demo: 'Demande de démonstration',
 };
+
+// Types « prise de contact » (vitrine) : message facultatif, on recontacte le
+// prospect. Les autres types (investir/poc/autre) exigent un message.
+const TYPES_PRISE_CONTACT: TypeDemande[] = ['rappel', 'demo'];
 
 const DESTINATAIRE = 'f.baudoin@iris-afrique.com';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -109,13 +114,13 @@ contactRouter.post('/', async (req, res, next) => {
     if (societe && societe.length > 200) {
       return res.status(400).json({ error: 'société trop longue' });
     }
-    // Pour une demande de rappel, le téléphone est requis et le message
-    // facultatif (on rappelle) ; pour les autres types, le message est requis.
+    // Rappel : téléphone requis (on rappelle). Démo : email suffit (on
+    // recontacte). Autres types (investir/poc/autre) : message requis.
     if (t === 'rappel') {
       if (!telephone?.trim()) {
         return res.status(400).json({ error: 'téléphone requis pour être rappelé' });
       }
-    } else if (!message?.trim()) {
+    } else if (!TYPES_PRISE_CONTACT.includes(t) && !message?.trim()) {
       return res.status(400).json({ error: 'message requis' });
     }
     if (message && message.length > 5000) {

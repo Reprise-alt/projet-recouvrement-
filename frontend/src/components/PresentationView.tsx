@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ContactRappelModal } from './ContactRappelModal';
+import { ContactRappelModal, SujetContact } from './ContactRappelModal';
 import { PlateformeApercu } from './PlateformeApercu';
 
 // Page d'arrivée publique (addendum §4.1) + tarifs (§8.2). Aucune authentification.
@@ -172,10 +172,10 @@ const FORMULES = [
 
 export function PresentationView() {
   useSeo();
-  const [contactOpen, setContactOpen] = useState(false);
+  const [contact, setContact] = useState<SujetContact | null>(null);
   return (
     <div className="lp">
-      {contactOpen && <ContactRappelModal onClose={() => setContactOpen(false)} />}
+      {contact && <ContactRappelModal sujet={contact} onClose={() => setContact(null)} />}
       <header className="lp-nav">
         <Logo />
         <nav className="lp-nav-links">
@@ -196,7 +196,9 @@ export function PresentationView() {
         </p>
         <div className="lp-hero-cta">
           <a className="lp-btn lp-btn-primary lp-btn-lg" href={CTA}>Démarrer l’essai gratuit — 14 jours</a>
-          <a className="lp-btn lp-btn-ghost lp-btn-lg" href="#comment">Voir comment ça marche</a>
+          <button type="button" className="lp-btn lp-btn-ghost lp-btn-lg" onClick={() => setContact('demo')}>
+            Demander une démo
+          </button>
         </div>
         <div className="lp-proof">
           <span>Déjà utilisé par <b>SORAM</b>, <b>IRIS</b> et <b>SIS</b></span>
@@ -290,7 +292,7 @@ export function PresentationView() {
                   type="button"
                   className="lp-btn lp-btn-ghost"
                   style={{ width: '100%', justifyContent: 'center' }}
-                  onClick={() => setContactOpen(true)}
+                  onClick={() => setContact('rappel')}
                 >
                   Être rappelé
                 </button>
@@ -310,7 +312,12 @@ export function PresentationView() {
       {/* CTA FINAL */}
       <section className="lp-final">
         <h2>Moins d’impayés, moins d’efforts, plus de trésorerie.</h2>
-        <a className="lp-btn lp-btn-primary lp-btn-lg" href={CTA}>Créer mon compte gratuitement</a>
+        <div className="lp-hero-cta" style={{ marginBottom: 0 }}>
+          <a className="lp-btn lp-btn-primary lp-btn-lg" href={CTA}>Créer mon compte gratuitement</a>
+          <button type="button" className="lp-btn lp-btn-on-dark lp-btn-lg" onClick={() => setContact('demo')}>
+            Demander une démonstration
+          </button>
+        </div>
       </section>
 
       <footer className="lp-footer">

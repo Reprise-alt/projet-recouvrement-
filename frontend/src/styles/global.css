@@ -508,6 +508,11 @@ label{font-family:var(--font-mono);font-size:10.5px;text-transform:uppercase;let
 .lp-btn:hover{filter:brightness(1.04);}
 .lp-btn-primary{background:var(--ink);color:#fff;}
 .lp-btn-ghost{background:var(--surface);color:var(--ink);border-color:var(--line);}
+.lp-btn-on-dark{background:transparent;color:#fff;border-color:rgba(255,255,255,.5);}
+.lp-btn-on-dark:hover{background:rgba(255,255,255,.1);}
+/* Sur la section finale sombre, le bouton principal (sinon couleur --ink =
+   fond) passe en accent pour rester visible. */
+.lp-final .lp-btn-primary{background:var(--accent);color:#fff;}
 .lp-btn-lg{padding:13px 22px;font-size:15px;border-radius:var(--radius-md);}
 .lp-hero{text-align:center;padding:56px 0 40px;}
 .lp-eyebrow{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent-dark);margin-bottom:16px;}
