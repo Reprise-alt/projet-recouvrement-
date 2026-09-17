@@ -295,7 +295,11 @@ export function RecouvrementView({ entityFilter, role, reloadKey, onImport }: Pr
             )}
           </div>
         </div>
-        <div>
+        {/* Conteneur à défilement horizontal : le tableau (8 colonnes) peut
+            dépasser la largeur de la carte selon le viewport ; sans ça, la carte
+            (overflow:hidden pour ses coins arrondis) tronque la dernière colonne
+            (« Prochaine relance ») au lieu de la laisser défiler. */}
+        <div style={{ overflowX: 'auto' }}>
           {(() => {
             if (list.loading) {
               return <div className="empty-state">Chargement…</div>;
@@ -317,7 +321,7 @@ export function RecouvrementView({ entityFilter, role, reloadKey, onImport }: Pr
               );
             }
             return (
-            <table>
+            <table style={{ minWidth: 820 }}>
               <thead>
                 <tr>
                   <th onClick={() => toggleSort('nom')}>Client</th>
