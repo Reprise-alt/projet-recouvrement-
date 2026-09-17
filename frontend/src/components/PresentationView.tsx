@@ -1,4 +1,5 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { ContactRappelModal } from './ContactRappelModal';
 
 // Page d'arrivée publique (addendum §4.1) + tarifs (§8.2). Aucune authentification.
 // Sert de PAGE D'ACCUEIL (racine) en mode SaaS ET sur /presentation. Le CTA
@@ -170,8 +171,10 @@ const FORMULES = [
 
 export function PresentationView() {
   useSeo();
+  const [contactOpen, setContactOpen] = useState(false);
   return (
     <div className="lp">
+      {contactOpen && <ContactRappelModal onClose={() => setContactOpen(false)} />}
       <header className="lp-nav">
         <Logo />
         <nav className="lp-nav-links">
@@ -278,9 +281,20 @@ export function PresentationView() {
                   </li>
                 ))}
               </ul>
-              <a className={`lp-btn ${f.populaire ? 'lp-btn-primary' : 'lp-btn-ghost'}`} href={CTA} style={{ width: '100%', justifyContent: 'center' }}>
-                {f.prix === 'Sur devis' ? 'Nous contacter' : 'Commencer'}
-              </a>
+              {f.prix === 'Sur devis' ? (
+                <button
+                  type="button"
+                  className="lp-btn lp-btn-ghost"
+                  style={{ width: '100%', justifyContent: 'center' }}
+                  onClick={() => setContactOpen(true)}
+                >
+                  Être rappelé
+                </button>
+              ) : (
+                <a className={`lp-btn ${f.populaire ? 'lp-btn-primary' : 'lp-btn-ghost'}`} href={CTA} style={{ width: '100%', justifyContent: 'center' }}>
+                  Commencer
+                </a>
+              )}
             </div>
           ))}
         </div>
