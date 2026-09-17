@@ -544,7 +544,16 @@ label{font-family:var(--font-mono);font-size:10.5px;text-transform:uppercase;let
 .lp-final{text-align:center;background:var(--ink);color:#fff;border-radius:var(--radius-lg);padding:48px 30px;margin-top:20px;}
 .lp-final h2{color:#fff;font-size:clamp(22px,3vw,30px);margin-bottom:22px;text-wrap:balance;}
 .lp-footer{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:28px 0 6px;border-top:1px solid var(--line);margin-top:44px;font-size:12.5px;color:var(--ink-soft);flex-wrap:wrap;}
-@media(max-width:760px){.lp-steps,.lp-benefits,.lp-plans{grid-template-columns:1fr;}.lp-nav-links a:not(.lp-btn){display:none;}}
+.lp-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin:30px 0 6px;}
+.lp-stat{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-md);padding:22px 20px;text-align:center;}
+.lp-stat-n{font-size:clamp(26px,4.4vw,38px);font-weight:800;letter-spacing:-.02em;color:var(--accent-dark);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;line-height:1;}
+.lp-stat-t{font-size:13px;color:var(--ink-soft);line-height:1.5;margin-top:9px;}
+.lp-stat-src{text-align:center;font-size:11.5px;color:var(--ink-soft);margin-top:14px;font-style:italic;}
+.lp-enjeux{display:grid;grid-template-columns:repeat(2,1fr);gap:18px;margin-top:30px;}
+.lp-enjeu{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:var(--radius-md);padding:20px 22px;}
+.lp-enjeu-t{font-size:15.5px;font-weight:600;margin-bottom:6px;}
+.lp-enjeu-d{font-size:13.5px;color:var(--ink-soft);line-height:1.55;}
+@media(max-width:760px){.lp-steps,.lp-benefits,.lp-plans,.lp-stats,.lp-enjeux{grid-template-columns:1fr;}.lp-nav-links a:not(.lp-btn){display:none;}}
 
 /* ===== Démarrage guidé SaaS (addendum §4.3) ===== */
 .onb-wrap{max-width:660px;margin:0 auto;padding:28px 20px 64px;}

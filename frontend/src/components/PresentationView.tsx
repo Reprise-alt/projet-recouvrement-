@@ -127,6 +127,22 @@ const ETAPES = [
   { n: 3, t: 'Vous encaissez plus vite', d: 'Vos débiteurs proposent un échéancier ou signalent un paiement via un lien sécurisé. Vous pilotez tout depuis un tableau de bord.' },
 ];
 
+// Repères sectoriels (volontairement généraux et prudents — pas de fausse
+// précision). À terme, à remplacer par les résultats réels SORAM / IRIS, plus
+// crédibles et incontestables.
+const STATS = [
+  { n: '1 sur 4', t: "défaillances d'entreprises où les retards de paiement jouent un rôle (estimation sectorielle)." },
+  { n: '90 jours', t: "au-delà de trois mois, une créance devient nettement plus difficile à recouvrer. Agir tôt, c'est encaisser." },
+  { n: '24/7', t: 'vos relances partent au bon moment, jour et nuit, sans oubli — pendant que vous gérez votre activité.' },
+];
+
+const ENJEUX = [
+  { t: 'La trésorerie d’abord', d: 'Une facture impayée, c’est une vente déjà réalisée mais pas encaissée. Trop d’encours, et c’est vous qui financez vos clients — parfois jusqu’à emprunter pour tourner.' },
+  { t: 'Le temps perdu en relances', d: 'Rappeler chaque client, au bon moment, avec le bon ton : un travail chronophage, vite abandonné quand l’activité s’accélère. Les relances s’espacent, les retards s’installent.' },
+  { t: 'La créance qui vieillit', d: 'Plus une facture traîne, moins elle a de chances d’être payée. Une relance dès l’échéance, systématique et tracée, change tout.' },
+  { t: 'Du rappel au contentieux', d: 'Quand l’amiable ne suffit pas : mise en demeure puis commandement de payer, dans les règles OHADA. Autant l’avoir sur le même outil, dossier prêt.' },
+];
+
 const BENEFICES = [
   { t: 'Tout votre portefeuille en un écran', d: 'Encours, clients en alerte, à relancer cette semaine — classés par palier.' },
   { t: 'Relance automatique multicanal', d: 'Email inclus et illimité ; SMS et WhatsApp en option, depuis votre identité.' },
@@ -185,6 +201,34 @@ export function PresentationView() {
           <span><b>−25 %</b> d’impayés</span>
         </div>
         <div className="lp-note">Aucune carte bancaire requise.</div>
+      </section>
+
+      {/* ENJEUX / POURQUOI */}
+      <section className="lp-section" id="enjeux">
+        <h2>Les impayés coûtent plus cher qu’on ne croit.</h2>
+        <p className="lp-section-sub">
+          Au Sénégal comme dans toute la zone OHADA, le retard de paiement pèse d’abord sur la trésorerie — puis sur la
+          solidité de l’entreprise. Le recouvrement n’est pas une corvée de fin de mois : c’est un process qui se pilote.
+        </p>
+        <div className="lp-stats">
+          {STATS.map((s) => (
+            <div key={s.n} className="lp-stat">
+              <div className="lp-stat-n">{s.n}</div>
+              <div className="lp-stat-t">{s.t}</div>
+            </div>
+          ))}
+        </div>
+        <div className="lp-stat-src">
+          Repères sectoriels généraux — vos résultats dépendent de votre portefeuille et de votre rigueur de relance.
+        </div>
+        <div className="lp-enjeux">
+          {ENJEUX.map((e) => (
+            <div key={e.t} className="lp-enjeu">
+              <div className="lp-enjeu-t">{e.t}</div>
+              <div className="lp-enjeu-d">{e.d}</div>
+            </div>
+          ))}
+        </div>
       </section>
 
       {/* COMMENT ÇA MARCHE */}
