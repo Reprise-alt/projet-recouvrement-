@@ -1,5 +1,5 @@
-import { FormEvent, useEffect, useState } from 'react';
-import { api } from '../api/client';
+import { ChangeEvent, FormEvent, useEffect, useRef, useState } from 'react';
+import { api, ApiError } from '../api/client';
 import { Organisation } from '../api/types';
 
 // Fiche entreprise (addendum §3, §4.3 étapes 1-2) : identité, identifiants fiscaux,
@@ -16,7 +16,9 @@ export function FicheEntreprise({
 }) {
   const [org, setOrg] = useState<Organisation | null>(null);
   const [busy, setBusy] = useState(false);
+  const [logoBusy, setLogoBusy] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     api
@@ -27,6 +29,30 @@ export function FicheEntreprise({
 
   function champ<K extends keyof Organisation>(k: K, v: Organisation[K]) {
     setOrg((o) => (o ? { ...o, [k]: v } : o));
+  }
+
+  // Téléverse un fichier logo : le backend le stocke et renvoie l'URL publique
+  // (utilisable dans les emails), qu'on reflète aussitôt dans logoUrl.
+  async function televerserLogo(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // permet de re-choisir le même fichier ensuite
+    if (!file) return;
+    if (file.size > 1024 * 1024) {
+      setErreur('Logo trop lourd (max 1 Mo).');
+      return;
+    }
+    setLogoBusy(true);
+    setErreur(null);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const { logoUrl } = await api.upload<{ logoUrl: string }>('/api/organisation/logo', form);
+      champ('logoUrl', logoUrl);
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Échec du téléversement du logo.');
+    } finally {
+      setLogoBusy(false);
+    }
   }
 
   async function enregistrer(e: FormEvent) {
@@ -146,8 +172,33 @@ export function FicheEntreprise({
             </div>
 
             <div className="field">
-              <label>Logo (URL)</label>
+              <label>Logo</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+                {org.logoUrl ? (
+                  <img
+                    src={org.logoUrl}
+                    alt="Logo"
+                    style={{ maxHeight: 44, maxWidth: 160, objectFit: 'contain', border: '1px solid var(--line)', borderRadius: 6, padding: 4, background: '#fff' }}
+                  />
+                ) : (
+                  <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}>Aucun logo</span>
+                )}
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+                  style={{ display: 'none' }}
+                  onChange={televerserLogo}
+                />
+                <button type="button" onClick={() => fileInputRef.current?.click()} disabled={logoBusy}>
+                  {logoBusy ? 'Envoi…' : org.logoUrl ? 'Remplacer' : 'Téléverser un logo'}
+                </button>
+              </div>
+              <label style={{ fontSize: 11.5, color: 'var(--ink-soft)' }}>ou coller une URL externe</label>
               <input value={org.logoUrl ?? ''} onChange={(e) => champ('logoUrl', e.target.value)} placeholder="https://…" />
+              <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 4 }}>
+                PNG ou JPEG conseillé (max 1 Mo) pour un affichage fiable dans les emails.
+              </div>
             </div>
 
             <div className="field">

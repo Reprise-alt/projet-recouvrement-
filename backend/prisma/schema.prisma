@@ -150,7 +150,13 @@ model Organisation {
   nomDirigeant         String?
   cniDirigeant         String?
   adresse              String?
+  // Logo : soit une URL externe (logoUrl), soit un fichier téléversé stocké en
+  // base (logoData + type MIME) et servi par un endpoint public — indispensable
+  // pour que le logo s'affiche dans les emails de relance (les clients mail
+  // bloquent les data: URI). À l'upload, logoUrl pointe vers cet endpoint.
   logoUrl              String?
+  logoData             Bytes?
+  logoMime             String?
   // Affichées au débiteur sur les messages et le portail (§3, §7.1).
   instructionsPaiement String?
   contactRecouvrement  String?

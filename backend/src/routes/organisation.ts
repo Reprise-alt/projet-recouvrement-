@@ -1,6 +1,13 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { prisma } from '../db';
 import { requireAuth, requireOrgRole } from '../middleware/auth';
+
+// Types d'image acceptés pour le logo. PNG/JPEG/WebP s'affichent partout, y
+// compris dans les emails ; SVG toléré (rendu via <img>, sans exécution de
+// script) mais peu fiable en email.
+const LOGO_MIMES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/svg+xml']);
+const uploadLogo = multer({ storage: multer.memoryStorage(), limits: { fileSize: 1024 * 1024 } });
 
 // Fiche de l'organisation SaaS (addendum §3, §4.3 étape 1) : identité, identifiants
 // fiscaux, logo, instructions de paiement affichées aux débiteurs. Opère toujours
@@ -54,6 +61,33 @@ organisationRouter.patch('/', requireOrgRole('proprietaire', 'administrateur'), 
     }
     const org = await prisma.organisation.update({ where: { id: req.user!.organisationId }, data: data as never });
     res.json(org);
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Téléversement du logo (fichier). Stocké en base et servi par l'endpoint public
+// /api/logo/:orgId, dont l'URL absolue est écrite dans logoUrl (utilisable dans
+// les emails). Réservé aux profils d'administration, comme la fiche.
+organisationRouter.post('/logo', requireOrgRole('proprietaire', 'administrateur'), uploadLogo.single('file'), async (req, res, next) => {
+  try {
+    const file = req.file;
+    if (!file) return res.status(400).json({ error: 'Aucun fichier reçu' });
+    if (!LOGO_MIMES.has(file.mimetype)) {
+      return res.status(400).json({ error: 'Format non supporté (PNG, JPEG, WebP, GIF ou SVG attendu)' });
+    }
+    // URL publique absolue de l'endpoint de service (les emails ont besoin d'un
+    // lien http(s) complet). Derrière le proxy Render, le schéma réel est dans
+    // x-forwarded-proto.
+    const proto = (req.headers['x-forwarded-proto'] as string | undefined)?.split(',')[0] || req.protocol;
+    const host = req.get('host');
+    const orgId = req.user!.organisationId;
+    const logoUrl = `${proto}://${host}/api/logo/${orgId}?v=${Date.now()}`;
+    const org = await prisma.organisation.update({
+      where: { id: orgId },
+      data: { logoData: file.buffer, logoMime: file.mimetype, logoUrl },
+    });
+    res.json({ logoUrl: org.logoUrl });
   } catch (e) {
     next(e);
   }
