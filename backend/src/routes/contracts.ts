@@ -16,8 +16,9 @@ import { assertEntiteInScope, requireAccesRecouvrement, requireAuth, requireRole
 
 export const contractsRouter = Router();
 import { tenantScope } from '../middleware/tenant';
+import { requireAbonnementActif } from '../middleware/abonnement';
 
-contractsRouter.use(requireAuth, requireAccesRecouvrement, tenantScope);
+contractsRouter.use(requireAuth, requireAbonnementActif, requireAccesRecouvrement, tenantScope);
 
 function entiteWhere(entiteFilter: Entite | 'ALL') {
   if (entiteFilter === 'ALL') return {};

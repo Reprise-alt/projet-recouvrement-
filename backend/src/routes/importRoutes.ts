@@ -13,8 +13,9 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 
 // clients — traité comme une opération globale, réservée à l'admin (§4),
 // au même titre que la configuration et les futurs connecteurs.
 import { tenantScope } from '../middleware/tenant';
+import { requireAbonnementActif } from '../middleware/abonnement';
 
-importRouter.use(requireAuth, requireRole('admin'), tenantScope);
+importRouter.use(requireAuth, requireAbonnementActif, requireRole('admin'), tenantScope);
 
 importRouter.get('/template', (_req, res) => {
   const csv = buildTemplateCsv();

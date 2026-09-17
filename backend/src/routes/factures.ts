@@ -6,8 +6,9 @@ import { fmtDate, fmtFCFA } from '../lib/dates';
 
 export const facturesRouter = Router();
 import { tenantScope } from '../middleware/tenant';
+import { requireAbonnementActif } from '../middleware/abonnement';
 
-facturesRouter.use(requireAuth, requireAccesRecouvrement, tenantScope);
+facturesRouter.use(requireAuth, requireAbonnementActif, requireAccesRecouvrement, tenantScope);
 
 facturesRouter.patch(
   '/:factureId/toggle-paid',

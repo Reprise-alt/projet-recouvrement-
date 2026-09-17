@@ -44,6 +44,15 @@ export interface ReglagePalier {
   jours: number;
 }
 
+// État d'abonnement de l'organisation (essai / actif / bloqué) — piloté par le
+// backend, affiché en bandeau ou en écran de blocage.
+export type EtatAbonnement = 'actif' | 'essai' | 'essai_expire' | 'suspendu';
+export interface AbonnementInfo {
+  etat: EtatAbonnement;
+  joursRestants?: number;
+  dateFinEssai?: string | null;
+}
+
 export interface CurrentUser {
   id: string;
   nom: string;
@@ -64,6 +73,9 @@ export interface CurrentUser {
   // bandeau côté SaaS (marque du client, pas celle du groupe).
   raisonSociale?: string | null;
   logoUrl?: string | null;
+  // Abonnement (essai/actif/bloqué) et statut exploitant plateforme.
+  abonnement?: AbonnementInfo | null;
+  superAdmin?: boolean;
 }
 
 export interface DerniereAction {
