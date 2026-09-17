@@ -26,6 +26,14 @@ export interface EmailProvider {
   sendOtp(to: string, code: string): Promise<void>;
 }
 
+// Mode d'envoi effectivement actif d'après la configuration : 'smtp' = envois
+// réels, 'stub' = journalisé seulement (aucun email ne part). Sert au
+// diagnostic (l'exploitant doit pouvoir vérifier d'un coup d'œil qu'il n'est
+// pas resté en mode stub en production).
+export function emailMode(): 'smtp' | 'stub' {
+  return process.env.EMAIL_PROVIDER === 'smtp' ? 'smtp' : 'stub';
+}
+
 function corpsTexte(code: string): string {
   return [
     `Votre code de connexion OLU 360 est : ${code}`,
