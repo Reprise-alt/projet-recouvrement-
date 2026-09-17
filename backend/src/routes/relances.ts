@@ -81,6 +81,23 @@ relancesRouter.get('/dues', async (_req, res, next) => {
   }
 });
 
+// Activer / suspendre l'envoi automatique des relances pour l'organisation.
+// Interrupteur à double sens (l'onboarding ne faisait qu'activer) : permet de
+// couper les envois pour un test, des congés, un litige, etc. Réservé aux
+// administrateurs. Tant que c'est « en pause », le cron ne traite pas l'org.
+relancesRouter.put('/envoi-automatique', requireRole('admin'), async (req, res, next) => {
+  try {
+    const actif = req.body?.actif === true;
+    await prisma.organisation.update({
+      where: { id: req.user!.organisationId },
+      data: { relancesActivees: actif },
+    });
+    res.json({ relancesActivees: actif });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Déclenchement (ou simulation) de l'envoi des relances dues pour le tenant
 // courant. Réservé aux administrateurs. Par SÉCURITÉ, le dry-run est le défaut :
 // il faut explicitement { dryRun: false } pour envoyer réellement (et rester

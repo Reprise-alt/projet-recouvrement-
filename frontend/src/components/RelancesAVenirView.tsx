@@ -1,5 +1,8 @@
+import { useState } from 'react';
 import { CalendarClock, CheckCircle2, Clock, Info } from 'lucide-react';
+import { api, ApiError } from '../api/client';
 import { useResource } from '../hooks/useResource';
+import { useToast } from '../hooks/useToast';
 import { fmtFCFA, PALIERS } from '../lib/constants';
 
 // Aperçu « relances à venir » (addendum §5) — lecture seule. Montre, pour
@@ -23,8 +26,23 @@ interface RelancesDuesResponse {
   relances: RelanceDueItem[];
 }
 
-export function RelancesAVenirView({ reloadKey }: { reloadKey: unknown }) {
+export function RelancesAVenirView({ reloadKey, canManage }: { reloadKey: unknown; canManage?: boolean }) {
   const res = useResource<RelancesDuesResponse>('/api/relances/dues', reloadKey);
+  const { showToast } = useToast();
+  const [busy, setBusy] = useState(false);
+
+  async function basculerEnvoi(actif: boolean) {
+    setBusy(true);
+    try {
+      await api.put('/api/relances/envoi-automatique', { actif });
+      showToast(actif ? 'Envoi automatique activé' : 'Envoi automatique suspendu');
+      res.refetch();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   if (res.loading) return <div className="empty-state">Chargement…</div>;
   if (res.error) {
@@ -56,6 +74,17 @@ export function RelancesAVenirView({ reloadKey }: { reloadKey: unknown }) {
           <CalendarClock size={15} />
           {data.fenetreOuverte ? 'Fenêtre d’envoi ouverte' : 'Hors fenêtre d’envoi'}
         </div>
+        {/* Interrupteur admin : activer / suspendre l'envoi automatique. */}
+        {canManage && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => basculerEnvoi(!data.relancesActivees)}
+            style={{ marginLeft: 'auto' }}
+          >
+            {data.relancesActivees ? 'Suspendre l’envoi automatique' : 'Activer l’envoi automatique'}
+          </button>
+        )}
       </div>
 
       <div className="rv-note">
