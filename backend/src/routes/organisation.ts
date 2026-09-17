@@ -73,6 +73,17 @@ organisationRouter.patch('/', requireOrgRole('proprietaire', 'administrateur'), 
 // et de détecter qu'on est resté en mode « stub » (aucun envoi réel).
 organisationRouter.post('/test-email', requireOrgRole('proprietaire', 'administrateur'), async (req, res, next) => {
   const mode = emailMode();
+  // Diagnostic de la clé RÉELLEMENT vue par le processus en cours : source
+  // (RESEND_API_KEY prime sur SMTP_PASS), aperçu masqué et longueur. Permet de
+  // voir si la clé est vide, ancienne (aperçu), ou si un redéploiement manque
+  // (le processus garde l'env de son démarrage). On ne révèle jamais la clé
+  // entière — seulement les 4 premiers/derniers caractères.
+  const rawKey = (process.env.RESEND_API_KEY || process.env.SMTP_PASS || '').trim();
+  const keyDiag = {
+    keySource: process.env.RESEND_API_KEY ? 'RESEND_API_KEY' : process.env.SMTP_PASS ? 'SMTP_PASS' : 'aucune',
+    keyHint: rawKey ? `${rawKey.slice(0, 4)}…${rawKey.slice(-4)}` : '(vide)',
+    keyLength: rawKey.length,
+  };
   try {
     const to = req.user!.email;
     await getEmailProvider().send({
@@ -85,6 +96,7 @@ organisationRouter.post('/test-email', requireOrgRole('proprietaire', 'administr
       ok: mode !== 'stub',
       mode,
       to,
+      ...keyDiag,
       message:
         mode !== 'stub'
           ? `Email de test envoyé à ${to} (via ${mode}). Vérifiez la réception (et les spams).`
@@ -92,8 +104,8 @@ organisationRouter.post('/test-email', requireOrgRole('proprietaire', 'administr
     });
   } catch (e) {
     // On renvoie l'erreur exacte (auth SMTP, domaine non vérifié…) au lieu d'un
-    // 500 opaque, pour que l'exploitant diagnostique lui-même.
-    res.status(200).json({ ok: false, mode, error: e instanceof Error ? e.message : String(e) });
+    // 500 opaque, plus le diagnostic de clé, pour que l'exploitant tranche.
+    res.status(200).json({ ok: false, mode, ...keyDiag, error: e instanceof Error ? e.message : String(e) });
   }
 });
 

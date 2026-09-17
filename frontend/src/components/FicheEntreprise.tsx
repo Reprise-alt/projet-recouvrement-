@@ -18,7 +18,15 @@ export function FicheEntreprise({
   const [busy, setBusy] = useState(false);
   const [logoBusy, setLogoBusy] = useState(false);
   const [emailBusy, setEmailBusy] = useState(false);
-  const [emailResult, setEmailResult] = useState<{ ok: boolean; mode?: string; message?: string; error?: string } | null>(null);
+  const [emailResult, setEmailResult] = useState<{
+    ok: boolean;
+    mode?: string;
+    message?: string;
+    error?: string;
+    keySource?: string;
+    keyHint?: string;
+    keyLength?: number;
+  } | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -28,7 +36,7 @@ export function FicheEntreprise({
     setEmailBusy(true);
     setEmailResult(null);
     try {
-      const r = await api.post<{ ok: boolean; mode: string; message?: string; error?: string }>('/api/organisation/test-email', {});
+      const r = await api.post<typeof emailResult & object>('/api/organisation/test-email', {});
       setEmailResult(r);
     } catch (err) {
       setEmailResult({ ok: false, error: err instanceof ApiError ? err.message : 'Échec de l’envoi.' });
@@ -252,6 +260,12 @@ export function FicheEntreprise({
                   </span>
                 )}
               </div>
+              {emailResult && (emailResult.mode || emailResult.keySource) && (
+                <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 4, fontFamily: 'var(--font-mono)' }}>
+                  mode : {emailResult.mode ?? '—'} · clé : {emailResult.keySource ?? '—'} ({emailResult.keyHint ?? '—'},{' '}
+                  {emailResult.keyLength ?? 0} car.)
+                </div>
+              )}
               <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 4 }}>
                 Confirme que vos relances partent réellement à vos débiteurs. Si vous recevez l'email (vérifiez les spams),
                 l'envoi est opérationnel.
