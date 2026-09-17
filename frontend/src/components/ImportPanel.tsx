@@ -2,6 +2,7 @@ import { ChangeEvent, useRef, useState } from 'react';
 import { api, ApiError, downloadFile } from '../api/client';
 import { ImportSummary } from '../api/types';
 import { useToast } from '../hooks/useToast';
+import { IS_SAAS } from '../auth/mode';
 
 export function ImportPanel({ onClose, onImported }: { onClose: () => void; onImported: () => void }) {
   const { showToast } = useToast();
@@ -42,9 +43,10 @@ export function ImportPanel({ onClose, onImported }: { onClose: () => void; onIm
       <div className="modal">
         <h2 style={{ marginBottom: 4 }}>Importer un fichier</h2>
         <div style={{ color: 'var(--ink-soft)', fontSize: 12.5, marginBottom: 16 }}>
-          Classeur de facturation OLU, suivi de contrats, ou modèle CSV générique — le type est détecté
-          automatiquement. La fusion préserve les factures déjà payées, les contacts saisis à la main et
-          l'historique des envois.
+          {IS_SAAS
+            ? 'Classeur de facturation ou modèle CSV générique — le type est détecté automatiquement.'
+            : 'Classeur de facturation OLU, suivi de contrats, ou modèle CSV générique — le type est détecté automatiquement.'}{' '}
+          La fusion préserve les factures déjà payées, les contacts saisis à la main et l'historique des envois.
         </div>
 
         <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
@@ -60,8 +62,14 @@ export function ImportPanel({ onClose, onImported }: { onClose: () => void; onIm
             <div style={{ marginBottom: 6 }}>{result.message}</div>
             <div style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>
               {result.summary.clientsCreated} client(s) créé(s), {result.summary.clientsUpdated} mis à jour ·{' '}
-              {result.summary.facturesCreated} facture(s) créée(s), {result.summary.facturesUpdated} mise(s) à jour ·{' '}
-              {result.summary.contratsCreated} contrat(s) créé(s), {result.summary.contratsUpdated} mis à jour
+              {result.summary.facturesCreated} facture(s) créée(s), {result.summary.facturesUpdated} mise(s) à jour
+              {/* Suivi de contrats masqué en SaaS (produit recouvrement pur). */}
+              {!IS_SAAS && (
+                <>
+                  {' '}
+                  · {result.summary.contratsCreated} contrat(s) créé(s), {result.summary.contratsUpdated} mis à jour
+                </>
+              )}
             </div>
           </div>
         )}

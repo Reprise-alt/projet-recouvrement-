@@ -250,9 +250,15 @@ export function App() {
                     <button className={recouvrementTab === 'relances' ? 'active' : ''} onClick={() => setRecouvrementTab('relances')}>
                       Relances à venir
                     </button>
-                    <button className={recouvrementTab === 'contrats' ? 'active' : ''} onClick={() => setRecouvrementTab('contrats')}>
-                      Échéances de contrats
-                    </button>
+                    {/* Suivi des échéances de contrats = métier distinct du
+                        recouvrement (renouvellements/révisions). Masqué en SaaS
+                        pour rester une solution 100 % recouvrement ; la console
+                        interne du groupe conserve la fonction. */}
+                    {!IS_SAAS && (
+                      <button className={recouvrementTab === 'contrats' ? 'active' : ''} onClick={() => setRecouvrementTab('contrats')}>
+                        Échéances de contrats
+                      </button>
+                    )}
                   </>
                 )}
                 <button
@@ -346,15 +352,17 @@ export function App() {
           <ContentieuxView entityFilter={effectiveEntity} role={user.role} avocat={contentieuxSeul} />
         ) : recouvrementTab === 'relances' ? (
           <RelancesAVenirView reloadKey={dataVersion} />
-        ) : recouvrementTab === 'recouvrement' ? (
+        ) : !IS_SAAS && recouvrementTab === 'contrats' ? (
+          <ContractsView entityFilter={effectiveEntity} role={user.role} reloadKey={dataVersion} />
+        ) : (
+          // Vue par défaut (onglet Recouvrement, et repli si l'onglet contrats
+          // est masqué en SaaS).
           <RecouvrementView
             entityFilter={effectiveEntity}
             role={user.role}
             reloadKey={dataVersion}
             onImport={isAdmin ? () => setImportOpen(true) : undefined}
           />
-        ) : (
-          <ContractsView entityFilter={effectiveEntity} role={user.role} reloadKey={dataVersion} />
         )}
       </main>
 
