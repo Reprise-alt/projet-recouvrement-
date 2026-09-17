@@ -3,6 +3,7 @@ import { api, ApiError } from '../api/client';
 import { CurrentUser, Entreprise } from '../api/types';
 import { useResource } from '../hooks/useResource';
 import { useToast } from '../hooks/useToast';
+import { IS_SAAS } from '../auth/mode';
 
 const ROLE_LABELS: Record<string, string> = {
   admin: 'Admin',
@@ -129,9 +130,11 @@ export function UsersPanel({ onClose }: { onClose: () => void }) {
       <div className="modal" style={{ width: 'min(560px, 92%)' }}>
         <h2 style={{ marginBottom: 4 }}>Utilisateurs</h2>
         <div style={{ color: 'var(--ink-soft)', fontSize: 12.5, marginBottom: 16 }}>
-          L'authentification vient de Supabase ; le rôle et l'entité de rattachement sont gérés ici. Le drapeau « Agent de
-          recouvrement » détermine qui apparaît dans le reporting Performance par agent — un admin qui consulte la
-          plateforme sans faire de relance n'a pas à y figurer.
+          {IS_SAAS
+            ? 'Les comptes se connectent par code email ; le rôle et les accès sont gérés ici. '
+            : "L'authentification vient de Supabase ; le rôle et l'entité de rattachement sont gérés ici. "}
+          Le drapeau « Agent de recouvrement » détermine qui apparaît dans le reporting Performance par agent — un admin
+          qui consulte la plateforme sans faire de relance n'a pas à y figurer.
         </div>
 
         <div className="section-title">Comptes</div>
@@ -170,30 +173,36 @@ export function UsersPanel({ onClose }: { onClose: () => void }) {
                   <input type="checkbox" checked={u.accesRecouvrement} disabled={busy} onChange={() => toggleRecouvrement(u)} style={{ width: 'auto' }} />
                   Accès module Recouvrement
                 </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 5, textTransform: 'none', fontFamily: 'var(--font-body)', cursor: 'pointer' }}>
-                  <input type="checkbox" checked={u.accesPlanningCoursiers} disabled={busy} onChange={() => togglePlanningCoursiers(u)} style={{ width: 'auto' }} />
-                  Accès Planning coursiers
-                </label>
+                {/* Planning coursiers & Opérations = modules internes du groupe,
+                    hors périmètre du SaaS recouvrement — masqués en SaaS. */}
+                {!IS_SAAS && (
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 5, textTransform: 'none', fontFamily: 'var(--font-body)', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={u.accesPlanningCoursiers} disabled={busy} onChange={() => togglePlanningCoursiers(u)} style={{ width: 'auto' }} />
+                    Accès Planning coursiers
+                  </label>
+                )}
                 <label style={{ display: 'flex', alignItems: 'center', gap: 5, textTransform: 'none', fontFamily: 'var(--font-body)', cursor: 'pointer' }} title="Collaborateur juridique externe : ne voit que l'onglet Contentieux, uniquement les dossiers qui lui sont assignés">
                   <input type="checkbox" checked={u.accesContentieux} disabled={busy} onChange={() => toggleContentieux(u)} style={{ width: 'auto' }} />
                   Accès Contentieux (avocat/huissier)
                 </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 5, textTransform: 'none', fontFamily: 'var(--font-body)' }}>
-                  Accès Opérations :
-                  <select
-                    value={u.roleOperations ?? ''}
-                    disabled={busy}
-                    onChange={(e) => updateRoleOperations(u, e.target.value)}
-                    style={{ fontSize: 11.5, padding: '2px 6px', width: 'auto' }}
-                  >
-                    <option value="">Aucun</option>
-                    {Object.entries(ROLE_OPERATIONS_LABELS).map(([v, l]) => (
-                      <option key={v} value={v}>
-                        {l}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                {!IS_SAAS && (
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 5, textTransform: 'none', fontFamily: 'var(--font-body)' }}>
+                    Accès Opérations :
+                    <select
+                      value={u.roleOperations ?? ''}
+                      disabled={busy}
+                      onChange={(e) => updateRoleOperations(u, e.target.value)}
+                      style={{ fontSize: 11.5, padding: '2px 6px', width: 'auto' }}
+                    >
+                      <option value="">Aucun</option>
+                      {Object.entries(ROLE_OPERATIONS_LABELS).map(([v, l]) => (
+                        <option key={v} value={v}>
+                          {l}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
               </div>
             </div>
           ))
@@ -206,7 +215,7 @@ export function UsersPanel({ onClose }: { onClose: () => void }) {
             <input type="text" name="nom" required />
           </div>
           <div>
-            <label>Email (doit correspondre au compte Supabase)</label>
+            <label>{IS_SAAS ? 'Email (sert de connexion par code)' : 'Email (doit correspondre au compte Supabase)'}</label>
             <input type="email" name="email" required />
           </div>
           <div>
@@ -238,25 +247,29 @@ export function UsersPanel({ onClose }: { onClose: () => void }) {
             <input type="checkbox" name="accesRecouvrement" defaultChecked style={{ width: 'auto' }} />
             Accès au module Recouvrement
           </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, textTransform: 'none', fontFamily: 'var(--font-body)', fontSize: 13, cursor: 'pointer' }}>
-            <input type="checkbox" name="accesPlanningCoursiers" defaultChecked style={{ width: 'auto' }} />
-            Accès à la console Planning des coursiers
-          </label>
+          {!IS_SAAS && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, textTransform: 'none', fontFamily: 'var(--font-body)', fontSize: 13, cursor: 'pointer' }}>
+              <input type="checkbox" name="accesPlanningCoursiers" defaultChecked style={{ width: 'auto' }} />
+              Accès à la console Planning des coursiers
+            </label>
+          )}
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, textTransform: 'none', fontFamily: 'var(--font-body)', fontSize: 13, cursor: 'pointer' }}>
             <input type="checkbox" name="accesContentieux" style={{ width: 'auto' }} />
             Accès Contentieux seul (collaborateur juridique externe — avocat / huissier)
           </label>
-          <div>
-            <label>Accès Opérations (optionnel)</label>
-            <select name="roleOperations" defaultValue="">
-              <option value="">Aucun</option>
-              {Object.entries(ROLE_OPERATIONS_LABELS).map(([v, l]) => (
-                <option key={v} value={v}>
-                  {l}
-                </option>
-              ))}
-            </select>
-          </div>
+          {!IS_SAAS && (
+            <div>
+              <label>Accès Opérations (optionnel)</label>
+              <select name="roleOperations" defaultValue="">
+                <option value="">Aucun</option>
+                {Object.entries(ROLE_OPERATIONS_LABELS).map(([v, l]) => (
+                  <option key={v} value={v}>
+                    {l}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
             <button type="button" onClick={onClose}>
               Fermer
