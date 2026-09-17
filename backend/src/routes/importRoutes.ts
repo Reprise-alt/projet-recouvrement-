@@ -33,7 +33,7 @@ importRouter.post('/', upload.single('file'), async (req, res, next) => {
       return res.status(422).json({ error: 'Aucune donnée exploitable dans ce fichier.', message });
     }
 
-    const summary = await applyImport(clients);
+    const summary = await applyImport(clients, req.user!.organisationId);
     res.json({ message, summary, clientsCount: clients.length });
   } catch (err) {
     next(err);

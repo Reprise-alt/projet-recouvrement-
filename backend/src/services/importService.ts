@@ -57,7 +57,15 @@ export interface ImportSummary {
 // Applique une liste de ParsedClient (issue d'un parseur Excel/CSV) contre la
 // base : fusionne facture par facture et contrat par contrat plutôt que de
 // remplacer en bloc, en respectant les règles de non-régression de §8.
-export async function applyImport(clients: ParsedClient[]): Promise<ImportSummary> {
+// `organisationId` est passé EXPLICITEMENT (jamais laissé au défaut de colonne
+// GUC) : un import fait des centaines d'écritures dans une même requête, et le
+// contexte tenant (variable de session posée par tenantScope) peut se perdre sur
+// une transaction interactive aussi longue — les lignes retomberaient alors dans
+// l'organisation « socle » par défaut. En fixant l'organisation sur chaque client
+// (création ET recherche de doublon), le rattachement est correct quoi qu'il
+// arrive du contexte. Compatible RLS : la WITH CHECK passe soit par le contexte,
+// soit par l'échappatoire quand il est absent.
+export async function applyImport(clients: ParsedClient[], organisationId: string): Promise<ImportSummary> {
   const summary: ImportSummary = {
     clientsCreated: 0,
     clientsUpdated: 0,
@@ -69,7 +77,7 @@ export async function applyImport(clients: ParsedClient[]): Promise<ImportSummar
 
   for (const parsed of clients) {
     const existing = await prisma.client.findFirst({
-      where: { entite: parsed.entite, nom: { equals: parsed.nom, mode: 'insensitive' } },
+      where: { organisationId, entite: parsed.entite, nom: { equals: parsed.nom, mode: 'insensitive' } },
       include: { factures: true, contrats: true },
     });
 
@@ -77,6 +85,7 @@ export async function applyImport(clients: ParsedClient[]): Promise<ImportSummar
     if (!existing) {
       const created = await prisma.client.create({
         data: {
+          organisationId,
           nom: parsed.nom,
           entite: parsed.entite,
           contact: parsed.contact || undefined,
