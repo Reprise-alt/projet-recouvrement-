@@ -2,6 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import { prisma } from '../db';
 import { requireAuth, requireOrgRole } from '../middleware/auth';
+import { emailMode, getEmailProvider } from '../lib/email/provider';
 
 // Types d'image acceptés pour le logo. PNG/JPEG/WebP s'affichent partout, y
 // compris dans les emails ; SVG toléré (rendu via <img>, sans exécution de
@@ -63,6 +64,36 @@ organisationRouter.patch('/', requireOrgRole('proprietaire', 'administrateur'), 
     res.json(org);
   } catch (e) {
     next(e);
+  }
+});
+
+// Diagnostic d'envoi d'email : envoie un message de test à l'adresse de
+// l'administrateur et renvoie un résultat STRUCTURÉ (mode actif + succès ou
+// message d'erreur exact). Permet de vérifier la délivrabilité sans deviner —
+// et de détecter qu'on est resté en mode « stub » (aucun envoi réel).
+organisationRouter.post('/test-email', requireOrgRole('proprietaire', 'administrateur'), async (req, res, next) => {
+  const mode = emailMode();
+  try {
+    const to = req.user!.email;
+    await getEmailProvider().send({
+      to,
+      subject: 'Test d’envoi — OLU 360',
+      text: 'Cet email confirme que l’envoi depuis votre espace OLU 360 fonctionne. Si vous le recevez, vos relances partiront bien à vos débiteurs.',
+    });
+    // En mode stub, aucun email n'est réellement parti (juste journalisé).
+    res.json({
+      ok: mode === 'smtp',
+      mode,
+      to,
+      message:
+        mode === 'smtp'
+          ? `Email de test envoyé à ${to}. Vérifiez la réception (et les spams).`
+          : "Mode « stub » actif : aucun email n'est réellement envoyé. Configurez EMAIL_PROVIDER=smtp et les identifiants SMTP.",
+    });
+  } catch (e) {
+    // On renvoie l'erreur exacte (auth SMTP, domaine non vérifié…) au lieu d'un
+    // 500 opaque, pour que l'exploitant diagnostique lui-même.
+    res.status(200).json({ ok: false, mode, error: e instanceof Error ? e.message : String(e) });
   }
 });
 

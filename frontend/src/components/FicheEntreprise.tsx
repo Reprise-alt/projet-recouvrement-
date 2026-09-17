@@ -17,8 +17,25 @@ export function FicheEntreprise({
   const [org, setOrg] = useState<Organisation | null>(null);
   const [busy, setBusy] = useState(false);
   const [logoBusy, setLogoBusy] = useState(false);
+  const [emailBusy, setEmailBusy] = useState(false);
+  const [emailResult, setEmailResult] = useState<{ ok: boolean; mode?: string; message?: string; error?: string } | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Envoie un email de test à l'administrateur et affiche le résultat exact
+  // (mode actif + succès ou erreur) — pour vérifier la délivrabilité.
+  async function testerEmail() {
+    setEmailBusy(true);
+    setEmailResult(null);
+    try {
+      const r = await api.post<{ ok: boolean; mode: string; message?: string; error?: string }>('/api/organisation/test-email', {});
+      setEmailResult(r);
+    } catch (err) {
+      setEmailResult({ ok: false, error: err instanceof ApiError ? err.message : 'Échec de l’envoi.' });
+    } finally {
+      setEmailBusy(false);
+    }
+  }
 
   useEffect(() => {
     api
@@ -213,6 +230,28 @@ export function FicheEntreprise({
               />
               <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 4 }}>
                 Affichées telles quelles à vos débiteurs dans les relances et le portail.
+              </div>
+            </div>
+
+            <div className="field">
+              <label>Diagnostic e-mail</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <button type="button" onClick={testerEmail} disabled={emailBusy}>
+                  {emailBusy ? 'Envoi…' : "M'envoyer un email de test"}
+                </button>
+                {emailResult && (
+                  <span style={{ fontSize: 12.5, color: emailResult.ok ? 'var(--success)' : 'var(--danger)' }}>
+                    {emailResult.ok
+                      ? emailResult.message ?? 'Email de test envoyé.'
+                      : emailResult.error
+                        ? `Échec : ${emailResult.error}`
+                        : emailResult.message ?? 'Aucun envoi (mode test).'}
+                  </span>
+                )}
+              </div>
+              <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 4 }}>
+                Confirme que vos relances partent réellement à vos débiteurs. Si vous recevez l'email (vérifiez les spams),
+                l'envoi est opérationnel.
               </div>
             </div>
 
