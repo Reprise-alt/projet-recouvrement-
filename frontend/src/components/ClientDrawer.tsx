@@ -5,6 +5,7 @@ import { ClientDetail, Contact, DossierRef, EcheancierPaiement, RoleUtilisateur,
 import { useResource } from '../hooks/useResource';
 import { useToast } from '../hooks/useToast';
 import { fmtDate, fmtFCFA, PALIERS } from '../lib/constants';
+import { usePaliersConfig } from '../lib/paliersConfig';
 
 interface Props {
   clientId: string;
@@ -15,6 +16,7 @@ interface Props {
 
 export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
   const { showToast } = useToast();
+  const { libelle } = usePaliersConfig();
   const { data: client, loading, error, refetch } = useResource<ClientDetail>(`/api/clients/${clientId}`);
   // Signal opérations -> recouvrement (cahier §8) : n'affiche rien tant que
   // le client n'a pas de fiche Opérations -- silencieux plutôt qu'un état
@@ -313,7 +315,7 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
     try {
       const formData = new FormData();
       formData.append('to', sendTo);
-      formData.append('subject', `${PALIERS[palierId].label} — ${client.nom}`);
+      formData.append('subject', `${libelle(palierId)} — ${client.nom}`);
       formData.append('body', letterText);
       formData.append('context', JSON.stringify({ type: 'client_letter', clientId, palier: palierId }));
       attachments.forEach((file) => formData.append('attachments', file));
@@ -620,7 +622,7 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
               <span>Palier actuel</span>
             </div>
             <span className="badge" data-tone={PALIERS[client.palier].tone} style={{ fontSize: 13, padding: '6px 12px' }}>
-              {PALIERS[client.palier].label}
+              {libelle(client.palier)}
             </span>
 
             <div className="section-title">

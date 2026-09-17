@@ -4,7 +4,7 @@
 // mode dry-run (par défaut) calcule ce qui PARTIRAIT sans rien envoyer ni écrire.
 import { prisma, currentOrganisationId } from '../db';
 import { getEmailProvider } from './email/provider';
-import { getConfig } from '../services/configService';
+import { getConfig, getPaliersActifs } from '../services/configService';
 import { generateLetter, LetterClient } from './letters';
 import { PALIERS } from './paliers';
 import { ClientRelance, dansFenetreEnvoi, relancesDues } from './moteurRelances';
@@ -95,6 +95,7 @@ export async function executerRelancesTenant(opts: OptionsExecution = {}): Promi
   const envoiEffectif = !dryRun && (fenetreOuverte || forcer);
 
   const config = await getConfig();
+  const paliersActifs = await getPaliersActifs();
   const clients = await prisma.client.findMany({
     include: {
       factures: true,
@@ -111,7 +112,7 @@ export async function executerRelancesTenant(opts: OptionsExecution = {}): Promi
     actions: c.actions,
     echeanciers: c.echeanciers,
   }));
-  const dues = relancesDues(entree, config, now);
+  const dues = relancesDues(entree, config, now, paliersActifs);
 
   const orgId = currentOrganisationId();
   const org = orgId

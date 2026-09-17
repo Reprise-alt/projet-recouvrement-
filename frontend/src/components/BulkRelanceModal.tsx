@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { useToast } from '../hooks/useToast';
 import { ClientListItem } from '../api/types';
-import { PALIERS } from '../lib/constants';
+import { usePaliersConfig } from '../lib/paliersConfig';
 
 interface Props {
   palierId: number;
@@ -48,6 +48,7 @@ function recipientsOf(c: ClientListItem): Recipient[] {
 // mise en demeure ou le contentieux qui restent du cas par cas.
 export function BulkRelanceModal({ palierId, clients, onClose, onDone }: Props) {
   const { showToast } = useToast();
+  const { libelle } = usePaliersConfig();
   const recipientsByClient = new Map(clients.map((c) => [c.id, recipientsOf(c)] as const));
   const eligible = clients.filter((c) => (recipientsByClient.get(c.id)?.length ?? 0) > 0);
 
@@ -91,7 +92,7 @@ export function BulkRelanceModal({ palierId, clients, onClose, onDone }: Props) 
         const { text } = await api.get<{ text: string }>(`/api/clients/${c.id}/letters/${palierId}`);
         const formData = new FormData();
         formData.append('to', to);
-        formData.append('subject', `${PALIERS[palierId].label} — ${c.nom}`);
+        formData.append('subject', `${libelle(palierId)} — ${c.nom}`);
         formData.append('body', text);
         formData.append('context', JSON.stringify({ type: 'client_letter', clientId: c.id, palier: palierId }));
         await api.upload('/api/send-email', formData);
@@ -111,7 +112,7 @@ export function BulkRelanceModal({ palierId, clients, onClose, onDone }: Props) 
   return (
     <div className="modal-overlay open" onClick={(e) => e.target === e.currentTarget && !sending && onClose()}>
       <div className="modal" style={{ maxWidth: 560 }}>
-        <h2 style={{ marginBottom: 4 }}>Relance groupée — {PALIERS[palierId].label}</h2>
+        <h2 style={{ marginBottom: 4 }}>Relance groupée — {libelle(palierId)}</h2>
         <div style={{ color: 'var(--ink-soft)', fontSize: 12.5, marginBottom: 14 }}>
           Envoie à chaque client sélectionné le courrier standard de ce palier (texte non personnalisé par client). Un client
           avec plusieurs contacts cochés reçoit un seul mail avec tous en destinataires.

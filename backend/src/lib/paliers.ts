@@ -55,6 +55,19 @@ export const PALIERS: Palier[] = [
   { id: 8, label: 'Contentieux', tone: 'danger', key: 'j7', desc: 'Dossier passé en contentieux — voie huissier / injonction, suivi dans l’onglet Contentieux' },
 ];
 
+// Paliers « modifiables » = ceux qui portent un seuil en jours (clé jX), soit
+// les id 1..8. Le palier 0 (« À jour ») n'est pas un palier de relance.
+export const PALIERS_MODIFIABLES: number[] = PALIERS.filter((p) => p.key).map((p) => p.id);
+
+// Correspondances palier(1..8) ⇄ clé de seuil (j0..j7), dérivées de PALIERS
+// pour rester l'unique source de vérité.
+export const CLE_PAR_PALIER: Record<number, keyof PalierConfig> = Object.fromEntries(
+  PALIERS.filter((p) => p.key).map((p) => [p.id, p.key as keyof PalierConfig]),
+);
+export const PALIER_PAR_CLE: Record<string, number> = Object.fromEntries(
+  PALIERS.filter((p) => p.key).map((p) => [p.key as string, p.id]),
+);
+
 export function computePalier(joursRetard: number, config: PalierConfig = DEFAULT_CONFIG, multiplier = 1): number {
   if (joursRetard <= 0) return 0;
   if (joursRetard < config.j0 * multiplier) return 0;

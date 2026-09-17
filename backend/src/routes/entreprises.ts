@@ -1,9 +1,14 @@
 import { Router } from 'express';
 import { requireAuth, requireRole } from '../middleware/auth';
+import { tenantScope } from '../middleware/tenant';
 import { createEntreprise, EntrepriseValidationError, listEntreprises, updateEntreprise } from '../services/entrepriseService';
 
 export const entreprisesRouter = Router();
-entreprisesRouter.use(requireAuth);
+// tenantScope INDISPENSABLE : la table Entreprise est isolée par RLS. Sans
+// contexte tenant posé, l'échappatoire RLS renverrait les entités de TOUTES les
+// organisations — un client SaaS reverrait alors les entités du groupe dans son
+// sélecteur. Le scope rattache chaque lecture/écriture à l'organisation courante.
+entreprisesRouter.use(requireAuth, tenantScope);
 
 // Toute personne connectée peut lister les entités (noms de sociétés, pas de
 // données sensibles) — nécessaire pour l'onglet de filtre et les menus.
