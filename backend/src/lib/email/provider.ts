@@ -94,7 +94,7 @@ class SmtpEmailProvider implements EmailProvider {
         host: process.env.SMTP_HOST,
         port: Number(process.env.SMTP_PORT || 587),
         secure: process.env.SMTP_SECURE === 'true',
-        auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } : undefined,
+        auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: (process.env.SMTP_PASS || '').trim() } : undefined,
         // Délais courts : si l'hébergeur bloque le port SMTP sortant, on échoue
         // vite avec une erreur claire au lieu de rester suspendu indéfiniment.
         connectionTimeout: 10_000,
@@ -136,7 +136,9 @@ class ResendApiProvider implements EmailProvider {
   private baseAddress: string;
 
   constructor() {
-    this.apiKey = process.env.RESEND_API_KEY || process.env.SMTP_PASS || '';
+    // trim() : une clé collée dans un champ secret Render embarque souvent un
+    // espace ou un retour à la ligne parasite → « API key is invalid ».
+    this.apiKey = (process.env.RESEND_API_KEY || process.env.SMTP_PASS || '').trim();
     this.from = process.env.EMAIL_FROM || 'OLU 360 <no-reply@olu360.com>';
     const m = this.from.match(/<([^>]+)>/);
     this.baseAddress = (m ? m[1] : this.from).trim();
