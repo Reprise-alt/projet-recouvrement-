@@ -363,7 +363,7 @@ export function App() {
         ) : contentieuxSeul || recouvrementTab === 'contentieux' ? (
           <ContentieuxView entityFilter={effectiveEntity} role={user.role} avocat={contentieuxSeul} />
         ) : recouvrementTab === 'relances' ? (
-          <RelancesAVenirView reloadKey={dataVersion} />
+          <RelancesAVenirView reloadKey={dataVersion} canManage={isAdmin} />
         ) : !IS_SAAS && recouvrementTab === 'contrats' ? (
           <ContractsView entityFilter={effectiveEntity} role={user.role} reloadKey={dataVersion} />
         ) : (
