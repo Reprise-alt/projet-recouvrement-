@@ -113,8 +113,15 @@ export async function executerRelancesTenant(opts: OptionsExecution = {}): Promi
 
   const orgId = currentOrganisationId();
   const org = orgId
-    ? await prisma.organisation.findUnique({ where: { id: orgId }, select: { instructionsPaiement: true } })
+    ? await prisma.organisation.findUnique({
+        where: { id: orgId },
+        select: { instructionsPaiement: true, raisonSociale: true, emailReponse: true },
+      })
     : null;
+  // Identité d'expéditeur du tenant (§6) : nom affiché = raison sociale, réponses
+  // renvoyées à l'adresse de l'organisation. L'adresse d'envoi reste mutualisée.
+  const fromName = org?.raisonSociale ?? undefined;
+  const replyTo = org?.emailReponse ?? undefined;
 
   const provider = getEmailProvider();
   const envoyees: RelanceEnvoyee[] = [];
@@ -144,7 +151,7 @@ export async function executerRelancesTenant(opts: OptionsExecution = {}): Promi
     if (envoiEffectif) {
       // Envoi réel puis trace — l'action n'est enregistrée que si l'envoi a
       // réussi (une exception interrompt et remonte, rien n'est marqué envoyé).
-      await provider.send({ to: c.email, subject: msg.sujet, text: msg.corps });
+      await provider.send({ to: c.email, subject: msg.sujet, text: msg.corps, fromName, replyTo });
       await prisma.actionRecouvrement.create({
         data: {
           clientId: c.id,

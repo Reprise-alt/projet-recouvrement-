@@ -19,6 +19,7 @@ const CHAMPS = [
   'logoUrl',
   'instructionsPaiement',
   'contactRecouvrement',
+  'emailReponse',
 ] as const;
 
 organisationRouter.get('/', async (req, res, next) => {

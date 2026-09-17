@@ -26,6 +26,7 @@ export interface Organisation {
   logoUrl: string | null;
   instructionsPaiement: string | null;
   contactRecouvrement: string | null;
+  emailReponse: string | null;
   formule: string;
   statut: string;
 }

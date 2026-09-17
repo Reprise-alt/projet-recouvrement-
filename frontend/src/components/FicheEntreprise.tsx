@@ -44,6 +44,7 @@ export function FicheEntreprise({
         logoUrl: org.logoUrl,
         instructionsPaiement: org.instructionsPaiement,
         contactRecouvrement: org.contactRecouvrement,
+        emailReponse: org.emailReponse,
       });
       onSaved();
       onClose();
@@ -103,6 +104,19 @@ export function FicheEntreprise({
             <div className="field">
               <label>Adresse</label>
               <input value={org.adresse ?? ''} onChange={(e) => champ('adresse', e.target.value)} />
+            </div>
+
+            <div className="field">
+              <label>Email de réponse aux relances</label>
+              <input
+                type="email"
+                value={org.emailReponse ?? ''}
+                onChange={(e) => champ('emailReponse', e.target.value)}
+                placeholder="recouvrement@votre-entreprise.sn"
+              />
+              <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 4 }}>
+                Vos relances partent à votre nom ; si un débiteur répond, sa réponse arrive à cette adresse.
+              </div>
             </div>
 
             <div className="field">

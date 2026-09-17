@@ -14,6 +14,11 @@ export interface EmailMessage {
   subject: string;
   text: string;
   html?: string;
+  // Identité d'expéditeur par organisation (§5.3, §6) : le nom affiché prend le
+  // pas sur le nom par défaut (l'adresse d'envoi reste mutualisée), et replyTo
+  // renvoie les réponses vers l'entreprise cliente.
+  fromName?: string;
+  replyTo?: string;
 }
 
 export interface EmailProvider {
@@ -46,8 +51,9 @@ function corpsHtml(code: string): string {
 
 class StubEmailProvider implements EmailProvider {
   async send(msg: EmailMessage): Promise<void> {
+    const ident = msg.fromName ? ` (de « ${msg.fromName} »${msg.replyTo ? `, réponse → ${msg.replyTo}` : ''})` : '';
     // eslint-disable-next-line no-console
-    console.log(`[email:stub] à ${msg.to} — ${msg.subject}`);
+    console.log(`[email:stub] à ${msg.to} — ${msg.subject}${ident}`);
   }
 
   async sendOtp(to: string, code: string): Promise<void> {
@@ -63,9 +69,15 @@ class StubEmailProvider implements EmailProvider {
 class SmtpEmailProvider implements EmailProvider {
   private transporter: Transporter;
   private from: string;
+  // Adresse d'envoi mutualisée, extraite d'EMAIL_FROM (« Nom <adresse> » ou
+  // « adresse ») : on garde cette adresse pour tous les tenants, seul le nom
+  // affiché change par organisation (§6).
+  private baseAddress: string;
 
   constructor(transporter?: Transporter) {
     this.from = process.env.EMAIL_FROM || 'OLU 360 <no-reply@olu360.com>';
+    const m = this.from.match(/<([^>]+)>/);
+    this.baseAddress = (m ? m[1] : this.from).trim();
     this.transporter =
       transporter ||
       nodemailer.createTransport({
@@ -77,7 +89,15 @@ class SmtpEmailProvider implements EmailProvider {
   }
 
   async send(msg: EmailMessage): Promise<void> {
-    await this.transporter.sendMail({ from: this.from, to: msg.to, subject: msg.subject, text: msg.text, html: msg.html });
+    const from = msg.fromName ? { name: msg.fromName, address: this.baseAddress } : this.from;
+    await this.transporter.sendMail({
+      from,
+      to: msg.to,
+      subject: msg.subject,
+      text: msg.text,
+      html: msg.html,
+      replyTo: msg.replyTo || undefined,
+    });
   }
 
   async sendOtp(to: string, code: string): Promise<void> {
