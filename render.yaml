@@ -130,7 +130,7 @@ services:
         generateValue: true
       - key: RELANCES_CRON_SECRET
         generateValue: true
-      # Origine autorisée = l'URL du front SaaS (ex. https://app.olu360.com).
+      # Origine autorisée = l'URL du front SaaS (ex. https://essai.olu360.com).
       - key: CORS_ORIGIN
         sync: false
 

@@ -30,17 +30,17 @@ de la prod du groupe. Défini dans `render.yaml` : `olu360-saas-db`,
 
 ## 3. Domaines et URLs
 
-1. **Front** : mapper **`app.olu360.com`** sur `olu360-saas-frontend` (Render
+1. **Front** : mapper **`essai.olu360.com`** sur `olu360-saas-frontend` (Render
    fournit le CNAME à créer).
 2. Renseigner les deux URLs croisées :
-   - `olu360-saas-backend` → env `CORS_ORIGIN` = `https://app.olu360.com`
+   - `olu360-saas-backend` → env `CORS_ORIGIN` = `https://essai.olu360.com`
    - `olu360-saas-frontend` → env `VITE_API_URL` = URL du back-end
      (`https://olu360-saas-backend.onrender.com`, ou un domaine mappé), puis
      **redéployer le front** (variable de build).
 
 ## 4. Vérifier
 
-- Ouvrir **`https://app.olu360.com`** → écran d'inscription par code email.
+- Ouvrir **`https://essai.olu360.com`** → écran d'inscription par code email.
 - S'inscrire (email → code → profilage) : le code arrive par email (Resend), ou
   dans les logs Render en mode `stub`.
 - Compléter la **fiche entreprise** (logo, coordonnées, email de réponse,
