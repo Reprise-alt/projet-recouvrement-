@@ -4,6 +4,7 @@ import { buildQuery } from '../api/client';
 import { useResource } from '../hooks/useResource';
 import { ClientListItem, Entite, RecouvrementKpis, RoleUtilisateur } from '../api/types';
 import { fmtDate, fmtFCFA, PALIERS } from '../lib/constants';
+import { usePaliersConfig } from '../lib/paliersConfig';
 import { ClientDrawer } from './ClientDrawer';
 import { BulkRelanceModal } from './BulkRelanceModal';
 import { EntityLogo, entityAccent } from './EntityLogo';
@@ -25,6 +26,7 @@ function needsAction(c: ClientListItem): boolean {
 }
 
 export function RecouvrementView({ entityFilter, role, reloadKey, onImport }: Props) {
+  const { libelle } = usePaliersConfig();
   const [palierFilter, setPalierFilter] = useState<number | null>(null);
   const [sortKey, setSortKey] = useState<'nom' | 'encours' | 'joursRetard'>('joursRetard');
   const [sortDir, setSortDir] = useState<1 | -1>(-1);
@@ -240,7 +242,7 @@ export function RecouvrementView({ entityFilter, role, reloadKey, onImport }: Pr
                         {p.desc && <div className="rung-tip">{p.desc}</div>}
                       </div>
                       <div className="rung-meta">
-                        <div className="rung-label">{p.label}</div>
+                        <div className="rung-label">{libelle(p.id)}</div>
                         <div className="rung-days">{p.key && kpis.data ? `J+${kpis.data.config[p.key]}` : '—'}</div>
                       </div>
                     </button>
@@ -274,7 +276,7 @@ export function RecouvrementView({ entityFilter, role, reloadKey, onImport }: Pr
               : onlyRetardInhabituel
                 ? 'Retards inhabituels'
                 : palierFilter !== null
-                  ? `Palier — ${PALIERS[palierFilter].label}`
+                  ? `Palier — ${libelle(palierFilter)}`
                   : 'Tous les clients'}
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -367,7 +369,7 @@ export function RecouvrementView({ entityFilter, role, reloadKey, onImport }: Pr
                       <td className="mono">{c.joursRetard} j</td>
                       <td>
                         <span className="badge" data-tone={pal.tone}>
-                          {pal.label}
+                          {libelle(c.palier)}
                         </span>
                       </td>
                       <td style={{ fontSize: 12 }}>

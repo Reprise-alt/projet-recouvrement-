@@ -31,6 +31,15 @@ export interface Organisation {
   statut: string;
 }
 
+// Réglage d'un palier propre à l'organisation (SaaS) : seuil en jours,
+// activation dans la séquence de relance, et libellé personnalisé.
+export interface ReglagePalier {
+  palier: number;
+  actif: boolean;
+  libelle: string | null;
+  jours: number;
+}
+
 export interface CurrentUser {
   id: string;
   nom: string;

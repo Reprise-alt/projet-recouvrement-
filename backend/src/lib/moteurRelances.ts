@@ -39,7 +39,7 @@ export interface ClientRelance extends ClientWithFactures {
 }
 
 // Pourquoi une relance NE part pas (utile pour l'aperçu / le débogage).
-export type MotifBlocage = 'a_jour' | 'deja_relance' | 'promesse_en_cours' | 'litige' | 'opposition';
+export type MotifBlocage = 'a_jour' | 'deja_relance' | 'promesse_en_cours' | 'litige' | 'opposition' | 'palier_desactive';
 
 export interface RelanceDue {
   clientId: string;
@@ -72,18 +72,36 @@ export function dejaRelanceCePalier(actions: ActionLike[] | undefined, palier: n
   return actions.some((a) => a.palier >= palier);
 }
 
+// Ramène un palier calculé au palier ACTIF le plus proche en dessous (ou égal).
+// Un palier désactivé par l'organisation est sauté : le débiteur reste au
+// dernier niveau actif atteint et reçoit son message, plutôt qu'un message d'un
+// niveau que le client a explicitement retiré de sa séquence. `undefined` =
+// tous actifs (comportement historique, aucun palier retiré).
+function palierEffectif(palier: number, paliersActifs?: Set<number>): number {
+  if (!paliersActifs) return palier;
+  let p = palier;
+  while (p > 0 && !paliersActifs.has(p)) p--;
+  return p;
+}
+
 // Décision pour un client : relance due (et à quel palier) ou motif de blocage.
 export function evaluerRelance(
   client: ClientRelance,
   config: PalierConfig = DEFAULT_CONFIG,
   now: Date = new Date(),
+  paliersActifs?: Set<number>,
 ): EvaluationRelance {
-  const palier = clientPalier(client, config);
-  if (palier <= 0) return { due: null, motifBlocage: 'a_jour' };
+  const palierBrut = clientPalier(client, config);
+  if (palierBrut <= 0) return { due: null, motifBlocage: 'a_jour' };
   // Ordre volontaire : opposition et litige priment sur tout (§5.2).
   if (client.opposition) return { due: null, motifBlocage: 'opposition' };
   if (client.enLitige) return { due: null, motifBlocage: 'litige' };
   if (promesseEnCours(client.echeanciers, now)) return { due: null, motifBlocage: 'promesse_en_cours' };
+  // Paliers désactivés sautés : on relance au niveau actif effectif. Si aucun
+  // palier actif n'est atteint (tous ceux en dessous sont désactivés), rien ne
+  // part.
+  const palier = palierEffectif(palierBrut, paliersActifs);
+  if (palier <= 0) return { due: null, motifBlocage: 'palier_desactive' };
   if (dejaRelanceCePalier(client.actions, palier)) return { due: null, motifBlocage: 'deja_relance' };
   return { due: { clientId: client.id, nom: client.nom, palier, joursRetard: clientJoursRetard(client) } };
 }
@@ -93,9 +111,10 @@ export function relancesDues(
   clients: ClientRelance[],
   config: PalierConfig = DEFAULT_CONFIG,
   now: Date = new Date(),
+  paliersActifs?: Set<number>,
 ): RelanceDue[] {
   return clients
-    .map((c) => evaluerRelance(c, config, now))
+    .map((c) => evaluerRelance(c, config, now, paliersActifs))
     .map((e) => e.due)
     .filter((d): d is RelanceDue => d !== null);
 }

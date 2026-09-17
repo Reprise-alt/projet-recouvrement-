@@ -59,6 +59,26 @@ describe('evaluerRelance', () => {
     expect(evaluerRelance(c, undefined, NOW).motifBlocage).toBe('opposition');
   });
 
+  it('saute un palier désactivé et relance au niveau actif inférieur', () => {
+    // Client au palier brut 4, mais le palier 4 est désactivé par l'organisation
+    // → on relance au palier actif immédiatement inférieur (3).
+    const c = client({ id: 'g', factures: [factureEchue(40)] });
+    const actifs = new Set([1, 2, 3, 5, 6, 7, 8]); // 4 retiré
+    expect(evaluerRelance(c, undefined, NOW, actifs).due?.palier).toBe(3);
+  });
+
+  it('ne relance pas si tous les paliers atteints sont désactivés', () => {
+    // Palier brut 4, mais 1..4 tous désactivés → aucune relance.
+    const c = client({ id: 'h', factures: [factureEchue(40)] });
+    const actifs = new Set([5, 6, 7, 8]);
+    expect(evaluerRelance(c, undefined, NOW, actifs).motifBlocage).toBe('palier_desactive');
+  });
+
+  it('ne saute rien quand paliersActifs est omis (comportement historique)', () => {
+    const c = client({ id: 'i', factures: [factureEchue(40)] });
+    expect(evaluerRelance(c, undefined, NOW).due?.palier).toBe(4);
+  });
+
   it('suspend tant qu’une promesse court, reprend une fois dépassée', () => {
     const futur = new Date(NOW.getTime() + 5 * 86_400_000).toISOString();
     const passe = new Date(NOW.getTime() - 5 * 86_400_000).toISOString();

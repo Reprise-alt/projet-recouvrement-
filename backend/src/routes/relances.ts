@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { prisma, currentOrganisationId } from '../db';
-import { getConfig } from '../services/configService';
+import { getConfig, getPaliersActifs, getReglagesPaliers } from '../services/configService';
 import { clientEncours, PALIERS } from '../lib/paliers';
 import { ClientRelance, dansFenetreEnvoi, relancesDues } from '../lib/moteurRelances';
 import { executerRelancesTenant } from '../lib/executerRelances';
@@ -29,6 +29,10 @@ relancesRouter.use(requireAuth, requireAccesRecouvrement, tenantScope);
 relancesRouter.get('/dues', async (_req, res, next) => {
   try {
     const config = await getConfig();
+    const paliersActifs = await getPaliersActifs();
+    // Libellés personnalisés de l'organisation (rename des paliers).
+    const reglages = await getReglagesPaliers();
+    const libelleParPalier = new Map(reglages.map((r) => [r.palier, r.libelle]));
     const clients = await prisma.client.findMany({
       include: {
         factures: true,
@@ -53,9 +57,9 @@ relancesRouter.get('/dues', async (_req, res, next) => {
     const encoursParClient = new Map(clients.map((c) => [c.id, clientEncours(c)]));
     const emailParClient = new Map(clients.map((c) => [c.id, c.email]));
 
-    const dues = relancesDues(entree, config, now).map((d) => ({
+    const dues = relancesDues(entree, config, now, paliersActifs).map((d) => ({
       ...d,
-      palierLabel: PALIERS[d.palier]?.label ?? `Palier ${d.palier}`,
+      palierLabel: libelleParPalier.get(d.palier) || PALIERS[d.palier]?.label || `Palier ${d.palier}`,
       encours: encoursParClient.get(d.clientId) ?? 0,
       email: emailParClient.get(d.clientId) ?? null,
     }));

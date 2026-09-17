@@ -172,6 +172,28 @@ model Organisation {
   utilisateurs   Utilisateur[]
   modelesRelance ModeleRelanceOrg[]
   entreprises    Entreprise[]
+  paliers        PalierOrg[]
+}
+
+// Réglage d'un palier de recouvrement PAR organisation (addendum §5) : chaque
+// client SaaS pilote sa propre échelle — seuil en jours, activation, libellé.
+// Une ligne par palier « modifiable » (id 1..8 de lib/paliers). L'absence de
+// ligne = valeurs par défaut (jours = DEFAULT_CONFIG, actif, libellé standard).
+// Table tenant (RLS), même échappatoire non-cassante que les autres.
+model PalierOrg {
+  id             String       @id @default(cuid())
+  organisationId String       @default(dbgenerated("coalesce(current_setting('app.organisation_id', true), 'org-groupe-olu360')"))
+  // Identifiant de palier (1..8), aligné sur PALIERS de lib/paliers.
+  palier         Int
+  // Seuil de déclenchement en jours de retard ; null = valeur par défaut.
+  jours          Int?
+  // Palier actif dans la séquence de relance ; false = étape sautée.
+  actif          Boolean      @default(true)
+  // Libellé personnalisé affiché dans la console ; null = libellé par défaut.
+  libelle        String?
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  @@unique([organisationId, palier])
 }
 
 // Modèle de relance personnalisé par une organisation (addendum §5.3). Surcharge

@@ -3,6 +3,7 @@ import { ApiError, buildQuery, downloadFilePost } from '../api/client';
 import { useResource } from '../hooks/useResource';
 import { AgentStat, AnalyseResult, ComparaisonResult, Entite, RelanceDetail, ReportingSummary, RoleUtilisateur } from '../api/types';
 import { fmtDate, fmtFCFA, PALIERS } from '../lib/constants';
+import { usePaliersConfig } from '../lib/paliersConfig';
 
 type CategorieAnalyse = 'pointsForts' | 'actionsPositives' | 'pointsVigilance' | 'axesAmelioration' | 'recommandations';
 
@@ -131,6 +132,7 @@ function fmtDelta(delta: number): string {
 }
 
 export function ReportingView({ entityFilter, role }: Props) {
+  const { libelle } = usePaliersConfig();
   const [from, setFrom] = useState(firstDayOfMonth());
   const [to, setTo] = useState(today());
   const [busy, setBusy] = useState(false);
@@ -510,7 +512,7 @@ export function ReportingView({ entityFilter, role }: Props) {
                     <tr key={r.palier} className={r.nombre > 0 ? 'row-hover' : ''} onClick={() => r.nombre > 0 && setSelectedPalier(r.palier)}>
                       <td>
                         <span className="badge" data-tone={pal?.tone ?? 'success'}>
-                          {r.label}
+                          {libelle(r.palier)}
                         </span>
                       </td>
                       <td className="mono">{r.nombre}</td>
@@ -594,7 +596,7 @@ export function ReportingView({ entityFilter, role }: Props) {
         <div className="modal-overlay open" onClick={(e) => e.target === e.currentTarget && setSelectedPalier(null)}>
           <div className="modal" style={{ width: 'min(560px, 92%)' }}>
             <h2 style={{ marginBottom: 4 }}>
-              {PALIERS[selectedPalier]?.label} — {fmtDate(from)} au {fmtDate(to)}
+              {libelle(selectedPalier)} — {fmtDate(from)} au {fmtDate(to)}
             </h2>
             <div style={{ color: 'var(--ink-soft)', fontSize: 12.5, marginBottom: 16 }}>Relances enregistrées sur la période.</div>
 
