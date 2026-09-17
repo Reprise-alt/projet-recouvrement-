@@ -211,22 +211,28 @@ export function App() {
           </details>
         )}
 
-        <div className="rail-section">
-          <div className="rail-section-label">Entité</div>
-          <div className="rail-entities">
-            {availableEntities.map((k) => (
-              <button
-                key={k}
-                className={effectiveEntity === k ? 'active' : ''}
-                onClick={() => setEntityFilter(k)}
-                disabled={availableEntities.length === 1}
-              >
-                {k !== 'ALL' && <EntityLogo entite={k} size={15} />}
-                {k === 'ALL' ? 'Toutes les entités' : k}
-              </button>
-            ))}
+        {/* Sélecteur d'entité : masqué pour un client SaaS mono-entité (0 ou 1
+            entité réelle) — il n'y a alors aucun choix à faire, et tout son
+            portefeuille s'affiche. Le groupe et les clients multi-entités
+            gardent le sélecteur. */}
+        {!(IS_SAAS && availableEntities.filter((e) => e !== 'ALL').length <= 1) && (
+          <div className="rail-section">
+            <div className="rail-section-label">Entité</div>
+            <div className="rail-entities">
+              {availableEntities.map((k) => (
+                <button
+                  key={k}
+                  className={effectiveEntity === k ? 'active' : ''}
+                  onClick={() => setEntityFilter(k)}
+                  disabled={availableEntities.length === 1}
+                >
+                  {k !== 'ALL' && <EntityLogo entite={k} size={15} />}
+                  {k === 'ALL' ? 'Toutes les entités' : k}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="rail-section">
           <div className="rail-section-label">Navigation</div>

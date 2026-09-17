@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../db';
 import { ParsedClient, ParsedContrat, ParsedFacture } from '../lib/parsers/types';
 import { planContactMerge, planContratMerge, planFactureMerge } from '../lib/merge';
+import { ensureEntreprises } from './entrepriseService';
 
 function toDate(iso?: string | null): Date | undefined {
   if (!iso) return undefined;
@@ -74,6 +75,16 @@ export async function applyImport(clients: ParsedClient[], organisationId: strin
     contratsCreated: 0,
     contratsUpdated: 0,
   };
+
+  // Les entités présentes dans le fichier sont matérialisées dans
+  // l'organisation avant de rattacher les clients : un client SaaS découvre
+  // ainsi ses entités depuis ses propres données (il n'en a aucune d'avance),
+  // et le sélecteur d'entité ne montre que les siennes — jamais celles du
+  // groupe. Sans effet pour le groupe, dont les entités existent déjà.
+  await ensureEntreprises(
+    clients.map((c) => c.entite),
+    organisationId,
+  );
 
   for (const parsed of clients) {
     const existing = await prisma.client.findFirst({

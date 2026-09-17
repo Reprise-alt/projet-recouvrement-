@@ -240,7 +240,7 @@ parcImpressionRouter.get('/clients/:id/rapport-copil.pptx', async (req, res, nex
       prisma.releveVolumetrie.findMany({ where: { clientOperationsId } }),
       prisma.livraisonConsommable.findMany({ where: { clientOperationsId, ...(dateFilter ? { date: dateFilter } : {}) } }),
       prisma.actionCopil.findMany({ where: { clientOperationsId }, orderBy: [{ priorite: 'asc' }, { createdAt: 'asc' }] }),
-      prisma.entreprise.findUnique({ where: { code: scoped.co.client.entite } }),
+      prisma.entreprise.findFirst({ where: { code: scoped.co.client.entite } }),
       scoped.co.chargeDeCompteId ? prisma.utilisateur.findUnique({ where: { id: scoped.co.chargeDeCompteId } }) : Promise.resolve(null),
       // Compteur total volontairement non filtré par période -- c'est un
       // cumul de vie de la machine, pas un indicateur de la fenêtre affichée.

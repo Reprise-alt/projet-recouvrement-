@@ -269,8 +269,16 @@ describe('processImportRows (generic CSV/XLSX template)', () => {
     expect(result.clients[0].factures[0].montant).toBe(350000);
   });
 
-  it('falls back to SORAM for an unrecognized entite value', () => {
+  it('conserve une entité renseignée même inconnue (auto-découverte SaaS)', () => {
+    // On ne rabat PLUS une entité inconnue sur SORAM : cela mélangeait
+    // silencieusement les segments d'un client SaaS. La valeur du fichier est
+    // conservée telle quelle (majuscules) et l'entité sera créée à l'import.
     const result = processImportRows([{ client_nom: 'X', entite: 'INCONNU' }]);
+    expect(result.clients[0].entite).toBe('INCONNU');
+  });
+
+  it("utilise l'entité par défaut (SORAM si connue) quand la ligne n'en précise aucune", () => {
+    const result = processImportRows([{ client_nom: 'X' }]);
     expect(result.clients[0].entite).toBe('SORAM');
   });
 });

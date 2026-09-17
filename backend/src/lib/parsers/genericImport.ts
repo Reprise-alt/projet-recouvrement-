@@ -43,7 +43,14 @@ export function processImportRows(
 ): GenericImportResult {
   const map: Record<string, ParsedClient> = {};
   const knownCodes = knownEntites.map((e) => e.code.toUpperCase());
-  const fallbackCode = knownCodes.includes('SORAM') ? 'SORAM' : (knownCodes[0] ?? 'SORAM');
+  // Entité par défaut quand la ligne n'en précise pas : l'entité historique du
+  // groupe (SORAM) si présente, sinon la première entité connue de
+  // l'organisation, sinon un établissement unique « PRINCIPAL » (client SaaS
+  // mono-entité). Une entité renseignée dans le fichier est TOUJOURS conservée
+  // telle quelle (et créée à l'import si l'organisation ne l'a pas encore) —
+  // on ne la rabat plus de force sur l'entité par défaut, ce qui aurait
+  // silencieusement mélangé les segments d'un client SaaS.
+  const fallbackCode = knownCodes.includes('SORAM') ? 'SORAM' : (knownCodes[0] ?? 'PRINCIPAL');
   let skipped = 0;
 
   rows.forEach((row) => {
@@ -52,8 +59,8 @@ export function processImportRows(
       skipped++;
       return;
     }
-    let entite = (row.entite || fallbackCode).toString().trim().toUpperCase() as EntiteImport;
-    if (!knownCodes.includes(entite)) entite = fallbackCode;
+    const rawEntite = (row.entite ?? '').toString().trim().toUpperCase();
+    const entite = (rawEntite || fallbackCode) as EntiteImport;
     const key = nom + '|' + entite;
 
     if (!map[key]) {
