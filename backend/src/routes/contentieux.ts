@@ -728,6 +728,27 @@ contentieuxRouter.patch('/dossiers/:id/avocat', async (req, res, next) => {
   }
 });
 
+// --- Confier / retirer le dossier au cabinet partenaire (plateforme) ---
+// Marque le dossier comme « confié au partenaire » : le cabinet partenaire
+// (avocat/huissier transverse aux sociétés) le verra alors dans sa console.
+// Réservé à l'équipe du créancier (un collaborateur juridique ne confie pas).
+contentieuxRouter.patch('/dossiers/:id/partenaire', async (req, res, next) => {
+  try {
+    if (bloquerSiCollaborateur(req, res)) return;
+    const dossier = await chargerDossierScope(req, res);
+    if (!dossier) return;
+    const confie = req.body?.confie === true;
+    const updated = await prisma.dossierContentieux.update({
+      where: { id: dossier.id },
+      data: { confieAuPartenaire: confie, confieLe: confie ? new Date() : null },
+      select: { confieAuPartenaire: true, confieLe: true },
+    });
+    res.json({ ok: true, confieAuPartenaire: updated.confieAuPartenaire, confieLe: updated.confieLe });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // --- Valider un acte (le professionnel relit le PROJET) ---
 // Ouvert au collaborateur assigné (chargerDossierScope le vérifie) et à l'interne.
 contentieuxRouter.post('/dossiers/:id/actes/:acteId/valider', async (req, res, next) => {
