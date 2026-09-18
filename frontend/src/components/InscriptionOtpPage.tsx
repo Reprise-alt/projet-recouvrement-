@@ -76,7 +76,7 @@ export function InscriptionOtpPage() {
   }
 
   return (
-    <div className="login-wrap">
+    <div className="login-wrap login-feyma">
       <div className="login-brand">
         <span className="brand-mark">
           <FeymaMark size={28} />
