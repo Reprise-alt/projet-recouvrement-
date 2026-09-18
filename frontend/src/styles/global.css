@@ -663,6 +663,26 @@ label{font-family:var(--font-mono);font-size:10.5px;text-transform:uppercase;let
 .faq-chevron{flex:none;color:var(--ink-soft);transition:transform .18s var(--ease);}
 .faq-item[open] .faq-chevron{transform:rotate(180deg);}
 .faq-answer{padding:0 0 16px;font-size:14px;color:var(--ink-soft);line-height:1.6;}
+/* Page de connexion/inscription Feyma (SaaS) — îlot sombre, cohérent avec le
+   hero. Scopée à .login-feyma pour ne pas toucher la connexion SSO du groupe. */
+.login-feyma{
+  --accent:#C6FB50; --accent-dark:#D4FB6E; --accent-soft:#182210;
+  --ink:#EAF3EA; --ink-soft:#9CB0A0;
+  --surface:#141C17; --line:#2A3830; --line-soft:#202C24;
+  --paper:#0C120F; --paper-2:#0F1712;
+  --chrome-bg:#C6FB50; --chrome-text:#0C120F;
+  --danger:#FF6B5A; --danger-soft:#2A1512;
+  --success:#8FE86B; --success-soft:#16250F;
+  --font-body:'Space Grotesk',system-ui,sans-serif;
+  --font-display:'Archivo Black','Space Grotesk',sans-serif;
+  background:radial-gradient(circle at 50% -10%, #17240F 0%, #0C120F 55%);
+  color:var(--ink);
+  font-family:var(--font-body);
+}
+.login-feyma .login-card h1{font-family:'Space Grotesk',sans-serif;font-weight:700;}
+.login-feyma .brand-mark{background:transparent;border-color:transparent;box-shadow:none;}
+.login-feyma button.primary:hover{filter:brightness(1.05);}
+
 /* ============ Direction Neo-Cash HYBRIDE — vitrine & blog (.lp) ============ */
 /* Fondation CLAIRE (lisibilité + confiance) + îlots SOMBRES (hero, CTA final)
    pour l'énergie. Typo Neo-Cash partout (Archivo Black + Space Grotesk). */
