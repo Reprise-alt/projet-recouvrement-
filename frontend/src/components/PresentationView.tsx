@@ -205,10 +205,10 @@ export function PresentationView() {
       {/* HERO */}
       <section className="lp-hero">
         <div className="lp-eyebrow">Logiciel de recouvrement de créances · Dakar, Sénégal</div>
-        <h1>Reprenez la main sur vos impayés.</h1>
+        <h1>Arrêtez de courir <span className="hl">après votre argent.</span></h1>
         <p className="lp-lead">
-          Importez votre suivi, laissez les relances partir toutes seules — de l’avis d’échéance au contentieux — et
-          encaissez plus vite. Sans changer vos habitudes.
+          Feyma relance vos impayés automatiquement — de l’avis d’échéance au contentieux, jour et nuit, à votre nom.
+          Vous encaissez plus vite, sans changer vos habitudes.
         </p>
         <div className="lp-feyma-note">
           <b>Feyma</b>, « rends-moi mon argent » en wolof. Parce que votre argent doit vous revenir.

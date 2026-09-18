@@ -663,6 +663,46 @@ label{font-family:var(--font-mono);font-size:10.5px;text-transform:uppercase;let
 .faq-chevron{flex:none;color:var(--ink-soft);transition:transform .18s var(--ease);}
 .faq-item[open] .faq-chevron{transform:rotate(180deg);}
 .faq-answer{padding:0 0 16px;font-size:14px;color:var(--ink-soft);line-height:1.6;}
+/* ===================== Direction Neo-Cash — vitrine & blog (.lp) ===================== */
+/* Page sombre quand la vitrine/le blog est affiché (l'app garde son thème). */
+body:has(.lp){background:#0C120F;}
+.lp{
+  --accent:#C6FB50; --accent-dark:#D4FB6E; --accent-soft:#182210;
+  --ink:#EAF3EA; --ink-soft:#9CB0A0;
+  --surface:#18231C; --line:#2A3830; --line-soft:#202C24;
+  --paper:#0C120F; --paper-2:#0F1712;
+  --danger:#FF6B5A; --danger-soft:#2A1512;
+  --amber:#F3C64B; --amber-soft:#292110;
+  --success:#8FE86B; --success-soft:#16250F;
+  --font-body:'Space Grotesk',system-ui,sans-serif;
+  --font-display:'Archivo Black','Space Grotesk',sans-serif;
+  color:var(--ink);
+  font-family:var(--font-body);
+}
+.lp h1,.lp h2,.lp h3{font-family:var(--font-display);}
+/* Hero + CTA final : Archivo Black massif, capitales */
+.lp .lp-hero h1,.lp .lp-final h2{text-transform:uppercase;letter-spacing:-.025em;line-height:.98;}
+.lp .lp-hero h1 .hl{color:var(--accent);}
+/* Titres de section & blog : Space Grotesk bold (Archivo Black en caps partout = trop) */
+.lp .lp-section h2{font-family:'Space Grotesk',sans-serif;font-weight:700;letter-spacing:-.01em;}
+.lp .blog-article-titre,.lp .blog-body h2,.lp .blog-card-titre{font-family:'Space Grotesk',sans-serif;font-weight:700;}
+.lp .lp-eyebrow{color:var(--accent-dark);}
+/* Boutons : lime, texte sombre */
+.lp .lp-btn-primary{background:var(--accent);color:#0C120F;}
+.lp-nav-links a.lp-btn-primary,.lp .lp-nav-links a.lp-btn-primary:hover{color:#0C120F;}
+.lp .lp-btn-ghost{background:transparent;color:var(--ink);border-color:var(--line);}
+.lp .lp-btn-ghost:hover{border-color:var(--accent);}
+.lp .lp-final{background:#0A0F0C;border:1px solid var(--line);}
+.lp .lp-final h2{color:#fff;}
+.lp .lp-final .lp-btn-primary{background:var(--accent);color:#0C120F;}
+.lp .lp-btn-on-dark{border-color:rgba(255,255,255,.32);color:#fff;}
+/* Éléments sur aplat lime → texte sombre */
+.lp .lp-plan-badge,.lp .mock-btn-primary,.lp .lp-temoignage-av,.lp .lp-step-n{color:#0C120F;}
+.lp .lp-step-n{background:var(--accent);}
+.lp .mock-user{color:var(--accent);}
+.lp .lp-plan-pop{border-color:var(--accent);}
+/* Coche de réassurance en lime */
+.lp .lp-reassurance li::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23C6FB50' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");}
 @media(max-width:760px){.lp-steps,.lp-benefits,.lp-plans,.lp-stats,.lp-enjeux,.blog-list,.mock-kpis,.mock-duo,.lp-temoignages{grid-template-columns:1fr;}.lp-nav-links a:not(.lp-btn){display:none;}}
 
 /* ===== Démarrage guidé SaaS (addendum §4.3) ===== */
