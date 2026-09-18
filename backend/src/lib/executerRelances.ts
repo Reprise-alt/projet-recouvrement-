@@ -20,6 +20,30 @@ export const PALIER_MAX_AUTO = 5;
 
 export type RaisonIgnore = 'email_manquant' | 'palier_manuel';
 
+// Destinataires d'une relance : le contact principal en « À », les autres
+// contacts de la fiche (avec email) en copie. Dédoublonné (insensible à la
+// casse). Repli utile : si le principal n'a pas d'email mais qu'un contact en a,
+// ce contact devient le destinataire principal. null = aucun email exploitable.
+export function destinatairesRelance(
+  principal: string | null | undefined,
+  contacts: { email: string | null }[],
+): { to: string; cc: string[] } | null {
+  const emails: string[] = [];
+  const seen = new Set<string>();
+  const add = (e?: string | null) => {
+    const t = (e ?? '').trim();
+    if (!t) return;
+    const k = t.toLowerCase();
+    if (seen.has(k)) return;
+    seen.add(k);
+    emails.push(t);
+  };
+  add(principal);
+  for (const c of contacts) add(c.email);
+  if (!emails.length) return null;
+  return { to: emails[0], cc: emails.slice(1) };
+}
+
 export interface MessageRelance {
   sujet: string;
   corps: string;
@@ -101,6 +125,8 @@ export async function executerRelancesTenant(opts: OptionsExecution = {}): Promi
       factures: true,
       actions: { select: { palier: true, date: true } },
       echeanciers: { select: { tranches: { select: { dateEcheance: true, statut: true } } } },
+      // Contacts supplémentaires : mis en copie (CC) de la relance.
+      contacts: { select: { email: true } },
     },
   });
   const byId = new Map(clients.map((c) => [c.id, c]));
@@ -168,7 +194,8 @@ export async function executerRelancesTenant(opts: OptionsExecution = {}): Promi
       ignorees.push({ ...base, raison: 'palier_manuel' });
       continue;
     }
-    if (!c.email) {
+    const dest = destinatairesRelance(c.email, c.contacts);
+    if (!dest) {
       ignorees.push({ ...base, raison: 'email_manquant' });
       continue;
     }
@@ -204,13 +231,13 @@ export async function executerRelancesTenant(opts: OptionsExecution = {}): Promi
     if (envoiEffectif) {
       // Envoi réel puis trace — l'action n'est enregistrée que si l'envoi a
       // réussi (une exception interrompt et remonte, rien n'est marqué envoyé).
-      await provider.send({ to: c.email, subject: sujet, text: texte, html, fromName, replyTo });
+      await provider.send({ to: dest.to, cc: dest.cc.length ? dest.cc : undefined, subject: sujet, text: texte, html, fromName, replyTo });
       await prisma.actionRecouvrement.create({
         data: {
           clientId: c.id,
           palier: d.palier,
           label: PALIERS[d.palier].label,
-          note: `Relance automatique par email à ${c.email}`,
+          note: `Relance automatique par email à ${dest.to}${dest.cc.length ? ` (+${dest.cc.length} en copie)` : ''}`,
         },
       });
     }
@@ -219,7 +246,7 @@ export async function executerRelancesTenant(opts: OptionsExecution = {}): Promi
       nom: c.nom,
       palier: d.palier,
       palierLabel: PALIERS[d.palier].label,
-      email: c.email,
+      email: dest.to,
       sujet,
     });
   }

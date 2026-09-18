@@ -19,6 +19,9 @@ export interface EmailMessage {
   // renvoie les réponses vers l'entreprise cliente.
   fromName?: string;
   replyTo?: string;
+  // Contacts en copie (CC) — relance envoyée au contact principal (to) avec les
+  // autres contacts de la fiche en copie.
+  cc?: string[];
 }
 
 export interface EmailProvider {
@@ -62,8 +65,9 @@ function corpsHtml(code: string): string {
 class StubEmailProvider implements EmailProvider {
   async send(msg: EmailMessage): Promise<void> {
     const ident = msg.fromName ? ` (de « ${msg.fromName} »${msg.replyTo ? `, réponse → ${msg.replyTo}` : ''})` : '';
+    const cc = msg.cc?.length ? ` [cc: ${msg.cc.join(', ')}]` : '';
     // eslint-disable-next-line no-console
-    console.log(`[email:stub] à ${msg.to} — ${msg.subject}${ident}`);
+    console.log(`[email:stub] à ${msg.to}${cc} — ${msg.subject}${ident}`);
   }
 
   async sendOtp(to: string, code: string): Promise<void> {
@@ -108,6 +112,7 @@ class SmtpEmailProvider implements EmailProvider {
     await this.transporter.sendMail({
       from,
       to: msg.to,
+      cc: msg.cc?.length ? msg.cc : undefined,
       subject: msg.subject,
       text: msg.text,
       html: msg.html,
@@ -163,6 +168,7 @@ class ResendApiProvider implements EmailProvider {
     await this.post({
       from,
       to: msg.to,
+      cc: msg.cc?.length ? msg.cc : undefined,
       subject: msg.subject,
       text: msg.text,
       html: msg.html,

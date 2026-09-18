@@ -20,6 +20,7 @@ interface RelanceDueItem {
   palierLabel: string;
   encours: number;
   email: string | null;
+  ccCount: number;
   tel: string | null;
 }
 
@@ -151,7 +152,12 @@ export function RelancesAVenirView({ reloadKey, canManage }: { reloadKey: unknow
                     </td>
                     <td>{r.joursRetard} j</td>
                     <td className="currency">{fmtFCFA(r.encours)}</td>
-                    <td>{r.email ?? <span style={{ color: 'var(--danger)' }}>email manquant</span>}</td>
+                    <td>
+                      {r.email ?? <span style={{ color: 'var(--danger)' }}>email manquant</span>}
+                      {r.email && r.ccCount > 0 && (
+                        <span style={{ color: 'var(--ink-soft)', fontSize: 11.5 }}> +{r.ccCount} en copie</span>
+                      )}
+                    </td>
                     <td>
                       {/* Relance manuelle par WhatsApp : ouvre wa.me avec le numéro
                           du client et un message pré-rempli. Utile surtout quand
