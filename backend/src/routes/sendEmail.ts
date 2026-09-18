@@ -67,12 +67,30 @@ sendEmailRouter.post('/', uploadAttachments, async (req, res, next) => {
     }));
 
     let entiteEnvoi: string;
+    // Contacts en copie (CC) : les autres contacts de la fiche client, comme les
+    // relances automatiques. Reste vide pour un document de contrat.
+    let cc = '';
     if (context.type === 'client_letter') {
-      const client = await prisma.client.findUnique({ where: { id: context.clientId } });
+      const client = await prisma.client.findUnique({
+        where: { id: context.clientId },
+        include: { contacts: { select: { email: true } } },
+      });
       if (!client) return res.status(404).json({ error: 'Client introuvable' });
       if (!assertEntiteInScope(req, res, client.entite as Entite)) return;
       if (!PALIERS[context.palier]) return res.status(400).json({ error: 'Palier invalide' });
       entiteEnvoi = client.entite;
+      // CC = contact principal + contacts de la fiche, hors adresses déjà en « À ».
+      const seen = new Set(to.split(',').map((e) => e.trim().toLowerCase()).filter(Boolean));
+      const ccList: string[] = [];
+      const addCc = (e?: string | null) => {
+        const t = (e ?? '').trim();
+        if (!t || seen.has(t.toLowerCase())) return;
+        seen.add(t.toLowerCase());
+        ccList.push(t);
+      };
+      addCc(client.email);
+      for (const ct of client.contacts) addCc(ct.email);
+      cc = ccList.join(', ');
     } else if (context.type === 'contract_doc') {
       const contrat = await prisma.contrat.findUnique({ where: { id: context.contratId }, include: { client: true } });
       if (!contrat) return res.status(404).json({ error: 'Contrat introuvable' });
@@ -92,7 +110,7 @@ sendEmailRouter.post('/', uploadAttachments, async (req, res, next) => {
         .json({ error: `Gmail n'est pas connecté pour ${entiteEnvoi} — un admin doit le connecter depuis Utilisateurs/Intégrations.` });
     }
 
-    await sendViaGmail(credential.refreshToken, to, subject, body, attachments);
+    await sendViaGmail(credential.refreshToken, to, subject, body, attachments, cc);
     await touchGmailCredential(entiteEnvoi);
 
     const attachmentsNote = attachments.length ? ` (pièces jointes : ${attachments.map((a) => a.filename).join(', ')})` : '';
@@ -103,7 +121,7 @@ sendEmailRouter.post('/', uploadAttachments, async (req, res, next) => {
           clientId: context.clientId,
           palier: context.palier,
           label: PALIERS[context.palier].label,
-          note: `Envoyé par email à ${to}${attachmentsNote}`,
+          note: `Envoyé par email à ${to}${cc ? ` (cc: ${cc})` : ''}${attachmentsNote}`,
           utilisateurId: req.user!.id,
         },
       });
