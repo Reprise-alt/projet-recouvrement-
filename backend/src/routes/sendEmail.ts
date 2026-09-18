@@ -1,7 +1,8 @@
 import { NextFunction, Request, Response, Router } from 'express';
 import multer from 'multer';
-import { prisma } from '../db';
+import { prisma, rlsActive } from '../db';
 import { requireAuth, requireRole, assertEntiteInScope } from '../middleware/auth';
+import { getEmailProvider } from '../lib/email/provider';
 import { EmailAttachment, sendViaGmail } from '../lib/gmail';
 import { getGmailCredential, touchGmailCredential } from '../services/gmailCredentialService';
 import { PALIERS } from '../lib/paliers';
@@ -70,6 +71,7 @@ sendEmailRouter.post('/', uploadAttachments, async (req, res, next) => {
     // Contacts en copie (CC) : les autres contacts de la fiche client, comme les
     // relances automatiques. Reste vide pour un document de contrat.
     let cc = '';
+    let ccArray: string[] = [];
     if (context.type === 'client_letter') {
       const client = await prisma.client.findUnique({
         where: { id: context.clientId },
@@ -90,6 +92,7 @@ sendEmailRouter.post('/', uploadAttachments, async (req, res, next) => {
       };
       addCc(client.email);
       for (const ct of client.contacts) addCc(ct.email);
+      ccArray = ccList;
       cc = ccList.join(', ');
     } else if (context.type === 'contract_doc') {
       const contrat = await prisma.contrat.findUnique({ where: { id: context.contratId }, include: { client: true } });
@@ -100,18 +103,38 @@ sendEmailRouter.post('/', uploadAttachments, async (req, res, next) => {
       return res.status(400).json({ error: 'context.type invalide' });
     }
 
-    // Chaque entité envoie depuis son propre compte Gmail connecté — pas de
-    // repli sur un compte partagé, pour ne jamais expédier un mail SIS ou
-    // IRIS depuis le compte connecté par erreur à SORAM (ou inversement).
-    const credential = await getGmailCredential(entiteEnvoi);
-    if (!credential?.refreshToken || credential.statut !== 'actif') {
-      return res
-        .status(409)
-        .json({ error: `Gmail n'est pas connecté pour ${entiteEnvoi} — un admin doit le connecter depuis Utilisateurs/Intégrations.` });
+    if (rlsActive()) {
+      // SaaS : même canal que les relances automatiques (fournisseur mutualisé
+      // type Resend), au nom de l'organisation — pas de dépendance à un Gmail
+      // connecté. Nom affiché + reply-to = l'identité du client.
+      const org = await prisma.organisation.findUnique({
+        where: { id: req.user!.organisationId },
+        select: { raisonSociale: true, emailReponse: true },
+      });
+      await getEmailProvider().send({
+        to,
+        cc: ccArray.length ? ccArray : undefined,
+        subject,
+        text: body,
+        fromName: org?.raisonSociale ?? undefined,
+        replyTo: org?.emailReponse ?? undefined,
+        attachments: attachments.length
+          ? attachments.map((a) => ({ filename: a.filename, content: a.content, contentType: a.mimeType }))
+          : undefined,
+      });
+    } else {
+      // Groupe : chaque entité envoie depuis son propre compte Gmail connecté —
+      // pas de repli sur un compte partagé, pour ne jamais expédier un mail SIS
+      // ou IRIS depuis le compte connecté par erreur à SORAM (ou inversement).
+      const credential = await getGmailCredential(entiteEnvoi);
+      if (!credential?.refreshToken || credential.statut !== 'actif') {
+        return res
+          .status(409)
+          .json({ error: `Gmail n'est pas connecté pour ${entiteEnvoi} — un admin doit le connecter depuis Utilisateurs/Intégrations.` });
+      }
+      await sendViaGmail(credential.refreshToken, to, subject, body, attachments, cc);
+      await touchGmailCredential(entiteEnvoi);
     }
-
-    await sendViaGmail(credential.refreshToken, to, subject, body, attachments, cc);
-    await touchGmailCredential(entiteEnvoi);
 
     const attachmentsNote = attachments.length ? ` (pièces jointes : ${attachments.map((a) => a.filename).join(', ')})` : '';
 
