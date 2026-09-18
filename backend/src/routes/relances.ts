@@ -3,7 +3,7 @@ import { prisma, currentOrganisationId } from '../db';
 import { getConfig, getPaliersActifs, getReglagesPaliers } from '../services/configService';
 import { clientEncours, PALIERS } from '../lib/paliers';
 import { ClientRelance, dansFenetreEnvoi, relancesDues } from '../lib/moteurRelances';
-import { executerRelancesTenant } from '../lib/executerRelances';
+import { executerRelancesTenant, destinatairesRelance } from '../lib/executerRelances';
 import {
   construireRelanceMarque,
   MODELES_DEFAUT,
@@ -41,6 +41,8 @@ relancesRouter.get('/dues', async (_req, res, next) => {
         // relance par palier » (on regarde le palier max déjà relancé).
         actions: { select: { palier: true, date: true } },
         echeanciers: { select: { tranches: { select: { dateEcheance: true, statut: true } } } },
+        // Contacts supplémentaires : mis en copie (CC) de la relance.
+        contacts: { select: { email: true } },
       },
     });
 
@@ -56,18 +58,24 @@ relancesRouter.get('/dues', async (_req, res, next) => {
     }));
 
     const encoursParClient = new Map(clients.map((c) => [c.id, clientEncours(c)]));
-    const emailParClient = new Map(clients.map((c) => [c.id, c.email]));
+    // Destinataires effectifs (principal en « À » + contacts en copie) : le même
+    // calcul que l'envoi réel, pour un aperçu fidèle.
+    const destParClient = new Map(clients.map((c) => [c.id, destinatairesRelance(c.email, c.contacts)]));
     // Téléphone : sert à la relance manuelle par WhatsApp (lien wa.me côté front),
     // notamment pour les clients sans email.
     const telParClient = new Map(clients.map((c) => [c.id, c.tel]));
 
-    const dues = relancesDues(entree, config, now, paliersActifs).map((d) => ({
-      ...d,
-      palierLabel: libelleParPalier.get(d.palier) || PALIERS[d.palier]?.label || `Palier ${d.palier}`,
-      encours: encoursParClient.get(d.clientId) ?? 0,
-      email: emailParClient.get(d.clientId) ?? null,
-      tel: telParClient.get(d.clientId) ?? null,
-    }));
+    const dues = relancesDues(entree, config, now, paliersActifs).map((d) => {
+      const dest = destParClient.get(d.clientId) ?? null;
+      return {
+        ...d,
+        palierLabel: libelleParPalier.get(d.palier) || PALIERS[d.palier]?.label || `Palier ${d.palier}`,
+        encours: encoursParClient.get(d.clientId) ?? 0,
+        email: dest?.to ?? null,
+        ccCount: dest?.cc.length ?? 0,
+        tel: telParClient.get(d.clientId) ?? null,
+      };
+    });
 
     // État « relances activées » de l'organisation courante (checklist §4.3).
     const orgId = currentOrganisationId();
