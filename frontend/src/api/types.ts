@@ -89,6 +89,22 @@ export interface CurrentUser {
   formule?: string | null;
   // Capacités incluses dans la formule (onglets/actions masqués sinon).
   capacites?: Capacites | null;
+  // Session « cabinet partenaire » (avocat/huissier plateforme, sans
+  // organisation) : le front bascule alors sur la console partenaire.
+  partenaire?: boolean;
+}
+
+// Un dossier confié au cabinet partenaire (vue transverse aux sociétés).
+export interface PartenaireDossierItem {
+  id: string;
+  reference: string;
+  statut: StatutDossierContentieux;
+  verdict: VerdictRecevabilite;
+  montantReclame: number | null;
+  confieLe: string | null;
+  createdAt: string;
+  client: { nom: string; entite: Entite };
+  societe: { raisonSociale: string; logoUrl: string | null };
 }
 
 export interface DerniereAction {

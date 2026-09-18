@@ -3,7 +3,8 @@ import { RoleOrg } from '@prisma/client';
 import { prisma } from '../db';
 import { Entite, RoleUtilisateur, userCanAccessEntite } from '../lib/entites';
 import { extractEmailFromToken } from '../lib/verifyToken';
-import { verifierSession } from '../lib/authToken';
+import { verifierSession, verifierSessionPartenaire } from '../lib/authToken';
+import { estPartenaire } from '../lib/partenaires';
 import { accesDepuisMoi, lireCookie, resoudreSession } from '../lib/sso';
 
 // Mode d'authentification : 'sso' = session partagée du hub OLU 360 (cookie
@@ -42,6 +43,10 @@ declare global {
   namespace Express {
     interface Request {
       user?: AuthedUser;
+      // Cabinet partenaire (avocat/huissier plateforme) — identité SANS
+      // organisation (transverse aux sociétés). Posé par requirePartenaire /
+      // requireAuthOuPartenaire, jamais en même temps que `user`.
+      partenaire?: { email: string };
     }
   }
 }
@@ -192,6 +197,39 @@ export function requireRole(...roles: RoleUtilisateur[]) {
     }
     next();
   };
+}
+
+// Authentifie un cabinet partenaire (jeton `partenaire`) et vérifie qu'il figure
+// toujours dans PARTENAIRE_EMAILS (révocable en retirant l'email de l'env). Pose
+// `req.partenaire` sans aucune organisation : les routes partenaire opèrent hors
+// contexte tenant (lecture transverse via l'échappatoire RLS). Un jeton
+// d'organisation normal est refusé ici.
+export function requirePartenaire(req: Request, res: Response, next: NextFunction) {
+  const bearer = req.headers.authorization;
+  if (!bearer?.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Authentification requise' });
+  }
+  const p = verifierSessionPartenaire(bearer.slice('Bearer '.length));
+  if (!p || !estPartenaire(p.email)) {
+    return res.status(403).json({ error: 'Accès réservé au cabinet partenaire' });
+  }
+  req.partenaire = { email: p.email };
+  next();
+}
+
+// Variante pour /me : accepte soit un jeton partenaire (pose req.partenaire),
+// soit un compte normal (délègue à requireAuth). Sert de point d'entrée unique
+// pour que le front sache, au chargement, s'il est en session partenaire.
+export async function requireAuthOuPartenaire(req: Request, res: Response, next: NextFunction) {
+  const bearer = req.headers.authorization;
+  if (bearer?.startsWith('Bearer ')) {
+    const p = verifierSessionPartenaire(bearer.slice('Bearer '.length));
+    if (p && estPartenaire(p.email)) {
+      req.partenaire = { email: p.email };
+      return next();
+    }
+  }
+  return requireAuth(req, res, next);
 }
 
 // Restriction par rôle SaaS (roleOrg). À appliquer progressivement sur les routes

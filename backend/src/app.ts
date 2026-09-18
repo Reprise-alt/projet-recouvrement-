@@ -29,6 +29,7 @@ import { sallePublicRouter } from './routes/sallePublic';
 import { assistantRouter } from './routes/assistant';
 import { contentieuxRouter } from './routes/contentieux';
 import { contentieuxPortailRouter } from './routes/contentieuxPortail';
+import { partenaireRouter } from './routes/partenaire';
 import { errorHandler } from './middleware/errorHandler';
 
 export function createApp() {
@@ -81,6 +82,7 @@ export function createApp() {
   app.use('/api/assistant', assistantRouter);
   app.use('/api/contentieux', contentieuxRouter);
   app.use('/api/contentieux-portail', contentieuxPortailRouter);
+  app.use('/api/partenaire', partenaireRouter);
 
   app.use(errorHandler);
   return app;
