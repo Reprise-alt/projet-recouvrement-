@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { ContactRappelModal, SujetContact } from './ContactRappelModal';
 import { PlateformeApercu } from './PlateformeApercu';
+import { FaqSection } from './FaqSection';
+import { FeymaBrand } from './FeymaLogo';
 
 // Page d'arrivée publique (addendum §4.1) + tarifs (§8.2). Aucune authentification.
 // Sert de PAGE D'ACCUEIL (racine) en mode SaaS ET sur /presentation. Le CTA
@@ -113,14 +115,7 @@ function useSeo() {
 }
 
 function Logo() {
-  return (
-    <span className="lp-brand">
-      <svg viewBox="0 0 100 100" width="26" height="26" aria-hidden="true">
-        <circle cx="50" cy="50" r="34" fill="none" stroke="var(--accent)" strokeWidth="13" strokeLinecap="round" strokeDasharray="168 46" transform="rotate(100 50 50)" />
-      </svg>
-      <b>OLU 360</b>
-    </span>
-  );
+  return <FeymaBrand size={28} />;
 }
 
 const ETAPES = [
@@ -180,6 +175,7 @@ export function PresentationView() {
         <Logo />
         <nav className="lp-nav-links">
           <a href="#tarifs">Tarifs</a>
+          <a href="#faq">FAQ</a>
           <a href="/blog">Actualités</a>
           <a href={CTA}>Se connecter</a>
           <a className="lp-btn lp-btn-primary" href={CTA}>Essai gratuit</a>
@@ -194,6 +190,9 @@ export function PresentationView() {
           Importez votre suivi, laissez les relances partir toutes seules — de l’avis d’échéance au contentieux — et
           encaissez plus vite. Sans changer vos habitudes.
         </p>
+        <div className="lp-feyma-note">
+          <b>Feyma</b>, « rends-moi mon argent » en wolof. Parce que votre argent doit vous revenir.
+        </div>
         <div className="lp-hero-cta">
           <a className="lp-btn lp-btn-primary lp-btn-lg" href={CTA}>Démarrer l’essai gratuit — 14 jours</a>
           <button type="button" className="lp-btn lp-btn-ghost lp-btn-lg" onClick={() => setContact('demo')}>
@@ -207,7 +206,12 @@ export function PresentationView() {
           <span className="lp-dot" />
           <span><b>−25 %</b> d’impayés</span>
         </div>
-        <div className="lp-note">Aucune carte bancaire requise.</div>
+        <ul className="lp-reassurance">
+          <li>Installé en 10 minutes</li>
+          <li>Sans engagement</li>
+          <li>Vos données restent les vôtres</li>
+          <li>Sans carte bancaire</li>
+        </ul>
       </section>
 
       {/* ENJEUX / POURQUOI */}
@@ -308,6 +312,9 @@ export function PresentationView() {
           Prix hors taxes · TVA 18 % ajoutée à la souscription · SMS / WhatsApp par crédits · module contentieux au dossier ou inclus selon la formule.
         </div>
       </section>
+
+      {/* FAQ */}
+      <FaqSection />
 
       {/* CTA FINAL */}
       <section className="lp-final">

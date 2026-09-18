@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { ARTICLES, getArticle } from '../content/articles';
+import { FeymaBrand } from './FeymaLogo';
 import { SITE_URL, setJsonLd, setMeta, setPageSeo } from '../lib/seo';
 
 // Blog / Actualités — pages publiques indexables (content marketing / SEO).
@@ -9,14 +10,7 @@ import { SITE_URL, setJsonLd, setMeta, setPageSeo } from '../lib/seo';
 // et ajoute quelques classes blog-* dédiées.
 
 function Logo() {
-  return (
-    <span className="lp-brand">
-      <svg viewBox="0 0 100 100" width="26" height="26" aria-hidden="true">
-        <circle cx="50" cy="50" r="34" fill="none" stroke="var(--accent)" strokeWidth="13" strokeLinecap="round" strokeDasharray="168 46" transform="rotate(100 50 50)" />
-      </svg>
-      <b>OLU 360</b>
-    </span>
-  );
+  return <FeymaBrand size={28} />;
 }
 
 function Header() {
