@@ -2,7 +2,8 @@ import { Router } from 'express';
 import { prisma } from '../db';
 import { creerCodeOtp, verifierCodeOtp, normaliserEmail } from '../lib/otp';
 import { getEmailProvider } from '../lib/email/provider';
-import { signerSession } from '../lib/authToken';
+import { signerSession, signerSessionPartenaire } from '../lib/authToken';
+import { estPartenaire } from '../lib/partenaires';
 import { slugify } from '../lib/tenant';
 
 // Inscription / connexion self-service par email à usage unique (addendum §4).
@@ -46,6 +47,15 @@ authOtpRouter.post('/verify', async (req, res, next) => {
 
     const ok = await verifierCodeOtp(email, code);
     if (!ok) return res.status(401).json({ error: 'Code invalide ou expiré' });
+
+    // Cabinet partenaire (avocat/huissier plateforme, sans organisation) : on
+    // émet une session partenaire — jamais de création d'organisation. À vérifier
+    // AVANT la logique d'inscription pour qu'un email partenaire inconnu en base
+    // ne crée pas de compte client par erreur.
+    if (estPartenaire(email)) {
+      const token = signerSessionPartenaire(email);
+      return res.json({ token, partenaire: true, inscription: false });
+    }
 
     let utilisateur = await prisma.utilisateur.findUnique({ where: { email } });
     let inscription = false;

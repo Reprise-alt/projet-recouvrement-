@@ -146,6 +146,15 @@ services:
       # accéder au back-office d'activation des comptes (§8). À renseigner.
       - key: SUPERADMIN_EMAILS
         sync: false
+      # Cabinet(s) partenaire : emails (séparés par des virgules) des avocats /
+      # huissiers partenaires. Ces comptes n'appartiennent à aucune société et
+      # voient, dans une console dédiée, les dossiers contentieux qui leur sont
+      # confiés — toutes sociétés confondues. À renseigner.
+      - key: PARTENAIRE_EMAILS
+        sync: false
+      # Nom d'affichage du cabinet partenaire (bandeau de sa console).
+      - key: PARTENAIRE_NOM
+        sync: false
 
   # ── SaaS : front-end (inscription self-service par code email) ────────────
   - type: web

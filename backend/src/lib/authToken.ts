@@ -31,3 +31,21 @@ export function verifierSession(token: string): SessionOtp | null {
     return null;
   }
 }
+
+// Session d'un cabinet partenaire (avocat/huissier plateforme, sans
+// organisation). Le jeton porte `partenaire: true` et l'email en sujet ; il
+// n'a PAS de champ `org`, donc verifierSession() ci-dessus le rejette
+// naturellement — aucune collision avec les sessions d'organisation.
+export function signerSessionPartenaire(email: string): string {
+  return jwt.sign({ partenaire: true }, secret(), { subject: email.trim().toLowerCase(), expiresIn: EXPIRATION });
+}
+
+export function verifierSessionPartenaire(token: string): { email: string } | null {
+  try {
+    const p = jwt.verify(token, secret()) as jwt.JwtPayload;
+    if (p.partenaire === true && p.sub) return { email: String(p.sub) };
+    return null;
+  } catch {
+    return null;
+  }
+}

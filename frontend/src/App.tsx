@@ -31,6 +31,7 @@ import { useResource } from './hooks/useResource';
 import { useTheme } from './hooks/useTheme';
 import { Lock, Moon, Sun } from 'lucide-react';
 import { ContentieuxUpsell } from './components/ContentieuxUpsell';
+import { PartenaireConsole } from './components/PartenaireConsole';
 import { CONSOLE, CONSOLE_META, ECOSYSTEME } from './console';
 import { AUTH_MODE, IS_SAAS, redirigerVersHub } from './auth/mode';
 
@@ -182,6 +183,13 @@ export function App() {
     // (bouton « Commencer / Se connecter »).
     if (AUTH_MODE === 'otp') return <PresentationView />;
     return <LoginPage />;
+  }
+
+  // Session cabinet partenaire (avocat/huissier plateforme, sans organisation) :
+  // console dédiée « dossiers confiés », transverse aux sociétés. Court-circuite
+  // toute la console normale (rail, onglets, abonnement…).
+  if (user.partenaire) {
+    return <PartenaireConsole nom={user.nom} onLogout={logout} />;
   }
 
   if (!hasAccess) {

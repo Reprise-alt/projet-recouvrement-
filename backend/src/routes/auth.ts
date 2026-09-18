@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../db';
-import { requireAuth } from '../middleware/auth';
+import { requireAuth, requireAuthOuPartenaire } from '../middleware/auth';
 import { etatAbonnement } from '../lib/abonnement';
 import { estSuperAdmin } from '../lib/superAdmin';
 import { capacites } from '../lib/formules';
+import { partenaireNom } from '../lib/partenaires';
 
 export const authRouter = Router();
 
@@ -14,8 +15,17 @@ export const authRouter = Router();
 // appel n'est fait qu'une fois par ouverture/rechargement de l'app (jamais en
 // polling), c'est l'endroit naturel pour horodater la dernière connexion —
 // pas besoin d'écrire en base à chaque requête protégée.
-authRouter.get('/me', requireAuth, async (req, res, next) => {
+authRouter.get('/me', requireAuthOuPartenaire, async (req, res, next) => {
   try {
+    // Session cabinet partenaire : identité SANS organisation. Le front s'en
+    // sert pour basculer sur la console partenaire (dossiers confiés).
+    if (req.partenaire) {
+      return res.json({
+        partenaire: true,
+        email: req.partenaire.email,
+        nom: partenaireNom(),
+      });
+    }
     await prisma.utilisateur.update({ where: { id: req.user!.id }, data: { derniereConnexion: new Date() } });
     // On joint l'identité de l'organisation (raison sociale + logo) : le front
     // SaaS s'en sert pour afficher la marque DU CLIENT dans le bandeau, au lieu
