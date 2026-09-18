@@ -1,6 +1,21 @@
 import { Router } from 'express';
+import multer from 'multer';
+import { StatutActe } from '@prisma/client';
 import { prisma } from '../db';
 import { requirePartenaire } from '../middleware/auth';
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024, files: 1 } });
+
+// Charge un dossier UNIQUEMENT s'il est confié au partenaire (garde-fou commun
+// à toutes les actions partenaire). Hors contexte tenant (cross-société).
+async function chargerDossierConfie(req: import('express').Request, res: import('express').Response) {
+  const dossier = await prisma.dossierContentieux.findFirst({ where: { id: req.params.id, confieAuPartenaire: true } });
+  if (!dossier) {
+    res.status(404).json({ error: 'Dossier introuvable ou non confié au partenaire' });
+    return null;
+  }
+  return dossier;
+}
 
 // Console du cabinet partenaire (avocat/huissier plateforme). Phase 2 : LECTURE.
 // Le partenaire n'appartient à aucune organisation ; ces routes opèrent donc
@@ -72,6 +87,98 @@ partenaireRouter.get('/dossiers/:id', async (req, res, next) => {
     });
     if (!dossier) return res.status(404).json({ error: 'Dossier introuvable ou non confié au partenaire' });
     res.json(dossier);
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ── Phase 3 : le partenaire AGIT (relire, télécharger, valider, signer) ───────
+
+// Télécharger une pièce du dossier (le fichier lui-même).
+partenaireRouter.get('/dossiers/:id/pieces/:pieceId/fichier', async (req, res, next) => {
+  try {
+    const dossier = await chargerDossierConfie(req, res);
+    if (!dossier) return;
+    const piece = await prisma.pieceContentieux.findFirst({ where: { id: req.params.pieceId, dossierId: dossier.id } });
+    if (!piece) return res.status(404).json({ error: 'Pièce introuvable' });
+    res.setHeader('Content-Type', piece.mimeType);
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(piece.nomFichier)}"`);
+    res.send(Buffer.from(piece.contenu));
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Télécharger le PROJET d'acte (PDF généré par le créancier, à relire).
+partenaireRouter.get('/dossiers/:id/actes/:acteId/pdf', async (req, res, next) => {
+  try {
+    const dossier = await chargerDossierConfie(req, res);
+    if (!dossier) return;
+    const acte = await prisma.acteContentieux.findFirst({ where: { id: req.params.acteId, dossierId: dossier.id } });
+    if (!acte) return res.status(404).json({ error: 'Acte introuvable' });
+    res.setHeader('Content-Type', acte.mimeType);
+    res.setHeader('Content-Disposition', `inline; filename="projet-${acte.type}-${dossier.id}.pdf"`);
+    res.send(Buffer.from(acte.contenu));
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Télécharger la version SIGNÉE d'un acte (si déposée).
+partenaireRouter.get('/dossiers/:id/actes/:acteId/signe/pdf', async (req, res, next) => {
+  try {
+    const dossier = await chargerDossierConfie(req, res);
+    if (!dossier) return;
+    const acte = await prisma.acteContentieux.findFirst({ where: { id: req.params.acteId, dossierId: dossier.id } });
+    if (!acte || !acte.contenuSigne) return res.status(404).json({ error: 'Aucune version signée' });
+    res.setHeader('Content-Type', acte.mimeTypeSigne || 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="signe-${acte.type}-${dossier.id}"`);
+    res.send(Buffer.from(acte.contenuSigne));
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Valider un acte (le professionnel relit le PROJET et le valide). Le partenaire
+// n'étant pas un Utilisateur, valideParId reste null (la trace est le statut +
+// l'horodatage ; la signature déposée fait foi ensuite).
+partenaireRouter.post('/dossiers/:id/actes/:acteId/valider', async (req, res, next) => {
+  try {
+    const dossier = await chargerDossierConfie(req, res);
+    if (!dossier) return;
+    const acte = await prisma.acteContentieux.findFirst({ where: { id: req.params.acteId, dossierId: dossier.id } });
+    if (!acte) return res.status(404).json({ error: 'Acte introuvable' });
+    if (acte.statut === StatutActe.signe) return res.status(400).json({ error: 'Acte déjà signé' });
+    await prisma.acteContentieux.update({
+      where: { id: acte.id },
+      data: { statut: StatutActe.valide, valideLe: new Date() },
+    });
+    res.json({ ok: true, statut: StatutActe.valide });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Déposer la version SIGNÉE d'un acte (PDF/scan). Fait passer l'acte à « signé ».
+partenaireRouter.post('/dossiers/:id/actes/:acteId/signe', upload.single('fichier'), async (req, res, next) => {
+  try {
+    const dossier = await chargerDossierConfie(req, res);
+    if (!dossier) return;
+    const acte = await prisma.acteContentieux.findFirst({ where: { id: req.params.acteId, dossierId: dossier.id } });
+    if (!acte) return res.status(404).json({ error: 'Acte introuvable' });
+    const fichier = req.file as Express.Multer.File | undefined;
+    if (!fichier) return res.status(400).json({ error: 'Aucun fichier reçu (champ « fichier »)' });
+    await prisma.acteContentieux.update({
+      where: { id: acte.id },
+      data: {
+        statut: StatutActe.signe,
+        signeLe: new Date(),
+        contenuSigne: fichier.buffer,
+        mimeTypeSigne: fichier.mimetype,
+        valideLe: acte.valideLe ?? new Date(),
+      },
+    });
+    res.json({ ok: true, statut: StatutActe.signe });
   } catch (e) {
     next(e);
   }
