@@ -15,6 +15,7 @@ import { SalleCoursierView } from './components/SalleCoursierView';
 import { PortailDebiteurView } from './components/PortailDebiteurView';
 import { PresentationView } from './components/PresentationView';
 import { ArticlePage, BlogIndex } from './components/BlogView';
+import { WelcomeSplash } from './components/WelcomeSplash';
 import { SettingsModal } from './components/SettingsModal';
 import { ImportPanel } from './components/ImportPanel';
 import { UsersPanel } from './components/UsersPanel';
@@ -98,6 +99,14 @@ export function App() {
   // Démarrage guidé SaaS : les comptes d'organisation (roleOrg) atterrissent sur
   // la checklist tant qu'ils ne sont pas entrés dans la console.
   const [enConsole, setEnConsole] = useState(false);
+  // Splash d'accueil « Bon recouvrement ! » — une fois par session, SaaS only.
+  const [welcome, setWelcome] = useState(() => {
+    try {
+      return IS_SAAS && !sessionStorage.getItem('feyma_welcome');
+    } catch {
+      return false;
+    }
+  });
   const bumpDataVersion = () => setDataVersion((v) => v + 1);
   const { theme, toggle: toggleTheme } = useTheme();
 
@@ -216,6 +225,18 @@ export function App() {
 
   return (
     <div className={`shell${IS_SAAS ? ' is-feyma' : ''}`} data-entite={effectiveEntity === 'ALL' ? 'OLU' : effectiveEntity}>
+      {welcome && (
+        <WelcomeSplash
+          onDone={() => {
+            setWelcome(false);
+            try {
+              sessionStorage.setItem('feyma_welcome', '1');
+            } catch {
+              /* stockage indisponible : le splash ne rejouera pas dans ce rendu */
+            }
+          }}
+        />
+      )}
       <nav className="rail">
         <div className="rail-brand">
           <img
@@ -421,7 +442,11 @@ export function App() {
             <b>Essai gratuit</b>
             <span>
               {abo.joursRestants != null
-                ? `Il vous reste ${abo.joursRestants} jour${abo.joursRestants > 1 ? 's' : ''} d'essai.`
+                ? `Il vous reste ${abo.joursRestants} jour${abo.joursRestants > 1 ? 's' : ''} d'essai${
+                    abo.dateFinEssai
+                      ? `, jusqu'au ${new Date(abo.dateFinEssai).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}`
+                      : ''
+                  }.`
                 : "Vous êtes en période d'essai."}
             </span>
             <button

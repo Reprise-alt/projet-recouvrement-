@@ -674,6 +674,25 @@ label{font-family:var(--font-mono);font-size:10.5px;text-transform:uppercase;let
 .is-feyma .rail{--brand:#C6FB50;--brand-ink:#0C120F;}
 .is-feyma .rail-brand b{font-family:'Archivo Black',sans-serif;letter-spacing:-.01em;}
 
+/* Splash d'accueil Feyma : la pièce traverse l'écran + « Bon recouvrement ! » */
+.splash{position:fixed;inset:0;z-index:9999;background:#0C120F;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;overflow:hidden;animation:splashOut .5s ease-in forwards;animation-delay:2.15s;}
+.splash-coin{animation:coinFly 2s ease-in-out forwards;filter:drop-shadow(0 10px 30px rgba(198,251,80,.35));}
+.splash-coin svg{display:block;}
+.splash-text{font-family:'Archivo Black',sans-serif;color:#fff;font-size:clamp(26px,5.2vw,48px);letter-spacing:-.02em;opacity:0;animation:splashText .6s ease-out forwards;animation-delay:.7s;}
+@keyframes coinFly{
+  0%{transform:translateX(-80vw) rotate(-160deg) scale(.8);opacity:0;}
+  12%{opacity:1;}
+  88%{opacity:1;}
+  100%{transform:translateX(80vw) rotate(200deg) scale(.8);opacity:0;}
+}
+@keyframes splashText{from{opacity:0;transform:translateY(14px) scale(.96);}to{opacity:1;transform:translateY(0) scale(1);}}
+@keyframes splashOut{to{opacity:0;visibility:hidden;}}
+@media (prefers-reduced-motion:reduce){
+  .splash-coin{animation:none;}
+  .splash-text{animation:splashText .4s ease forwards;}
+  .splash{animation:splashOut .4s ease forwards;animation-delay:.8s;}
+}
+
 /* Page de connexion/inscription Feyma (SaaS) — îlot sombre, cohérent avec le
    hero. Scopée à .login-feyma pour ne pas toucher la connexion SSO du groupe. */
 .login-feyma{

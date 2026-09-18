@@ -17,7 +17,7 @@ export function AbonnementBloque({ etat }: { etat: EtatAbonnement }) {
           <>Votre accès est temporairement suspendu. Vos données sont conservées.</>
         ) : (
           <>
-            Merci d'avoir testé OLU 360{user?.raisonSociale ? `, ${user.raisonSociale}` : ''} ! Votre période
+            Merci d'avoir testé Feyma{user?.raisonSociale ? `, ${user.raisonSociale}` : ''} ! Votre période
             d'essai gratuite est terminée. Vos données et vos réglages sont conservés — activez votre abonnement
             pour reprendre là où vous vous êtes arrêté.
           </>
