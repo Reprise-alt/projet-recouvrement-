@@ -215,7 +215,7 @@ export function App() {
   }
 
   return (
-    <div className="shell" data-entite={effectiveEntity === 'ALL' ? 'OLU' : effectiveEntity}>
+    <div className={`shell${IS_SAAS ? ' is-feyma' : ''}`} data-entite={effectiveEntity === 'ALL' ? 'OLU' : effectiveEntity}>
       <nav className="rail">
         <div className="rail-brand">
           <img
