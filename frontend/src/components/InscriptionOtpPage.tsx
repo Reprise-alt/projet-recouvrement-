@@ -83,7 +83,7 @@ export function InscriptionOtpPage() {
         </span>
         <span className="brand-id">
           <b>Feyma</b>
-          <small>par OLU 360 — reprenez la main sur vos impayés</small>
+          <small>by OLU 360 — reprenez la main sur vos impayés</small>
         </span>
       </div>
 

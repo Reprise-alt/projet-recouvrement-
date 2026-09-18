@@ -19,7 +19,7 @@ export function FeymaBrand({ size = 28, signature = true }: { size?: number; sig
       <FeymaMark size={size} />
       <span className="feyma-id">
         <b>Feyma</b>
-        {signature && <small>par OLU 360</small>}
+        {signature && <small>by OLU 360</small>}
       </span>
     </span>
   );
