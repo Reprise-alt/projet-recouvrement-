@@ -29,7 +29,8 @@ import { EntityLogo } from './components/EntityLogo';
 import { Entite, Entreprise } from './api/types';
 import { useResource } from './hooks/useResource';
 import { useTheme } from './hooks/useTheme';
-import { Moon, Sun } from 'lucide-react';
+import { Lock, Moon, Sun } from 'lucide-react';
+import { ContentieuxUpsell } from './components/ContentieuxUpsell';
 import { CONSOLE, CONSOLE_META, ECOSYSTEME } from './console';
 import { AUTH_MODE, IS_SAAS, redirigerVersHub } from './auth/mode';
 
@@ -49,7 +50,7 @@ const ROLE_OPERATIONS_LABELS: Record<string, string> = {
 };
 
 export function App() {
-  const { user, loading, logout } = useAuth();
+  const { user, loading, logout, refresh } = useAuth();
 
   // Liens publics — accessibles sans session, identifiés par un token dans
   // l'URL et scopés côté API. Ils appartiennent à la console Planning des
@@ -217,6 +218,10 @@ export function App() {
   const canReporting = !IS_SAAS || caps?.reporting !== false;
   const canContentieux = !IS_SAAS || caps?.contentieux !== false;
   const canMultiEntites = !IS_SAAS || caps?.multiEntites !== false;
+  // Contentieux non inclus dans la formule (SaaS « Petite structure ») : on
+  // n'efface plus l'onglet, on le présente verrouillé avec un écran d'activation
+  // (option +10 000 FCFA/mois) que l'admin peut souscrire en self-service.
+  const contentieuxVerrouille = IS_SAAS && caps?.contentieux === false;
 
   // Comptes SaaS : écran de démarrage guidé tant qu'ils n'entrent pas dans la console.
   if (user.roleOrg && !enConsole) {
@@ -328,15 +333,18 @@ export function App() {
                     )}
                   </>
                 )}
-                {/* Contentieux : inclus Grands comptes, sinon option payante —
-                    masqué si la formule ne l'inclut pas (SaaS). */}
-                {canContentieux && (
+                {/* Contentieux : inclus PME / Grands comptes ; en option pour la
+                    formule Petite (SaaS). Verrouillé, l'onglet reste visible et
+                    mène à l'écran d'activation. */}
                 <button
                   className={recouvrementTab === 'contentieux' ? 'active' : ''}
                   onClick={() => setRecouvrementTab('contentieux')}
                 >
                   Contentieux
-                  {nbAlertesContentieux > 0 && (
+                  {contentieuxVerrouille && (
+                    <Lock size={12} style={{ marginLeft: 6, opacity: 0.6, verticalAlign: '-1px' }} />
+                  )}
+                  {!contentieuxVerrouille && nbAlertesContentieux > 0 && (
                     <span
                       title={`${nbAlertesContentieux} proposition(s) de règlement en attente`}
                       style={{
@@ -358,7 +366,6 @@ export function App() {
                     </span>
                   )}
                 </button>
-                )}
               </>
             ) : CONSOLE === 'operations' ? (
               <button className="active">Opérations</button>
@@ -472,6 +479,9 @@ export function App() {
           <PlanningView entityFilter={effectiveEntity} role={user.role} />
         ) : contentieuxSeul || (recouvrementTab === 'contentieux' && canContentieux) ? (
           <ContentieuxView entityFilter={effectiveEntity} role={user.role} avocat={contentieuxSeul} />
+        ) : recouvrementTab === 'contentieux' ? (
+          // Onglet Contentieux verrouillé (formule Petite) : écran d'activation.
+          <ContentieuxUpsell canActivate={isAdmin} onActivated={refresh} />
         ) : recouvrementTab === 'relances' ? (
           <RelancesAVenirView reloadKey={dataVersion} canManage={isAdmin} />
         ) : !IS_SAAS && recouvrementTab === 'contrats' ? (
