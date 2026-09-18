@@ -36,8 +36,28 @@ export function setJsonLd(id: string, data: unknown) {
   script.textContent = JSON.stringify(data);
 }
 
+// Favicon Feyma (la pièce F) injecté au runtime, uniquement sur les pages
+// Feyma — le favicon statique (partagé avec la console groupe) reste inchangé.
+const FEYMA_FAVICON =
+  'data:image/svg+xml,' +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="46" fill="#C6FB50"/><path d="M38 32 H66 M38 32 V68 M38 51 H60" fill="none" stroke="#0C120F" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  );
+
+export function setFeymaFavicon() {
+  let link = document.head.querySelector('link[rel="icon"]');
+  if (!link) {
+    link = document.createElement('link');
+    link.setAttribute('rel', 'icon');
+    document.head.appendChild(link);
+  }
+  link.setAttribute('type', 'image/svg+xml');
+  link.setAttribute('href', FEYMA_FAVICON);
+}
+
 // Pose le socle commun (title + description + OG + canonique) pour une page.
 export function setPageSeo(opts: { title: string; description: string; path: string }) {
+  setFeymaFavicon();
   const url = SITE_URL + opts.path;
   document.title = opts.title;
   setMeta('name', 'description', opts.description);
