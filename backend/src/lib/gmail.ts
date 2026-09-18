@@ -78,8 +78,10 @@ function base64Wrap(base64: string): string {
   return base64.replace(/(.{76})/g, '$1\r\n');
 }
 
-function buildRawMessage(to: string, subject: string, body: string, attachments: EmailAttachment[] = []): string {
-  const headerLines = [`To: ${to}`, `Subject: ${encodeSubject(subject)}`, 'MIME-Version: 1.0'];
+function buildRawMessage(to: string, subject: string, body: string, attachments: EmailAttachment[] = [], cc = ''): string {
+  const headerLines = [`To: ${to}`];
+  if (cc.trim()) headerLines.push(`Cc: ${cc}`);
+  headerLines.push(`Subject: ${encodeSubject(subject)}`, 'MIME-Version: 1.0');
 
   if (!attachments.length) {
     const lines = [...headerLines, 'Content-Type: text/plain; charset="UTF-8"', 'Content-Transfer-Encoding: 7bit', '', body];
@@ -124,12 +126,13 @@ export async function sendViaGmail(
   subject: string,
   body: string,
   attachments: EmailAttachment[] = [],
+  cc = '',
 ): Promise<string> {
   const client = getOAuth2Client();
   client.setCredentials({ refresh_token: refreshToken });
   const gmail = google.gmail({ version: 'v1', auth: client });
   try {
-    const res = await gmail.users.messages.send({ userId: 'me', requestBody: { raw: buildRawMessage(to, subject, body, attachments) } });
+    const res = await gmail.users.messages.send({ userId: 'me', requestBody: { raw: buildRawMessage(to, subject, body, attachments, cc) } });
     if (!res.data.id) throw new Error("Réponse Gmail inattendue : pas d'identifiant de message");
     return res.data.id;
   } catch (err) {
