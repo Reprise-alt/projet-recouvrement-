@@ -180,11 +180,12 @@ services:
     buildCommand: echo "no build"
     startCommand: 'curl -fsS -X POST "https://$SAAS_BACKEND_HOST/api/cron/relances" -H "X-Cron-Secret: $CRON_SECRET"'
     envVars:
+      # Hôte public du back-end SaaS, en valeur littérale : `fromService
+      # property: host` renvoyait une valeur vide → curl « couldn't resolve
+      # host » (exit 6) → cron en échec chaque heure. L'URL primaire est stable
+      # (cf. logs Render). À mettre à jour si le back-end change d'hôte/domaine.
       - key: SAAS_BACKEND_HOST
-        fromService:
-          name: olu360-saas-backend
-          type: web
-          property: host
+        value: olu360-saas-backend.onrender.com
       - key: CRON_SECRET
         fromService:
           name: olu360-saas-backend

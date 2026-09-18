@@ -1,5 +1,6 @@
 import { FormEvent, useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
+import { FeymaMark } from './FeymaLogo';
 
 // Formule recommandée selon la tranche déclarée (addendum §4.2 → §8.2).
 const FORMULE_PAR_TRANCHE: Record<string, string> = {
@@ -78,23 +79,11 @@ export function InscriptionOtpPage() {
     <div className="login-wrap">
       <div className="login-brand">
         <span className="brand-mark">
-          <svg viewBox="0 0 100 100" width="28" height="28" aria-hidden="true">
-            <circle
-              cx="50"
-              cy="50"
-              r="34"
-              fill="none"
-              stroke="var(--accent)"
-              strokeWidth="13"
-              strokeLinecap="round"
-              strokeDasharray="168 46"
-              transform="rotate(100 50 50)"
-            />
-          </svg>
+          <FeymaMark size={28} />
         </span>
         <span className="brand-id">
-          <b>OLU 360</b>
-          <small>Recouvrement — reprenez la main sur vos impayés</small>
+          <b>Feyma</b>
+          <small>par OLU 360 — reprenez la main sur vos impayés</small>
         </span>
       </div>
 
