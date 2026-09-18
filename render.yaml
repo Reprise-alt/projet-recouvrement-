@@ -155,6 +155,12 @@ services:
       # Nom d'affichage du cabinet partenaire (bandeau de sa console).
       - key: PARTENAIRE_NOM
         sync: false
+      # Base de la console interne (recouvrement-db) — SOURCE de la migration de
+      # tenants vers Feyma (outil back-office super-admin « Migration depuis la
+      # console interne »). Mettre l'« Internal Database URL » de recouvrement-db.
+      # Laisser vide tant qu'aucune migration n'est prévue.
+      - key: SOURCE_DATABASE_URL
+        sync: false
 
   # ── SaaS : front-end (inscription self-service par code email) ────────────
   - type: web

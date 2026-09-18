@@ -1,8 +1,29 @@
 import { Router } from 'express';
+import { PrismaClient } from '@prisma/client';
 import { prisma } from '../db';
 import { requireAuth } from '../middleware/auth';
 import { requireSuperAdmin } from '../middleware/superAdmin';
 import { etatAbonnement } from '../lib/abonnement';
+import { migrerTenant } from '../lib/migrationTenant';
+
+// Clients Prisma dédiés à la migration (créés à la demande, mis en cache) :
+// SOURCE = base de la console interne (SOURCE_DATABASE_URL), CIBLE = base Feyma
+// (TARGET_DATABASE_URL, sinon DATABASE_URL du service). Clients « nus » (sans
+// l'extension tenant) : écriture hors contexte → l'échappatoire RLS l'autorise,
+// l'organisationId étant posé explicitement.
+let migSource: PrismaClient | null = null;
+let migTarget: PrismaClient | null = null;
+function sourceMigration(): PrismaClient | null {
+  const url = process.env.SOURCE_DATABASE_URL;
+  if (!url) return null;
+  if (!migSource) migSource = new PrismaClient({ datasources: { db: { url } } });
+  return migSource;
+}
+function cibleMigration(): PrismaClient {
+  const url = process.env.TARGET_DATABASE_URL || process.env.DATABASE_URL!;
+  if (!migTarget) migTarget = new PrismaClient({ datasources: { db: { url } } });
+  return migTarget;
+}
 
 // Back-office EXPLOITANT (addendum §8) — réservé au super-admin (SUPERADMIN_EMAILS).
 // Vue transverse sur toutes les organisations (hors contexte tenant : la table
@@ -89,6 +110,37 @@ adminOrganisationsRouter.patch('/organisations/:id', async (req, res, next) => {
       dateFinEssai: org.dateFinEssai,
       abonnement: etatAbonnement(org),
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Migration d'un tenant depuis la console interne (base source) vers une
+// organisation Feyma. apply=false ⇒ DRY-RUN (compte, n'écrit rien). apply=true
+// ⇒ migration réelle (transaction). vider=true ⇒ purge la cible d'abord.
+// La cible se désigne par id, slug OU raison sociale (pratique côté UI).
+adminOrganisationsRouter.post('/migration', async (req, res, next) => {
+  try {
+    const source = sourceMigration();
+    if (!source) {
+      return res.status(400).json({ error: "SOURCE_DATABASE_URL n'est pas configurée sur le service (base de la console interne)." });
+    }
+    const entite = String(req.body?.entite ?? '').trim();
+    const cible = String(req.body?.orgId ?? '').trim();
+    const apply = req.body?.apply === true;
+    const vider = req.body?.vider === true;
+    if (!entite || !cible) return res.status(400).json({ error: 'entite et orgId (id, slug ou raison sociale) requis' });
+
+    const org = await prisma.organisation.findFirst({
+      where: { OR: [{ id: cible }, { slug: cible }, { raisonSociale: { equals: cible, mode: 'insensitive' } }] },
+      select: { id: true, slug: true, raisonSociale: true },
+    });
+    if (!org) return res.status(404).json({ error: 'Organisation cible introuvable' });
+
+    const rapport = await migrerTenant({
+      source, target: cibleMigration(), entite, orgId: org.id, orgSlug: org.slug, apply, vider,
+    });
+    res.json({ ...rapport, orgRaisonSociale: org.raisonSociale });
   } catch (err) {
     next(err);
   }
