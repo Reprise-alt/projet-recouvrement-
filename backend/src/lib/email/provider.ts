@@ -22,6 +22,8 @@ export interface EmailMessage {
   // Contacts en copie (CC) — relance envoyée au contact principal (to) avec les
   // autres contacts de la fiche en copie.
   cc?: string[];
+  // Pièces jointes (envoi manuel SaaS via Resend, comme le Gmail du groupe).
+  attachments?: { filename: string; content: Buffer; contentType?: string }[];
 }
 
 export interface EmailProvider {
@@ -117,6 +119,9 @@ class SmtpEmailProvider implements EmailProvider {
       text: msg.text,
       html: msg.html,
       replyTo: msg.replyTo || undefined,
+      attachments: msg.attachments?.length
+        ? msg.attachments.map((a) => ({ filename: a.filename, content: a.content, contentType: a.contentType }))
+        : undefined,
     });
   }
 
@@ -173,6 +178,9 @@ class ResendApiProvider implements EmailProvider {
       text: msg.text,
       html: msg.html,
       reply_to: msg.replyTo || undefined,
+      attachments: msg.attachments?.length
+        ? msg.attachments.map((a) => ({ filename: a.filename, content: a.content.toString('base64') }))
+        : undefined,
     });
   }
 

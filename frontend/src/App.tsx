@@ -395,7 +395,10 @@ export function App() {
               <button onClick={() => setModelesOpen(true)}>Modèles de relance</button>
               <button onClick={() => setImportOpen(true)}>Importer un fichier</button>
               <button onClick={() => setUsersOpen(true)}>Utilisateurs</button>
-              <button onClick={() => setIntegrationsOpen(true)}>Intégrations</button>
+              {/* Intégrations Gmail = envoi manuel côté groupe. En SaaS, l'envoi
+                  (auto ET manuel) passe par le canal mutualisé au nom du client —
+                  ce panneau ne sert à rien, on le masque. */}
+              {!IS_SAAS && <button onClick={() => setIntegrationsOpen(true)}>Intégrations</button>}
               {/* Gestion multi-entités : réservée PME / Grands comptes en SaaS. */}
               {canMultiEntites && <button onClick={() => setEntreprisesOpen(true)}>Entreprises</button>}
             </div>
