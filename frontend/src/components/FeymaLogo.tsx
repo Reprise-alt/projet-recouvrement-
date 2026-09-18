@@ -8,7 +8,8 @@ export function FeymaMark({ size = 28 }: { size?: number }) {
   return (
     <svg viewBox="0 0 100 100" width={size} height={size} aria-hidden="true" role="img">
       <circle cx="50" cy="50" r="42" fill="var(--accent)" />
-      <path d="M38 32 H66 M38 32 V68 M38 51 H60" fill="none" stroke="#0C120F" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="50" cy="50" r="35.5" fill="none" stroke="#0C120F" strokeWidth="1.8" opacity="0.25" />
+      <path d="M39 32 H67 M39 32 V68 M39 50 H62" fill="none" stroke="#0C120F" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -24,7 +25,8 @@ export function FeymaBrand({ size = 30, signature = true }: { size?: number; sig
           <line x1="8" y1="66" x2="26" y2="66" />
         </g>
         <circle cx="82" cy="50" r="38" fill="var(--accent)" />
-        <path d="M70 34 H98 M70 34 V66 M70 50 H92" fill="none" stroke="#0C120F" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx="82" cy="50" r="32" fill="none" stroke="#0C120F" strokeWidth="1.6" opacity="0.25" />
+        <path d="M71 34 H99 M71 34 V66 M71 50 H93" fill="none" stroke="#0C120F" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
       <span className="feyma-id">
         <b>Feyma</b>
