@@ -4,7 +4,15 @@ import { creerCodeOtp, verifierCodeOtp, normaliserEmail } from '../lib/otp';
 import { getEmailProvider } from '../lib/email/provider';
 import { signerSession, signerSessionPartenaire } from '../lib/authToken';
 import { estPartenaire } from '../lib/partenaires';
+import { superAdminEmails } from '../lib/superAdmin';
 import { slugify } from '../lib/tenant';
+
+// Libellés lisibles des tranches de débiteurs (pour la notification exploitant).
+const TRANCHE_LABEL: Record<string, string> = {
+  moins_50: 'moins de 50 débiteurs',
+  entre_50_500: '50 à 500 débiteurs',
+  plus_500: 'plus de 500 débiteurs',
+};
 
 // Inscription / connexion self-service par email à usage unique (addendum §4).
 // Routes PUBLIQUES (pré-auth), montées hors de tout middleware d'authentification.
@@ -98,6 +106,31 @@ authOtpRouter.post('/verify', async (req, res, next) => {
           accesRecouvrement: true,
         },
       });
+
+      // Notification exploitant : un nouvel essai vient de démarrer. Best-effort
+      // (ne bloque jamais l'inscription). Sert au suivi commercial — recontacter
+      // et accompagner le prospect pendant ses 14 jours.
+      const dest = superAdminEmails();
+      if (dest.length) {
+        const finEssai = org.dateFinEssai ? org.dateFinEssai.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' }) : '—';
+        const corps = [
+          'Nouvelle inscription à l’essai gratuit sur Feyma :',
+          '',
+          `Entreprise : ${raisonSociale}`,
+          `Email : ${email}`,
+          secteur ? `Secteur : ${secteur}` : null,
+          trancheDebiteurs ? `Volume : ${TRANCHE_LABEL[trancheDebiteurs] ?? trancheDebiteurs}` : null,
+          outilFacturation ? `Outil de facturation actuel : ${outilFacturation}` : null,
+          `Formule recommandée : ${org.formule}`,
+          '',
+          `Essai de 14 jours, jusqu’au ${finEssai}.`,
+        ]
+          .filter(Boolean)
+          .join('\n');
+        getEmailProvider()
+          .send({ to: dest.join(', '), subject: `Nouvel essai Feyma — ${raisonSociale}`, text: corps })
+          .catch((e) => console.error('[inscription] notification exploitant échouée:', e));
+      }
     }
 
     const token = signerSession(utilisateur.id, utilisateur.organisationId);
