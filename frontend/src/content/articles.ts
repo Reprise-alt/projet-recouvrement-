@@ -27,6 +27,140 @@ export interface Article {
 
 export const ARTICLES: Article[] = [
   {
+    slug: 'dso-delai-moyen-paiement-mesurer-reduire',
+    titre: 'DSO : mesurer (et réduire) votre délai moyen de paiement',
+    description:
+      "Le DSO (délai moyen de paiement) est l'indicateur clé de votre trésorerie. Comment le calculer simplement, l'interpréter et le faire baisser.",
+    dateISO: '2026-09-18',
+    dateAffiche: '18 septembre 2026',
+    lecture: 5,
+    blocs: [
+      {
+        type: 'p',
+        texte:
+          "Combien de temps, en moyenne, s'écoule-t-il entre l'émission d'une facture et son encaissement ? C'est la question à laquelle répond le DSO (Days Sales Outstanding), aussi appelé délai moyen de paiement. Un seul chiffre, mais il en dit long sur la santé de votre trésorerie — et sur l'efficacité de votre recouvrement.",
+      },
+      { type: 'h2', texte: 'Comment calculer votre DSO' },
+      {
+        type: 'p',
+        texte:
+          "La méthode la plus simple : DSO = (encours clients ÷ chiffre d'affaires TTC de la période) × nombre de jours de la période. Exemple : 9 000 000 FCFA d'encours clients, 30 000 000 FCFA de CA sur le trimestre (90 jours) → (9 ÷ 30) × 90 = 27 jours. Vos clients vous paient donc en 27 jours en moyenne.",
+      },
+      { type: 'h2', texte: 'Comment l\'interpréter' },
+      {
+        type: 'p',
+        texte:
+          "Un DSO qui grimpe mois après mois est un signal d'alerte : votre trésorerie se dégrade, même si votre chiffre d'affaires progresse. Comparez-le à vos conditions de paiement affichées : si vous facturez « à 30 jours » mais que votre DSO est de 55 jours, l'écart, ce sont des retards que vous financez à la place de vos clients.",
+      },
+      { type: 'h2', texte: 'Cinq leviers pour le faire baisser' },
+      {
+        type: 'ul',
+        items: [
+          'Des conditions de paiement claires et acceptées par écrit',
+          "Un avis d'échéance envoyé avant la date limite",
+          'Des relances précoces, graduées et systématiques',
+          'Un paiement facilité (coordonnées rappelées, échéancier possible)',
+          'Un suivi mensuel du DSO pour mesurer les progrès',
+        ],
+      },
+      {
+        type: 'p',
+        texte:
+          "Aucun de ces leviers n'est spectaculaire pris isolément ; c'est leur régularité qui fait chuter le DSO. Un outil de recouvrement automatise cette régularité — les relances partent au bon moment, sans oubli — et vous affiche le DSO en continu, pour transformer un chiffre subi en objectif piloté.",
+      },
+    ],
+  },
+  {
+    slug: 'injonction-de-payer-ohada-procedure',
+    titre: 'Injonction de payer en zone OHADA : la procédure simplifiée pour recouvrer',
+    description:
+      "Quand l'amiable échoue, l'injonction de payer permet de recouvrer une créance plus vite qu'un procès classique. Principe, conditions et étapes en zone OHADA.",
+    dateISO: '2026-09-17',
+    dateAffiche: '17 septembre 2026',
+    lecture: 6,
+    blocs: [
+      {
+        type: 'p',
+        texte:
+          "Vos relances et votre mise en demeure sont restées sans effet, mais la créance est certaine et le débiteur solvable ? L'injonction de payer est la voie prévue par le droit OHADA pour obtenir un titre exécutoire rapidement, sans passer par un procès long et coûteux.",
+      },
+      { type: 'h2', texte: 'De quoi s\'agit-il ?' },
+      {
+        type: 'p',
+        texte:
+          "L'injonction de payer est une procédure simplifiée de recouvrement, encadrée par l'Acte uniforme OHADA portant organisation des procédures simplifiées de recouvrement et des voies d'exécution (AUPSRVE). Elle permet à un créancier de demander au juge d'ordonner à son débiteur de payer, sur simple requête, sans débat contradictoire préalable.",
+      },
+      { type: 'h2', texte: 'Trois conditions sur la créance' },
+      {
+        type: 'ul',
+        items: [
+          'Certaine : son existence n\'est pas discutable (contrat, facture, bon de livraison…)',
+          'Liquide : son montant est déterminé et chiffré',
+          'Exigible : son échéance est passée, elle est due maintenant',
+        ],
+      },
+      { type: 'h2', texte: 'Les grandes étapes' },
+      {
+        type: 'p',
+        texte:
+          "En pratique : le créancier dépose une requête auprès de la juridiction compétente, accompagnée des pièces justificatives. Si le juge l'estime fondée, il rend une décision d'injonction de payer. Celle-ci est signifiée au débiteur, qui dispose d'un délai pour former opposition s'il conteste. Sans opposition dans les délais, la décision peut être revêtue de la formule exécutoire — ouvrant la voie, si besoin, aux mesures d'exécution (saisies).",
+      },
+      {
+        type: 'p',
+        texte:
+          "Le facteur clé de succès se joue en amont : un dossier propre et complet — facture, preuve de livraison, historique de relances, mise en demeure — accélère tout et solidifie votre position. C'est précisément ce qu'un outil de recouvrement conserve et prépare pour vous, dossier par dossier.",
+      },
+      {
+        type: 'p',
+        texte:
+          "Cet article donne des repères généraux et ne remplace pas un conseil juridique : les délais et modalités précises s'apprécient au cas par cas avec un professionnel du droit ou un huissier.",
+      },
+    ],
+  },
+  {
+    slug: 'recouvrement-amiable-ou-judiciaire-choisir',
+    titre: 'Recouvrement amiable ou judiciaire : comment choisir ?',
+    description:
+      "Faut-il relancer encore ou passer en justice ? Les critères concrets pour arbitrer entre recouvrement amiable et judiciaire sans y laisser du temps et de l'argent.",
+    dateISO: '2026-09-16',
+    dateAffiche: '16 septembre 2026',
+    lecture: 4,
+    blocs: [
+      {
+        type: 'p',
+        texte:
+          "Face à un impayé qui traîne, deux voies s'ouvrent : continuer à l'amiable, ou engager une procédure judiciaire. Choisir la mauvaise, c'est perdre du temps, de l'argent, ou un client. Voici comment arbitrer.",
+      },
+      { type: 'h2', texte: 'Le recouvrement amiable, à privilégier d\'abord' },
+      {
+        type: 'p',
+        texte:
+          "Relances graduées, appel, échéancier, puis mise en demeure : l'amiable est rapide, peu coûteux et préserve la relation commerciale. Il résout la grande majorité des impayés — la plupart des retards sont des oublis ou des tensions de trésorerie passagères, pas de la mauvaise foi. Tant qu'il progresse, inutile de judiciariser.",
+      },
+      { type: 'h2', texte: 'Quand basculer vers le judiciaire' },
+      {
+        type: 'p',
+        texte:
+          "Le judiciaire (injonction de payer, puis mesures d'exécution en zone OHADA) devient pertinent quand l'amiable est épuisé : silence total malgré une mise en demeure, mauvaise foi manifeste, ou risque que le débiteur devienne insolvable. C'est plus long et plus coûteux, mais c'est ce qui donne un titre exécutoire.",
+      },
+      { type: 'h2', texte: 'Quatre critères pour décider' },
+      {
+        type: 'ul',
+        items: [
+          'Le montant : une petite créance ne justifie pas toujours des frais de procédure',
+          "L'ancienneté : plus une créance vieillit, plus il faut agir fermement",
+          'La solvabilité du débiteur : un titre sur un débiteur insolvable ne rapporte rien',
+          'La relation : un bon client de longue date mérite un dernier geste amiable',
+        ],
+      },
+      {
+        type: 'p',
+        texte:
+          "La bonne pratique : un process amiable rigoureux et tracé pour tous, et le passage au judiciaire réservé aux dossiers qui le méritent — dossier déjà constitué. Un outil de recouvrement vous aide à faire les deux : il systématise l'amiable et prépare le dossier contentieux quand il faut franchir le pas.",
+      },
+    ],
+  },
+  {
     slug: 'reduire-delai-paiement-pme-senegal',
     titre: 'Réduire son délai de paiement : 5 leviers concrets pour une PME au Sénégal',
     description:
