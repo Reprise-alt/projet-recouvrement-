@@ -753,7 +753,7 @@ body:has(.lp){background:#F7F8F6;}
 .lp .lp-btn-on-dark{border-color:rgba(255,255,255,.32);color:#fff;}
 /* Coche de réassurance en lime (dans le hero sombre) */
 .lp .lp-hero .lp-reassurance li::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23C6FB50' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");}
-@media(max-width:760px){.lp-steps,.lp-benefits,.lp-plans,.lp-stats,.lp-enjeux,.blog-list,.mock-kpis,.mock-duo,.lp-temoignages{grid-template-columns:1fr;}.lp-nav-links a:not(.lp-btn){display:none;}}
+@media(max-width:760px){.lp-steps,.lp-benefits,.lp-plans,.lp-stats,.lp-enjeux,.blog-list,.mock-kpis,.mock-duo,.lp-temoignages{grid-template-columns:1fr;}.lp-nav-links a:not(.lp-btn){display:none;}.lp-nav-links{gap:7px;}.lp-nav-links .lp-btn{padding:8px 11px;font-size:12.5px;white-space:nowrap;}}
 
 /* ===== Démarrage guidé SaaS (addendum §4.3) ===== */
 .onb-wrap{max-width:660px;margin:0 auto;padding:28px 20px 64px;}
