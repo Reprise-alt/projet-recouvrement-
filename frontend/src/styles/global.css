@@ -663,6 +663,17 @@ label{font-family:var(--font-mono);font-size:10.5px;text-transform:uppercase;let
 .faq-chevron{flex:none;color:var(--ink-soft);transition:transform .18s var(--ease);}
 .faq-item[open] .faq-chevron{transform:rotate(180deg);}
 .faq-answer{padding:0 0 16px;font-size:14px;color:var(--ink-soft);line-height:1.6;}
+/* Feymatisation de la console SaaS (scopée à .is-feyma — la console groupe est
+   intacte). Fond clair conservé pour la lisibilité des données ; l'identité
+   Feyma vient de la typo Space Grotesk et de l'accent LIME dans le rail sombre
+   (l'îlot d'énergie), le corps gardant le vert lisible. */
+.is-feyma{
+  --font-body:'Space Grotesk',system-ui,sans-serif;
+  --font-display:'Space Grotesk',system-ui,sans-serif;
+}
+.is-feyma .rail{--brand:#C6FB50;--brand-ink:#0C120F;}
+.is-feyma .rail-brand b{font-family:'Archivo Black',sans-serif;letter-spacing:-.01em;}
+
 /* Page de connexion/inscription Feyma (SaaS) — îlot sombre, cohérent avec le
    hero. Scopée à .login-feyma pour ne pas toucher la connexion SSO du groupe. */
 .login-feyma{
