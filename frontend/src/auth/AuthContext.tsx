@@ -27,6 +27,9 @@ interface AuthState {
   requestOtp: (email: string) => Promise<void>;
   verifyOtp: (email: string, code: string, profil?: ProfilInscription) => Promise<{ inscription: boolean }>;
   logout: () => Promise<void>;
+  // Recharge le profil /me (capacités, abonnement, formule…) sans reconnexion —
+  // utile après un changement d'état côté serveur (ex. activation d'une option).
+  refresh: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -125,6 +128,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function refresh() {
+    const me = await fetchCurrentUser();
+    setUser(me);
+  }
+
   async function logout() {
     // Mode SSO : la session est partagée (hub) — se déconnecter d'une console
     // seule n'aurait pas de sens. On renvoie au hub, où l'utilisateur ferme sa
@@ -152,6 +160,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       requestOtp,
       verifyOtp,
       logout,
+      refresh,
     }),
     [user, loading, error],
   );

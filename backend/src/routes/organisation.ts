@@ -3,6 +3,8 @@ import multer from 'multer';
 import { prisma } from '../db';
 import { requireAuth, requireOrgRole } from '../middleware/auth';
 import { emailMode, getEmailProvider } from '../lib/email/provider';
+import { capacites } from '../lib/formules';
+import { superAdminEmails } from '../lib/superAdmin';
 
 // Types d'image acceptés pour le logo. PNG/JPEG/WebP s'affichent partout, y
 // compris dans les emails ; SVG toléré (rendu via <img>, sans exécution de
@@ -62,6 +64,52 @@ organisationRouter.patch('/', requireOrgRole('proprietaire', 'administrateur'), 
     }
     const org = await prisma.organisation.update({ where: { id: req.user!.organisationId }, data: data as never });
     res.json(org);
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Activation en self-service du module Contentieux pour la formule « Petite
+// structure » (option payante +10 000 FCFA/mois, cf. lib/formules). Le module
+// est INCLUS pour PME et Grands comptes : l'option ne concerne donc que Petite.
+// La facturation étant hors-ligne (comme tout l'abonnement), l'activation est
+// immédiate et l'exploitant est notifié par email pour l'ajout au prochain
+// prélèvement. Réservé aux profils d'administration de l'organisation.
+organisationRouter.post('/option-contentieux', requireOrgRole('proprietaire', 'administrateur'), async (req, res, next) => {
+  try {
+    const org = await prisma.organisation.findUnique({
+      where: { id: req.user!.organisationId },
+      select: { id: true, raisonSociale: true, formule: true, optionContentieux: true },
+    });
+    if (!org) return res.status(404).json({ error: 'Organisation introuvable' });
+    // Sur PME / Grands comptes, le contentieux est déjà inclus : rien à activer.
+    if (org.formule !== 'petite') {
+      return res.status(400).json({ error: 'Le module contentieux est déjà inclus dans votre formule.' });
+    }
+    if (!org.optionContentieux) {
+      await prisma.organisation.update({
+        where: { id: org.id },
+        data: { optionContentieux: true },
+      });
+      // Notification exploitant (best-effort : ne bloque pas l'activation si
+      // l'email échoue — le drapeau est déjà posé en base).
+      const dest = superAdminEmails();
+      if (dest.length) {
+        getEmailProvider()
+          .send({
+            to: dest.join(', '),
+            subject: `Option Contentieux activée — ${org.raisonSociale ?? org.id}`,
+            text:
+              `L'organisation « ${org.raisonSociale ?? org.id} » (formule Petite structure) vient d'activer ` +
+              `le module Contentieux en self-service.\n\n` +
+              `➜ À ajouter au prochain prélèvement : +10 000 FCFA/mois.\n\n` +
+              `Demandé par : ${req.user!.email}.`,
+          })
+          .catch((e) => console.error('[option-contentieux] notification exploitant échouée:', e));
+      }
+    }
+    // Renvoie les capacités à jour pour que le front débloque l'onglet.
+    res.json({ optionContentieux: true, capacites: capacites(org.formule, true) });
   } catch (e) {
     next(e);
   }
