@@ -167,10 +167,131 @@ export function SuperAdminPanel({ onClose }: { onClose: () => void }) {
           </div>
         )}
 
+        {orgs && orgs.length > 0 && <MigrationTenant orgs={orgs} onDone={refetch} />}
+
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
           <button onClick={onClose}>Fermer</button>
         </div>
       </div>
+    </div>
+  );
+}
+
+interface RapportMigration {
+  entite: string;
+  cibleAvant: number;
+  counts: {
+    clients: number; contacts: number; factures: number; contrats: number; echeanciers: number;
+    actions: number; dossiers: number; pieces: number; actes: number; fichiersMo: number;
+  };
+  refsRenommees: number;
+  applied: boolean;
+  vide: boolean;
+  apres?: { clients: number; actions: number; dossiers: number };
+  orgRaisonSociale?: string;
+}
+
+// Outil de migration d'un tenant : reprend TOUT l'actif d'une entité de la
+// console interne vers une organisation Feyma. Aperçu chiffré (dry-run) d'abord,
+// migration réelle ensuite. Option « vider la cible » avant import.
+function MigrationTenant({ orgs, onDone }: { orgs: OrgAdmin[]; onDone: () => void }) {
+  const { showToast } = useToast();
+  const [ouvert, setOuvert] = useState(false);
+  const [entite, setEntite] = useState('SORAM');
+  const [orgId, setOrgId] = useState('');
+  const [vider, setVider] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [rapport, setRapport] = useState<RapportMigration | null>(null);
+
+  async function lancer(apply: boolean) {
+    if (!orgId) return showToast('Choisissez l’organisation cible');
+    if (apply && !confirm(`Migrer « ${entite} » vers cette organisation ?${vider ? '\n\nLa cible sera VIDÉE au préalable.' : ''}\n\nCette action écrit réellement les données.`)) return;
+    setBusy(true);
+    try {
+      const r = await api.post<RapportMigration>('/api/admin/migration', { entite, orgId, apply, vider });
+      setRapport(r);
+      showToast(apply ? 'Migration terminée' : 'Aperçu prêt');
+      if (apply) onDone();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const c = rapport?.counts;
+  return (
+    <div style={{ marginTop: 22, border: '1px solid var(--line)', borderRadius: 12, padding: 14 }}>
+      <button
+        type="button"
+        onClick={() => setOuvert((v) => !v)}
+        style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: 'pointer', fontWeight: 700, fontSize: 14 }}
+      >
+        {ouvert ? '▾' : '▸'} Migration depuis la console interne
+      </button>
+      {ouvert && (
+        <div style={{ marginTop: 12 }}>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <label style={{ fontSize: 12 }}>
+              Entité source
+              <input value={entite} onChange={(e) => setEntite(e.target.value.toUpperCase())} style={{ display: 'block', width: 140 }} />
+            </label>
+            <label style={{ fontSize: 12 }}>
+              Organisation cible (Feyma)
+              <select value={orgId} onChange={(e) => setOrgId(e.target.value)} style={{ display: 'block', width: 240 }}>
+                <option value="">— Choisir —</option>
+                {orgs.map((o) => (
+                  <option key={o.id} value={o.id}>{o.raisonSociale} ({o.nbClients} clients)</option>
+                ))}
+              </select>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, cursor: 'pointer' }}>
+              <input type="checkbox" checked={vider} onChange={(e) => setVider(e.target.checked)} style={{ width: 'auto' }} />
+              Vider la cible d’abord
+            </label>
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+            <button type="button" disabled={busy} onClick={() => lancer(false)}>Aperçu (dry-run)</button>
+            <button type="button" className="primary" disabled={busy || !rapport} onClick={() => lancer(true)}>
+              Lancer la migration
+            </button>
+          </div>
+
+          {rapport && c && (
+            <div style={{ marginTop: 14, background: 'var(--paper-2, #f2f4f2)', borderRadius: 10, padding: 12, fontSize: 13 }}>
+              <div style={{ fontWeight: 700, marginBottom: 6 }}>
+                {rapport.applied ? '✅ Migration effectuée' : '🔎 Aperçu'} — {rapport.orgRaisonSociale}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '2px 16px' }}>
+                <span>Clients : <b>{c.clients}</b></span>
+                <span>Factures : <b>{c.factures}</b></span>
+                <span>Contrats : <b>{c.contrats}</b></span>
+                <span>Contacts : <b>{c.contacts}</b></span>
+                <span>Échéanciers : <b>{c.echeanciers}</b></span>
+                <span>Relances (histo.) : <b>{c.actions}</b></span>
+                <span>Dossiers contentieux : <b>{c.dossiers}</b></span>
+                <span>Pièces : <b>{c.pieces}</b> ({c.fichiersMo} Mo)</span>
+                <span>Actes : <b>{c.actes}</b></span>
+              </div>
+              {rapport.refsRenommees > 0 && (
+                <div style={{ marginTop: 6, color: 'var(--ink-soft)' }}>{rapport.refsRenommees} référence(s) de dossier renommée(s) (collision).</div>
+              )}
+              {rapport.cibleAvant > 0 && !rapport.applied && (
+                <div style={{ marginTop: 6, color: 'var(--danger)' }}>
+                  ⚠️ La cible contient déjà {rapport.cibleAvant} client(s). Cochez « Vider la cible » pour repartir propre.
+                </div>
+              )}
+              {rapport.applied && rapport.apres && (
+                <div style={{ marginTop: 6, color: 'var(--success, #177f5e)' }}>
+                  Contrôle cible : {rapport.apres.clients} clients · {rapport.apres.actions} relances · {rapport.apres.dossiers} dossiers.
+                  {rapport.vide ? ' (cible vidée avant import)' : ''}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
