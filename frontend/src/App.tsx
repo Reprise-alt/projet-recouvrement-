@@ -220,17 +220,18 @@ export function App() {
         <div className="rail-brand">
           <img
             className="rail-brand-logo"
-            src={IS_SAAS && user.logoUrl ? user.logoUrl : '/logos/olu360-blanc.svg'}
-            alt={IS_SAAS && user.raisonSociale ? user.raisonSociale : 'OLU 360'}
+            src={IS_SAAS && user.logoUrl ? user.logoUrl : IS_SAAS ? '/logos/feyma-blanc.svg' : '/logos/olu360-blanc.svg'}
+            alt={IS_SAAS ? user.raisonSociale ?? 'Feyma' : 'OLU 360'}
             // Si le logo du client ne charge pas, on retombe proprement sur le
-            // logo OLU plutôt que d'afficher une image cassée.
+            // logo de la plateforme plutôt que d'afficher une image cassée.
             onError={(e) => {
               const img = e.currentTarget;
-              if (!img.src.endsWith('/logos/olu360-blanc.svg')) img.src = '/logos/olu360-blanc.svg';
+              const fallback = IS_SAAS ? '/logos/feyma-blanc.svg' : '/logos/olu360-blanc.svg';
+              if (!img.src.endsWith(fallback)) img.src = fallback;
             }}
           />
-          <b>{meta.marque}</b>
-          <small>By Olu360</small>
+          <b>{IS_SAAS ? 'Feyma' : meta.marque}</b>
+          <small>{IS_SAAS ? 'by OLU 360' : 'By Olu360'}</small>
           {/* Bandeau des entités du groupe : réservé à la console interne. En
               SaaS, on affiche la marque du client (jamais SORAM/IRIS/SIS). */}
           {IS_SAAS ? (
