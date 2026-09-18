@@ -1248,6 +1248,13 @@ model DossierContentieux {
   // null = portail non activé. Jamais renvoyé sur les routes publiques.
   portailToken String? @unique
 
+  // Cabinet partenaire (avocat/huissier au niveau plateforme, transverse aux
+  // sociétés) : quand le créancier « confie » le dossier, le partenaire le voit
+  // dans sa console — toutes sociétés confondues. Distinct de `avocatId`, qui
+  // désigne un collaborateur juridique INTERNE à l'organisation.
+  confieAuPartenaire Boolean   @default(false)
+  confieLe           DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

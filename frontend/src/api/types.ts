@@ -1139,6 +1139,9 @@ export interface DossierContentieuxDetail {
   prescription: InfoPrescription | null;
   scoring: ScoreRecouvrabilite | null;
   portailToken: string | null;
+  // Confié au cabinet partenaire (avocat/huissier plateforme, transverse aux sociétés).
+  confieAuPartenaire?: boolean;
+  confieLe?: string | null;
   propositions: PropositionPaiement[];
   factures: Facture[];
   pieces: PieceContentieux[];

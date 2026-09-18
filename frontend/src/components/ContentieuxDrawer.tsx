@@ -10,6 +10,7 @@ import {
   FileText,
   Gauge,
   Gavel,
+  Handshake,
   Loader2,
   MessageSquare,
   RotateCcw,
@@ -27,6 +28,7 @@ import { api, ApiError, downloadFile } from '../api/client';
 import { useResource } from '../hooks/useResource';
 import { useToast } from '../hooks/useToast';
 import { fmtDate, fmtFCFA } from '../lib/constants';
+import { IS_SAAS } from '../auth/mode';
 import {
   ActeContentieux,
   AnalyseResponse,
@@ -344,6 +346,16 @@ export function ContentieuxDrawer({
 
             {/* ---------- Avocat assigné (interne) ---------- */}
             {!avocat && <AssignationAvocat dossierId={dossierId} avocatActuel={dossier.avocat} onChanged={refreshAll} />}
+
+            {/* ---------- Confier au cabinet partenaire (plateforme, SaaS) ---------- */}
+            {!avocat && IS_SAAS && (
+              <ConfierPartenaire
+                dossierId={dossierId}
+                confie={dossier.confieAuPartenaire ?? false}
+                confieLe={dossier.confieLe ?? null}
+                onChanged={refreshAll}
+              />
+            )}
 
             {/* ---------- Verdict de recevabilité ---------- */}
             <VerdictBloc dossier={dossier} />
@@ -1311,6 +1323,70 @@ function AssignationAvocat({
           Aucun collaborateur juridique — activez « Accès Contentieux » sur un compte dans Utilisateurs.
         </span>
       )}
+    </div>
+  );
+}
+
+// Confier / retirer le dossier au cabinet partenaire (avocat/huissier au niveau
+// plateforme, transverse aux sociétés). Une fois confié, le partenaire le voit
+// dans sa propre console. Interrupteur réservé à l'équipe du créancier.
+function ConfierPartenaire({
+  dossierId,
+  confie,
+  confieLe,
+  onChanged,
+}: {
+  dossierId: string;
+  confie: boolean;
+  confieLe: string | null;
+  onChanged: () => void;
+}) {
+  const { showToast } = useToast();
+  const [saving, setSaving] = useState(false);
+
+  async function basculer(next: boolean) {
+    setSaving(true);
+    try {
+      await api.patch(`/api/contentieux/dossiers/${dossierId}/partenaire`, { confie: next });
+      showToast(next ? 'Dossier confié au cabinet partenaire' : 'Dossier retiré du cabinet partenaire');
+      onChanged();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        margin: '4px 0 10px',
+        padding: '8px 12px',
+        border: `1px solid ${confie ? 'var(--accent, #1D9E75)' : 'var(--line)'}`,
+        borderRadius: 10,
+        flexWrap: 'wrap',
+        background: confie ? 'color-mix(in srgb, var(--accent, #1D9E75) 7%, transparent)' : undefined,
+      }}
+    >
+      <Handshake size={14} style={{ opacity: 0.7 }} />
+      <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
+        Cabinet partenaire
+        {confie && confieLe && (
+          <span style={{ marginLeft: 6, color: 'var(--ink)' }}>· confié le {fmtDate(confieLe)}</span>
+        )}
+      </span>
+      <button
+        type="button"
+        disabled={saving}
+        onClick={() => basculer(!confie)}
+        className={confie ? '' : 'primary'}
+        style={{ marginLeft: 'auto' }}
+      >
+        {confie ? 'Retirer du partenaire' : 'Confier au cabinet partenaire'}
+      </button>
     </div>
   );
 }
