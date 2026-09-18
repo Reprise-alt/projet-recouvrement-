@@ -4,6 +4,7 @@ import { api, ApiError } from '../api/client';
 import { useResource } from '../hooks/useResource';
 import { useToast } from '../hooks/useToast';
 import { fmtFCFA, PALIERS } from '../lib/constants';
+import { JournalRelances } from './JournalRelances';
 
 // Aperçu « relances à venir » (addendum §5) — lecture seule. Montre, pour
 // l'organisation courante, les relances que le moteur ferait partir maintenant
@@ -30,6 +31,7 @@ export function RelancesAVenirView({ reloadKey, canManage }: { reloadKey: unknow
   const res = useResource<RelancesDuesResponse>('/api/relances/dues', reloadKey);
   const { showToast } = useToast();
   const [busy, setBusy] = useState(false);
+  const [vue, setVue] = useState<'avenir' | 'historique'>('avenir');
 
   async function basculerEnvoi(actif: boolean) {
     setBusy(true);
@@ -60,6 +62,18 @@ export function RelancesAVenirView({ reloadKey, canManage }: { reloadKey: unknow
 
   return (
     <div>
+      <div className="main-tabs" style={{ marginBottom: 16 }}>
+        <button className={vue === 'avenir' ? 'active' : ''} onClick={() => setVue('avenir')}>
+          À venir
+        </button>
+        <button className={vue === 'historique' ? 'active' : ''} onClick={() => setVue('historique')}>
+          Historique des envois
+        </button>
+      </div>
+      {vue === 'historique' ? (
+        <JournalRelances />
+      ) : (
+        <>
       {/* Bandeau d'état : envoi automatique activé ? fenêtre ouverte ? */}
       <div className="rv-status">
         <div className={`rv-chip ${data.relancesActivees ? 'rv-chip-on' : 'rv-chip-off'}`}>
@@ -141,6 +155,8 @@ export function RelancesAVenirView({ reloadKey, canManage }: { reloadKey: unknow
             Les relances aux clients sans adresse email ne pourront pas partir automatiquement — complétez la
             fiche client.
           </div>
+        </>
+      )}
         </>
       )}
     </div>
