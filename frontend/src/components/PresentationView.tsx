@@ -157,7 +157,7 @@ const FORMULES = [
   },
   {
     nom: 'PME', prix: '65 000', unite: 'FCFA HT / mois', tagline: 'Jusqu’à 500 débiteurs actifs',
-    points: ['Tout ce qu’inclut « Petite structure »', 'Rôles et droits', 'Tableau de bord complet', '2 dossiers contentieux / mois inclus', 'Utilisateurs illimités'],
+    points: ['Tout ce qu’inclut « Petite structure »', 'Jusqu’à 5 utilisateurs', 'Reporting & suivi de performance', 'Gestion multi-entités', 'Module contentieux inclus'],
     populaire: true,
   },
   {

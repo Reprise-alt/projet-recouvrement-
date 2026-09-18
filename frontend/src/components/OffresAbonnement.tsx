@@ -35,7 +35,7 @@ const FORMULES: Formule[] = [
     nom: 'PME',
     prixMensuel: 65000,
     cible: "Jusqu'à 500 débiteurs",
-    points: ["Jusqu'à 5 utilisateurs", 'Reporting & suivi de performance', 'Gestion multi-entités', 'Contentieux en option (+10 000/mois)'],
+    points: ["Jusqu'à 5 utilisateurs", 'Reporting & suivi de performance', 'Gestion multi-entités', 'Module contentieux inclus'],
   },
   {
     v: 'grands_comptes',

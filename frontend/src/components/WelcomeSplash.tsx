@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 // Splash d'accueil (SaaS) : la pièce Feyma traverse l'écran et « Bon
 // recouvrement ! » apparaît. Joué une fois par session, à l'entrée dans la
 // console. Respecte prefers-reduced-motion.
-export function WelcomeSplash({ onDone }: { onDone: () => void }) {
+export function WelcomeSplash({ onDone, nom }: { onDone: () => void; nom?: string | null }) {
   useEffect(() => {
     const reduce =
       typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -24,7 +24,7 @@ export function WelcomeSplash({ onDone }: { onDone: () => void }) {
           <path d="M86 32 H116 M86 32 V68 M86 50 H108" fill="none" stroke="#0C120F" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </div>
-      <div className="splash-text">Bon recouvrement&nbsp;!</div>
+      <div className="splash-text">{nom ? `Bienvenue, ${nom} !` : 'Bienvenue !'}</div>
     </div>
   );
 }

@@ -227,6 +227,7 @@ export function App() {
     <div className={`shell${IS_SAAS ? ' is-feyma' : ''}`} data-entite={effectiveEntity === 'ALL' ? 'OLU' : effectiveEntity}>
       {welcome && (
         <WelcomeSplash
+          nom={user.raisonSociale}
           onDone={() => {
             setWelcome(false);
             try {
