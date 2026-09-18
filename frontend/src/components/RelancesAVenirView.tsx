@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { CalendarClock, CheckCircle2, Clock, Info } from 'lucide-react';
+import { CalendarClock, CheckCircle2, Clock, Info, MessageCircle } from 'lucide-react';
 import { api, ApiError } from '../api/client';
 import { useResource } from '../hooks/useResource';
 import { useToast } from '../hooks/useToast';
+import { useAuth } from '../auth/AuthContext';
 import { fmtFCFA, PALIERS } from '../lib/constants';
+import { lienWhatsApp, messageRelanceWhatsApp } from '../lib/whatsapp';
 import { JournalRelances } from './JournalRelances';
 
 // Aperçu « relances à venir » (addendum §5) — lecture seule. Montre, pour
@@ -18,6 +20,7 @@ interface RelanceDueItem {
   palierLabel: string;
   encours: number;
   email: string | null;
+  tel: string | null;
 }
 
 interface RelancesDuesResponse {
@@ -30,6 +33,7 @@ interface RelancesDuesResponse {
 export function RelancesAVenirView({ reloadKey, canManage }: { reloadKey: unknown; canManage?: boolean }) {
   const res = useResource<RelancesDuesResponse>('/api/relances/dues', reloadKey);
   const { showToast } = useToast();
+  const { user } = useAuth();
   const [busy, setBusy] = useState(false);
   const [vue, setVue] = useState<'avenir' | 'historique'>('avenir');
 
@@ -130,11 +134,13 @@ export function RelancesAVenirView({ reloadKey, canManage }: { reloadKey: unknow
                 <th>Jours de retard</th>
                 <th>Encours</th>
                 <th>Destinataire</th>
+                <th>Relance manuelle</th>
               </tr>
             </thead>
             <tbody>
               {data.relances.map((r) => {
                 const tone = PALIERS[r.palier]?.tone ?? 'amber';
+                const waHref = lienWhatsApp(r.tel, messageRelanceWhatsApp({ entreprise: user?.raisonSociale, encours: r.encours }));
                 return (
                   <tr key={r.clientId}>
                     <td>{r.nom}</td>
@@ -146,6 +152,38 @@ export function RelancesAVenirView({ reloadKey, canManage }: { reloadKey: unknow
                     <td>{r.joursRetard} j</td>
                     <td className="currency">{fmtFCFA(r.encours)}</td>
                     <td>{r.email ?? <span style={{ color: 'var(--danger)' }}>email manquant</span>}</td>
+                    <td>
+                      {/* Relance manuelle par WhatsApp : ouvre wa.me avec le numéro
+                          du client et un message pré-rempli. Utile surtout quand
+                          l'email manque. Désactivé si aucun numéro sur la fiche. */}
+                      {waHref ? (
+                        <a
+                          href={waHref}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="Relance manuelle possible par WhatsApp"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            background: '#25D366',
+                            color: '#fff',
+                            fontWeight: 600,
+                            fontSize: 12.5,
+                            padding: '5px 11px',
+                            borderRadius: 8,
+                            textDecoration: 'none',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          <MessageCircle size={14} /> WhatsApp
+                        </a>
+                      ) : (
+                        <span style={{ color: 'var(--ink-soft)', fontSize: 12 }} title="Aucun numéro de téléphone sur la fiche client">
+                          n° manquant
+                        </span>
+                      )}
+                    </td>
                   </tr>
                 );
               })}

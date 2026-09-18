@@ -6,26 +6,13 @@ import { useResource } from '../hooks/useResource';
 import { useToast } from '../hooks/useToast';
 import { fmtDate, fmtFCFA, FREQUENCE_LABELS, PALIERS } from '../lib/constants';
 import { usePaliersConfig } from '../lib/paliersConfig';
+import { lienWhatsApp } from '../lib/whatsapp';
 
 interface Props {
   clientId: string;
   role: RoleUtilisateur;
   onClose: () => void;
   onChanged: () => void;
-}
-
-// Construit un lien wa.me (WhatsApp) à partir d'un numéro éventuellement local
-// et d'un texte pré-rempli. wa.me exige l'indicatif pays, sans « + » ni espaces.
-// On ne « corrige » que le cas local Sénégal courant (mobile à 9 chiffres, 7X…) ;
-// tout numéro déjà international est laissé tel quel (l'agent voit la cible à
-// l'ouverture de WhatsApp et peut rectifier). Renvoie null si pas de numéro.
-export function lienWhatsApp(tel: string | null | undefined, texte: string, indicatifDefaut = '221'): string | null {
-  if (!tel) return null;
-  let d = tel.replace(/\D/g, '');
-  if (!d) return null;
-  if (d.startsWith('00')) d = d.slice(2);
-  if (d.length === 9 && d.startsWith('7')) d = indicatifDefaut + d;
-  return `https://wa.me/${d}?text=${encodeURIComponent(texte)}`;
 }
 
 export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
