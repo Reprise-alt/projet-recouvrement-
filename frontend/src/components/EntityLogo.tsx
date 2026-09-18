@@ -31,13 +31,17 @@ interface Props {
   entite: string;
   size?: number;
   className?: string;
+  // Surcharge du logo (SaaS) : le logo de l'entreprise cliente prime sur les
+  // marques de groupe — toutes ses entités portent SON logo enregistré.
+  logoUrl?: string | null;
 }
 
-// Affiche le logo de l'entité s'il a été déposé dans public/logos/ ; sinon
-// ne rend rien (le code de l'entité reste affiché à côté par l'appelant).
-export function EntityLogo({ entite, size = 16, className }: Props) {
-  const src = LOGO_PATHS[entite];
+// Affiche le logo fourni (logoUrl) sinon celui de l'entité s'il est vendoré
+// dans public/logos/ ; sinon ne rend rien (le code de l'entité reste affiché
+// à côté par l'appelant).
+export function EntityLogo({ entite, size = 16, className, logoUrl }: Props) {
+  const src = logoUrl || LOGO_PATHS[entite];
   const [failed, setFailed] = useState(false);
   if (!src || failed) return null;
-  return <img src={src} alt="" height={size} className={className} onError={() => setFailed(true)} />;
+  return <img src={src} alt="" height={size} className={className} onError={() => setFailed(true)} style={{ maxHeight: size, width: 'auto', objectFit: 'contain' }} />;
 }

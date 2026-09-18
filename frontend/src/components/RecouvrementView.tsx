@@ -9,6 +9,8 @@ import { ClientDrawer } from './ClientDrawer';
 import { BulkRelanceModal } from './BulkRelanceModal';
 import { EntityLogo, entityAccent } from './EntityLogo';
 import { ReportingView } from './ReportingView';
+import { IS_SAAS } from '../auth/mode';
+import { useAuth } from '../auth/AuthContext';
 
 interface Props {
   entityFilter: Entite | 'ALL';
@@ -29,6 +31,10 @@ function needsAction(c: ClientListItem): boolean {
 
 export function RecouvrementView({ entityFilter, role, reloadKey, onImport, canReporting = true }: Props) {
   const { libelle } = usePaliersConfig();
+  const { user } = useAuth();
+  // SaaS : toutes les entités du client portent SON logo enregistré (une seule
+  // marque). Côté groupe (Olu360), on garde le logo par entité.
+  const orgLogo = IS_SAAS ? user?.logoUrl ?? null : null;
   const [palierFilter, setPalierFilter] = useState<number | null>(null);
   const [sortKey, setSortKey] = useState<'nom' | 'encours' | 'joursRetard'>('joursRetard');
   const [sortDir, setSortDir] = useState<1 | -1>(-1);
@@ -381,7 +387,7 @@ export function RecouvrementView({ entityFilter, role, reloadKey, onImport, canR
                       </td>
                       <td>
                         <span className="entity-tag" style={{ borderLeftColor: entityAccent(c.entite), borderLeftWidth: 3 }}>
-                          <EntityLogo entite={c.entite} size={12} />
+                          <EntityLogo entite={c.entite} size={12} logoUrl={orgLogo} />
                           {c.entite}
                         </span>
                       </td>
