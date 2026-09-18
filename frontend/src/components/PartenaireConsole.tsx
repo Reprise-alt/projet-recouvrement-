@@ -1,6 +1,8 @@
-import { useState } from 'react';
-import { Gavel, LogOut, Scale, X } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { CheckCircle2, Download, Gavel, LogOut, Scale, Upload, X } from 'lucide-react';
+import { api, ApiError, downloadFile } from '../api/client';
 import { useResource } from '../hooks/useResource';
+import { useToast } from '../hooks/useToast';
 import { fmtDate, fmtFCFA } from '../lib/constants';
 import { PartenaireDossierItem, StatutDossierContentieux } from '../api/types';
 
@@ -129,13 +131,13 @@ interface DossierDetail {
   factures: { id: string; numero: string; montant: number; dateEcheance: string | null }[];
   decompte: { id: string; poste: string; montant: number }[];
   pieces: { id: string; nomFichier: string; type: string }[];
-  actes: { id: string; type: string; statut: string }[];
+  actes: { id: string; type: string; statut: string; mimeTypeSigne?: string | null }[];
   analyse: { syntheseIa: string | null; competence: string | null; manquants: string[] } | null;
   propositions: { id: string; statut: string; createdAt: string }[];
 }
 
 function PartenaireDossierDrawer({ dossierId, onClose }: { dossierId: string; onClose: () => void }) {
-  const { data: d, loading, error } = useResource<DossierDetail>(`/api/partenaire/dossiers/${dossierId}`);
+  const { data: d, loading, error, refetch } = useResource<DossierDetail>(`/api/partenaire/dossiers/${dossierId}`);
 
   return (
     <div className="drawer-overlay" onClick={onClose}>
@@ -197,8 +199,19 @@ function PartenaireDossierDrawer({ dossierId, onClose }: { dossierId: string; on
               {d.pieces.length === 0 ? (
                 <p style={{ fontSize: 13, color: 'var(--ink-soft)' }}>Aucune pièce.</p>
               ) : (
-                <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
-                  {d.pieces.map((p) => <li key={p.id}>{p.nomFichier}</li>)}
+                <ul style={{ margin: 0, padding: 0, listStyle: 'none', fontSize: 13, display: 'grid', gap: 6 }}>
+                  {d.pieces.map((p) => (
+                    <li key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between' }}>
+                      <span>{p.nomFichier}</span>
+                      <button
+                        type="button"
+                        onClick={() => downloadFile(`/api/partenaire/dossiers/${dossierId}/pieces/${p.id}/fichier`, p.nomFichier)}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', fontSize: 12 }}
+                      >
+                        <Download size={13} /> Télécharger
+                      </button>
+                    </li>
+                  ))}
                 </ul>
               )}
             </section>
@@ -206,19 +219,132 @@ function PartenaireDossierDrawer({ dossierId, onClose }: { dossierId: string; on
             <section>
               <div className="section-title">Actes ({d.actes.length})</div>
               {d.actes.length === 0 ? (
-                <p style={{ fontSize: 13, color: 'var(--ink-soft)' }}>Aucun acte généré.</p>
+                <p style={{ fontSize: 13, color: 'var(--ink-soft)' }}>
+                  Aucun acte généré. Le créancier prépare le projet d’acte, puis vous le relisez, validez et déposez la version signée.
+                </p>
               ) : (
-                <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
-                  {d.actes.map((a) => <li key={a.id}>{a.type} — {a.statut}</li>)}
-                </ul>
+                <div style={{ display: 'grid', gap: 10 }}>
+                  {d.actes.map((a) => (
+                    <ActePartenaireRow key={a.id} dossierId={dossierId} acte={a} onChanged={refetch} />
+                  ))}
+                </div>
               )}
             </section>
 
             <p style={{ marginTop: 20, fontSize: 12, color: 'var(--ink-soft)' }}>
-              Consultation seule. La génération d’actes et le suivi des propositions arriveront prochainement dans votre espace.
+              Vous relisez le dossier, validez le projet d’acte et déposez la version signée. La génération des projets reste faite par le créancier.
             </p>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// Une ligne d'acte côté partenaire : télécharger le projet, valider, déposer la
+// version signée, télécharger la version signée.
+const ACTE_LABEL: Record<string, string> = {
+  mise_en_demeure: 'Mise en demeure',
+  commandement: 'Commandement de payer',
+  commandement_societe: 'Commandement (société)',
+  injonction: 'Injonction de payer',
+  assignation: 'Assignation',
+  protocole: 'Protocole d’accord',
+};
+
+function ActePartenaireRow({
+  dossierId,
+  acte,
+  onChanged,
+}: {
+  dossierId: string;
+  acte: { id: string; type: string; statut: string; mimeTypeSigne?: string | null };
+  onChanged: () => void;
+}) {
+  const { showToast } = useToast();
+  const [busy, setBusy] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const signe = acte.statut === 'signe' || !!acte.mimeTypeSigne;
+  const base = `/api/partenaire/dossiers/${dossierId}/actes/${acte.id}`;
+
+  async function valider() {
+    setBusy(true);
+    try {
+      await api.post(`${base}/valider`);
+      showToast('Acte validé');
+      onChanged();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deposerSigne(file: File) {
+    setBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append('fichier', file);
+      await api.upload(`${base}/signe`, fd);
+      showToast('Version signée déposée');
+      onChanged();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ border: '1px solid var(--line)', borderRadius: 10, padding: '10px 12px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+        <b style={{ fontSize: 13.5 }}>{ACTE_LABEL[acte.type] ?? acte.type}</b>
+        <span className="badge" data-tone={signe ? 'success' : 'amber'}>
+          {signe ? 'Signé' : acte.statut === 'valide' ? 'Validé' : 'Projet'}
+        </span>
+      </div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <button
+          type="button"
+          onClick={() => downloadFile(`${base}/pdf`, `projet-${acte.type}.pdf`)}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5 }}
+        >
+          <Download size={13} /> Projet
+        </button>
+        {!signe && (
+          <button type="button" onClick={valider} disabled={busy} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5 }}>
+            <CheckCircle2 size={13} /> Valider
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          disabled={busy}
+          className="primary"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5 }}
+        >
+          <Upload size={13} /> {signe ? 'Remplacer la signature' : 'Déposer la version signée'}
+        </button>
+        {signe && (
+          <button
+            type="button"
+            onClick={() => downloadFile(`${base}/signe/pdf`, `signe-${acte.type}.pdf`)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5 }}
+          >
+            <Download size={13} /> Version signée
+          </button>
+        )}
+        <input
+          ref={fileRef}
+          type="file"
+          accept="application/pdf,image/*"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) deposerSigne(f);
+            e.target.value = '';
+          }}
+        />
       </div>
     </div>
   );
