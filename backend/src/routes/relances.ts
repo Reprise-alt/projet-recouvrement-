@@ -3,7 +3,7 @@ import { prisma, currentOrganisationId } from '../db';
 import { getConfig, getPaliersActifs, getReglagesPaliers } from '../services/configService';
 import { clientEncours, PALIERS } from '../lib/paliers';
 import { ClientRelance, dansFenetreEnvoi, relancesDues } from '../lib/moteurRelances';
-import { executerRelancesTenant, destinatairesRelance } from '../lib/executerRelances';
+import { executerRelancesTenant, destinatairesRelance, PALIER_MAX_AUTO } from '../lib/executerRelances';
 import {
   construireRelanceMarque,
   MODELES_DEFAUT,
@@ -83,11 +83,22 @@ relancesRouter.get('/dues', async (_req, res, next) => {
       ? await prisma.organisation.findUnique({ where: { id: orgId }, select: { relancesActivees: true } })
       : null;
 
+    // Séparation nette : les paliers amiables (≤ PALIER_MAX_AUTO) partent en
+    // relance automatique ; les paliers contentieux (≥ 6) ne partent JAMAIS en
+    // auto — ce sont des dossiers à basculer manuellement en contentieux. On ne
+    // les mélange donc pas dans la liste des relances « à venir ».
+    const aEnvoyer = dues.filter((d) => d.palier <= PALIER_MAX_AUTO);
+    const contentieux = dues
+      .filter((d) => d.palier > PALIER_MAX_AUTO)
+      .map((d) => ({ clientId: d.clientId, nom: d.nom, palier: d.palier, palierLabel: d.palierLabel, joursRetard: d.joursRetard, encours: d.encours }));
+
     res.json({
       fenetreOuverte: dansFenetreEnvoi(now),
       relancesActivees: org?.relancesActivees ?? null,
-      total: dues.length,
-      relances: dues,
+      total: aEnvoyer.length,
+      relances: aEnvoyer,
+      // Clients ayant franchi le seuil contentieux (affichés à part côté front).
+      contentieux,
     });
   } catch (err) {
     next(err);

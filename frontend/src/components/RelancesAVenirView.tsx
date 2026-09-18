@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CalendarClock, CheckCircle2, Clock, Info, MessageCircle } from 'lucide-react';
+import { CalendarClock, CheckCircle2, Clock, Gavel, Info, MessageCircle } from 'lucide-react';
 import { api, ApiError } from '../api/client';
 import { useResource } from '../hooks/useResource';
 import { useToast } from '../hooks/useToast';
@@ -24,11 +24,21 @@ interface RelanceDueItem {
   tel: string | null;
 }
 
+interface ContentieuxAVenirItem {
+  clientId: string;
+  nom: string;
+  palier: number;
+  palierLabel: string;
+  joursRetard: number;
+  encours: number;
+}
+
 interface RelancesDuesResponse {
   fenetreOuverte: boolean;
   relancesActivees: boolean | null;
   total: number;
   relances: RelanceDueItem[];
+  contentieux: ContentieuxAVenirItem[];
 }
 
 export function RelancesAVenirView({ reloadKey, canManage }: { reloadKey: unknown; canManage?: boolean }) {
@@ -200,6 +210,40 @@ export function RelancesAVenirView({ reloadKey, canManage }: { reloadKey: unknow
             fiche client.
           </div>
         </>
+      )}
+
+      {data.contentieux.length > 0 && (
+        <div style={{ marginTop: 24 }}>
+          <div className="rv-note" style={{ borderLeft: '3px solid var(--danger)' }}>
+            <Gavel size={15} />
+            <span>
+              <b>{data.contentieux.length} client{data.contentieux.length > 1 ? 's ont' : ' a'} atteint le seuil contentieux.</b>{' '}
+              Ces dossiers ne partent <b>pas</b> en relance automatique (action juridique) — traitez-les dans l’onglet <b>Contentieux</b>.
+            </span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Client</th>
+                <th>Palier atteint</th>
+                <th>Jours de retard</th>
+                <th>Encours</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.contentieux.map((c) => (
+                <tr key={c.clientId}>
+                  <td>{c.nom}</td>
+                  <td>
+                    <span className="badge" data-tone="danger">{c.palierLabel}</span>
+                  </td>
+                  <td>{c.joursRetard} j</td>
+                  <td className="currency">{fmtFCFA(c.encours)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
         </>
       )}
