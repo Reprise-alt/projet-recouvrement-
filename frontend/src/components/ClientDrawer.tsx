@@ -1,5 +1,5 @@
 import { FormEvent, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Scale, TrendingUp, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, MessageCircle, Scale, TrendingUp, X } from 'lucide-react';
 import { api, ApiError } from '../api/client';
 import { ClientDetail, Contact, DossierRef, EcheancierPaiement, RoleUtilisateur, SignalOperations } from '../api/types';
 import { useResource } from '../hooks/useResource';
@@ -12,6 +12,20 @@ interface Props {
   role: RoleUtilisateur;
   onClose: () => void;
   onChanged: () => void;
+}
+
+// Construit un lien wa.me (WhatsApp) à partir d'un numéro éventuellement local
+// et d'un texte pré-rempli. wa.me exige l'indicatif pays, sans « + » ni espaces.
+// On ne « corrige » que le cas local Sénégal courant (mobile à 9 chiffres, 7X…) ;
+// tout numéro déjà international est laissé tel quel (l'agent voit la cible à
+// l'ouverture de WhatsApp et peut rectifier). Renvoie null si pas de numéro.
+export function lienWhatsApp(tel: string | null | undefined, texte: string, indicatifDefaut = '221'): string | null {
+  if (!tel) return null;
+  let d = tel.replace(/\D/g, '');
+  if (!d) return null;
+  if (d.startsWith('00')) d = d.slice(2);
+  if (d.length === 9 && d.startsWith('7')) d = indicatifDefaut + d;
+  return `https://wa.me/${d}?text=${encodeURIComponent(texte)}`;
 }
 
 export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
@@ -942,8 +956,36 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
                         </ul>
                       )}
                     </div>
-                    <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
                       <button onClick={copyLetter}>Copier le texte</button>
+                      {/* Relance manuelle par WhatsApp : ouvre wa.me avec le numéro
+                          du client et le texte pré-rempli. Zéro API — l'agent
+                          appuie sur « Envoyer » dans WhatsApp. Désactivé sans n°. */}
+                      {client.tel ? (
+                        <a
+                          href={lienWhatsApp(client.tel, letterText) ?? '#'}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn-whatsapp"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            background: '#25D366',
+                            color: '#fff',
+                            fontWeight: 600,
+                            padding: '0 14px',
+                            borderRadius: 8,
+                            textDecoration: 'none',
+                          }}
+                        >
+                          <MessageCircle size={15} /> WhatsApp
+                        </a>
+                      ) : (
+                        <button type="button" disabled title="Numéro de téléphone manquant sur la fiche client">
+                          <MessageCircle size={15} /> WhatsApp
+                        </button>
+                      )}
                       <button className="primary" disabled={busy || !sendTo} onClick={() => handleSendEmail(client.palier)}>
                         Envoyer par email (validation requise)
                       </button>
