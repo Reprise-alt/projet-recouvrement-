@@ -165,6 +165,26 @@ const FORMULES = [
   },
 ];
 
+// Témoignages clients (à faire valider par les intéressés avant diffusion).
+const TEMOIGNAGES = [
+  {
+    citation:
+      "Depuis qu'on est passés à Feyma, nos relances sont automatisées de bout en bout. On encaisse plus vite, et on a beaucoup moins de dossiers qui partent en contentieux — le process tourne tout seul, sans qu'on ait à y penser.",
+    nom: 'Nicole Sikadi',
+    poste: 'Directrice ADV',
+    societe: 'SORAM',
+    initiales: 'NS',
+  },
+  {
+    citation:
+      "L'automatisation des relances nous a fait gagner un temps fou. On peut enfin se concentrer sur les gros dossiers contentieux — ceux qui font vraiment la différence — et encaisser des sommes bien plus importantes. Un vrai gain de trésorerie, ressenti en moins de 3 mois.",
+    nom: 'Gaëtan Goudeagbe',
+    poste: 'Directeur ADV',
+    societe: 'IRIS',
+    initiales: 'GG',
+  },
+];
+
 export function PresentationView() {
   useSeo();
   const [contact, setContact] = useState<SujetContact | null>(null);
@@ -271,6 +291,25 @@ export function PresentationView() {
 
       {/* APERÇU DE LA PLATEFORME */}
       <PlateformeApercu />
+
+      {/* TÉMOIGNAGES */}
+      <section className="lp-section lp-section-soft" id="temoignages">
+        <h2>Ils recouvrent avec Feyma.</h2>
+        <div className="lp-temoignages">
+          {TEMOIGNAGES.map((t) => (
+            <figure key={t.nom} className="lp-temoignage">
+              <blockquote>« {t.citation} »</blockquote>
+              <figcaption>
+                <span className="lp-temoignage-av" aria-hidden="true">{t.initiales}</span>
+                <span>
+                  <b>{t.nom}</b>
+                  <small>{t.poste} · {t.societe}</small>
+                </span>
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+      </section>
 
       {/* TARIFS */}
       <section className="lp-section" id="tarifs">
