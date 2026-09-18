@@ -57,12 +57,16 @@ relancesRouter.get('/dues', async (_req, res, next) => {
 
     const encoursParClient = new Map(clients.map((c) => [c.id, clientEncours(c)]));
     const emailParClient = new Map(clients.map((c) => [c.id, c.email]));
+    // Téléphone : sert à la relance manuelle par WhatsApp (lien wa.me côté front),
+    // notamment pour les clients sans email.
+    const telParClient = new Map(clients.map((c) => [c.id, c.tel]));
 
     const dues = relancesDues(entree, config, now, paliersActifs).map((d) => ({
       ...d,
       palierLabel: libelleParPalier.get(d.palier) || PALIERS[d.palier]?.label || `Palier ${d.palier}`,
       encours: encoursParClient.get(d.clientId) ?? 0,
       email: emailParClient.get(d.clientId) ?? null,
+      tel: telParClient.get(d.clientId) ?? null,
     }));
 
     // État « relances activées » de l'organisation courante (checklist §4.3).
