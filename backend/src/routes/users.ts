@@ -3,6 +3,7 @@ import { prisma, rlsActive } from '../db';
 import { requireAuth, requireRole } from '../middleware/auth';
 import { listEntreprises } from '../services/entrepriseService';
 import { getCapacites } from '../middleware/capacite';
+import { envoyerInvitation } from '../lib/email/invitation';
 
 export const usersRouter = Router();
 import { tenantScope } from '../middleware/tenant';
@@ -84,6 +85,23 @@ usersRouter.post('/', async (req, res, next) => {
         accesContentieux: typeof accesContentieux === 'boolean' ? accesContentieux : false,
       },
     });
+
+    // Invitation par email — uniquement en SaaS (connexion par code email) : la
+    // console interne du groupe utilise le SSO/mot de passe, sans invitation.
+    // Best-effort : ne bloque jamais la création (le compte est déjà créé).
+    if (rlsActive()) {
+      const org = await prisma.organisation.findUnique({
+        where: { id: req.user!.organisationId },
+        select: { raisonSociale: true },
+      });
+      envoyerInvitation({
+        email,
+        nom,
+        organisation: org?.raisonSociale ?? 'votre espace',
+        invitePar: req.user!.nom || null,
+      }).catch((e) => console.error('[users] invitation email échouée:', e));
+    }
+
     res.status(201).json(created);
   } catch (err) {
     next(err);
