@@ -199,7 +199,10 @@ export function PresentationView() {
           <a href="#tarifs">Tarifs</a>
           <a href="#faq">FAQ</a>
           <a href="/blog">Actualités</a>
-          <a href={CTA}>Se connecter</a>
+          {/* Bouton (lp-btn) pour rester visible sur mobile — la règle responsive
+              masque les liens simples, pas les boutons. Un client existant doit
+              toujours pouvoir se reconnecter depuis son téléphone. */}
+          <a className="lp-btn lp-btn-ghost" href={CTA}>Se connecter</a>
           <a className="lp-btn lp-btn-primary" href={CTA}>Essai gratuit</a>
         </nav>
       </header>
