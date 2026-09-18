@@ -3,6 +3,7 @@ import { ContactRappelModal, SujetContact } from './ContactRappelModal';
 import { PlateformeApercu } from './PlateformeApercu';
 import { FaqSection } from './FaqSection';
 import { FeymaBrand } from './FeymaLogo';
+import { setFeymaFavicon } from '../lib/seo';
 
 // Page d'arrivée publique (addendum §4.1) + tarifs (§8.2). Aucune authentification.
 // Sert de PAGE D'ACCUEIL (racine) en mode SaaS ET sur /presentation. Le CTA
@@ -42,6 +43,7 @@ function setMeta(attr: 'name' | 'property', key: string, content: string) {
 // Console + fiche Google Business.
 function useSeo() {
   useEffect(() => {
+    setFeymaFavicon();
     const title = 'Feyma — Logiciel de recouvrement de créances à Dakar, Sénégal | OLU 360';
     const desc =
       'Feyma (OLU 360) : logiciel de recouvrement de créances à Dakar, au Sénégal. Relances automatiques par email à votre nom, paliers personnalisables, portail débiteur et contentieux. Zone OHADA, francs CFA. Essai gratuit 14 jours.';
@@ -142,7 +144,7 @@ const ENJEUX = [
 
 const BENEFICES = [
   { t: 'Tout votre portefeuille en un écran', d: 'Encours, clients en alerte, à relancer cette semaine — classés par palier.' },
-  { t: 'Relance automatique multicanal', d: 'Email inclus et illimité ; SMS et WhatsApp en option, depuis votre identité.' },
+  { t: 'Relance automatique par email', d: 'Incluse et illimitée, à votre identité. SMS et WhatsApp à venir.' },
   { t: 'Portail débiteur', d: 'Vos clients consultent leur dette, proposent un échéancier, signalent un paiement.' },
   { t: 'Du rappel au contentieux', d: 'Générez un commandement de payer et préparez le dossier — sur la même plateforme.' },
 ];
@@ -150,12 +152,12 @@ const BENEFICES = [
 const FORMULES = [
   {
     nom: 'Petite structure', prix: '35 000', unite: 'FCFA HT / mois', tagline: 'Jusqu’à 50 débiteurs actifs',
-    points: ['Factures illimitées', 'Relances email illimitées', 'Email + SMS', 'Portail débiteur', '2 utilisateurs'],
+    points: ['Factures illimitées', 'Relances email illimitées', 'Portail débiteur', 'Suivi & tableau de bord', '2 utilisateurs'],
     populaire: false,
   },
   {
     nom: 'PME', prix: '65 000', unite: 'FCFA HT / mois', tagline: 'Jusqu’à 500 débiteurs actifs',
-    points: ['Tout « Petite structure »', 'Email + SMS + WhatsApp', 'Rôles et droits', 'Tableau de bord complet', '2 dossiers contentieux / mois inclus', 'Utilisateurs illimités'],
+    points: ['Tout ce qu’inclut « Petite structure »', 'Rôles et droits', 'Tableau de bord complet', '2 dossiers contentieux / mois inclus', 'Utilisateurs illimités'],
     populaire: true,
   },
   {
@@ -348,7 +350,7 @@ export function PresentationView() {
           ))}
         </div>
         <div className="lp-note" style={{ textAlign: 'center' }}>
-          Prix hors taxes · TVA 18 % ajoutée à la souscription · SMS / WhatsApp par crédits · module contentieux au dossier ou inclus selon la formule.
+          Prix hors taxes · TVA 18 % ajoutée à la souscription · module contentieux au dossier ou inclus selon la formule · SMS et WhatsApp à venir.
         </div>
       </section>
 
