@@ -35,9 +35,10 @@ services:
     rootDir: backend
     plan: free
     buildCommand: npm install --include=dev && npm run build
-    # prisma migrate deploy applique les migrations additives au démarrage
-    # (dont accesPlanningCoursiers) — jamais de reset, jamais de perte.
-    startCommand: npm run prisma:deploy && npm start
+    # Les migrations additives (jamais de reset, jamais de perte) sont appliquées
+    # au démarrage APRÈS l'ouverture du port (voir src/server.ts), pour ne pas
+    # dépasser le délai de détection de port de Render.
+    startCommand: npm start
     healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
@@ -92,7 +93,10 @@ services:
     # pour un back-end toujours actif en production.
     plan: free
     buildCommand: npm install --include=dev && npm run build
-    startCommand: npm run prisma:deploy && npm start
+    # Le serveur ouvre le port PUIS applique les migrations (voir src/server.ts) :
+    # évite que la 1re application de migrations dépasse le délai de détection de
+    # port de Render (« no open ports detected » → deploy failed).
+    startCommand: npm start
     healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
