@@ -678,7 +678,7 @@ label{font-family:var(--font-mono);font-size:10.5px;text-transform:uppercase;let
 .splash{position:fixed;inset:0;z-index:9999;background:#0C120F;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;overflow:hidden;animation:splashOut .5s ease-in forwards;animation-delay:2.15s;}
 .splash-coin{animation:coinFly 2s ease-in-out forwards;filter:drop-shadow(0 10px 30px rgba(198,251,80,.35));}
 .splash-coin svg{display:block;}
-.splash-text{font-family:'Archivo Black',sans-serif;color:#fff;font-size:clamp(26px,5.2vw,48px);letter-spacing:-.02em;opacity:0;animation:splashText .6s ease-out forwards;animation-delay:.7s;}
+.splash-text{font-family:'Archivo Black',sans-serif;color:#fff;font-size:clamp(24px,4.8vw,44px);letter-spacing:-.02em;text-align:center;max-width:90vw;padding:0 20px;text-wrap:balance;opacity:0;animation:splashText .6s ease-out forwards;animation-delay:.7s;}
 @keyframes coinFly{
   0%{transform:translateX(-80vw) rotate(-160deg) scale(.8);opacity:0;}
   12%{opacity:1;}
