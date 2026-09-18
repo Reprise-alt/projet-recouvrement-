@@ -82,6 +82,51 @@ relancesRouter.get('/dues', async (_req, res, next) => {
   }
 });
 
+// Journal des relances (historique des actions/envois) du tenant courant,
+// filtré par période (jour/semaine/mois) et palier. Renvoie la liste + un récap
+// du nombre d'actions par palier. ActionRecouvrement est isolé par RLS.
+relancesRouter.get('/journal', async (req, res, next) => {
+  try {
+    const periode = String(req.query.periode ?? 'semaine');
+    const jours = periode === 'jour' ? 1 : periode === 'mois' ? 30 : 7;
+    const depuis = new Date(Date.now() - jours * 86_400_000);
+    const palierParam = req.query.palier != null && req.query.palier !== '' ? Number(req.query.palier) : null;
+
+    const where: { date: { gte: Date }; palier?: number } = { date: { gte: depuis } };
+    if (palierParam != null && !Number.isNaN(palierParam)) where.palier = palierParam;
+
+    const actions = await prisma.actionRecouvrement.findMany({
+      where,
+      orderBy: { date: 'desc' },
+      take: 500,
+      select: { id: true, date: true, palier: true, label: true, note: true, client: { select: { nom: true } } },
+    });
+
+    const reglages = await getReglagesPaliers();
+    const libelleMap = new Map(reglages.map((r) => [r.palier, r.libelle]));
+    const libelle = (p: number, fallback?: string | null) => libelleMap.get(p) || fallback || PALIERS[p]?.label || `Palier ${p}`;
+
+    const items = actions.map((a) => ({
+      id: a.id,
+      date: a.date.toISOString(),
+      clientNom: a.client?.nom ?? '—',
+      palier: a.palier,
+      palierLabel: libelle(a.palier, a.label),
+      note: a.note,
+    }));
+
+    const parPalier = new Map<number, number>();
+    for (const a of actions) parPalier.set(a.palier, (parPalier.get(a.palier) ?? 0) + 1);
+    const recap = [...parPalier.entries()]
+      .sort((x, y) => x[0] - y[0])
+      .map(([palier, count]) => ({ palier, palierLabel: libelle(palier), count }));
+
+    res.json({ periode, total: actions.length, recap, items });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Activer / suspendre l'envoi automatique des relances pour l'organisation.
 // Interrupteur à double sens (l'onboarding ne faisait qu'activer) : permet de
 // couper les envois pour un test, des congés, un litige, etc. Réservé aux
