@@ -373,7 +373,12 @@ export function RecouvrementView({ entityFilter, role, reloadKey, onImport, canR
                   return (
                     <tr key={c.id} className="row-hover" onClick={() => setSelectedClientId(c.id)}>
                       <td>
-                        {c.nom}
+                        <span
+                          title={c.nom}
+                          style={{ display: 'inline-block', maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', verticalAlign: 'middle' }}
+                        >
+                          {c.nom}
+                        </span>
                         {c.retardInhabituel && (
                           <span
                             className="badge"
@@ -421,11 +426,16 @@ export function RecouvrementView({ entityFilter, role, reloadKey, onImport, canR
                           {libelle(c.palier)}
                         </span>
                       </td>
-                      <td style={{ fontSize: 12 }}>
+                      <td style={{ fontSize: 12, maxWidth: 230 }}>
                         {c.derniereAction ? (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: c.derniereAction.palier < c.palier ? 'var(--amber)' : 'var(--ink-soft)' }}>
-                            {c.derniereAction.palier < c.palier && <AlertTriangle size={11} />}
-                            {c.derniereAction.label} · {fmtDate(c.derniereAction.date)}
+                          <span
+                            title={`${c.derniereAction.label} · ${fmtDate(c.derniereAction.date)}`}
+                            style={{ display: 'flex', alignItems: 'center', gap: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: c.derniereAction.palier < c.palier ? 'var(--amber)' : 'var(--ink-soft)' }}
+                          >
+                            {c.derniereAction.palier < c.palier && <AlertTriangle size={11} style={{ flex: 'none' }} />}
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {c.derniereAction.label} · {fmtDate(c.derniereAction.date)}
+                            </span>
                           </span>
                         ) : c.palier > 0 ? (
                           <span style={{ color: 'var(--amber)' }}>Aucune action</span>
