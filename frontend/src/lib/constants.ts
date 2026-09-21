@@ -129,6 +129,17 @@ export function fmtFCFA(n: number): string {
   return n.toLocaleString('fr-FR').replace(/\s/g, ' ') + ' FCFA';
 }
 
+// Montant compact (155 433 850 → « 155,4 M ») — pour les espaces contraints
+// comme le centre d'un camembert, où le montant complet déborderait.
+export function fmtFCFAcompact(n: number): string {
+  const abs = Math.abs(n);
+  const fmt = (x: number, suffixe: string) => `${x.toFixed(1).replace(/\.0$/, '').replace('.', ',')} ${suffixe}`;
+  if (abs >= 1e9) return fmt(n / 1e9, 'Md');
+  if (abs >= 1e6) return fmt(n / 1e6, 'M');
+  if (abs >= 1e3) return `${Math.round(n / 1e3)} k`;
+  return String(Math.round(n));
+}
+
 export function fmtDate(d: string | null | undefined): string {
   if (!d) return '—';
   return new Date(d).toLocaleDateString('fr-FR');
