@@ -456,7 +456,7 @@ reportingRouter.get('/analyse', requireRole('admin', 'manager_entite'), async (r
       clientsEnContentieux: snapshot.clientsEnContentieux,
       clientsRetardInhabituel: snapshot.clientsRetardInhabituel,
       agents,
-    });
+      mono: rlsActive(),    });
 
     res.json(analyse);
   } catch (err) {
@@ -692,7 +692,7 @@ reportingRouter.post('/export.xlsx', async (req, res, next) => {
         clientsEnContentieux: snapshot.clientsEnContentieux,
         clientsRetardInhabituel: snapshot.clientsRetardInhabituel,
         agents,
-      });
+        mono: rlsActive(),      });
 
     const wb = await buildWorkbook(summary, agents, factures, period, snapshot, analyse, logosForScope(entiteFilter));
 
@@ -1021,7 +1021,7 @@ reportingRouter.post('/export.pdf', async (req, res, next) => {
         clientsEnContentieux: snapshot.clientsEnContentieux,
         clientsRetardInhabituel: snapshot.clientsRetardInhabituel,
         agents,
-      });
+        mono: rlsActive(),      });
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="reporting_${period.fromStr}_${period.toStr}.pdf"`);
@@ -1084,7 +1084,7 @@ reportingCronRouter.post('/', async (req, res, next) => {
             clientsEnContentieux: snapshot.clientsEnContentieux,
             clientsRetardInhabituel: snapshot.clientsRetardInhabituel,
             agents,
-          });
+            mono: rlsActive(),          });
           const marque = org.raisonSociale ?? 'Feyma';
           const pdf = await genererReportingPdfBuffer(period, { summary, agents, snapshot, analyse }, [], marque);
           await getEmailProvider().send({
