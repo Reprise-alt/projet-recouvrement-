@@ -43,3 +43,22 @@ waveQrPublicRouter.get('/:orgId', async (req, res, next) => {
     next(e);
   }
 });
+
+// Service PUBLIC du QR d'un moyen de paiement (par id de moyen) — même logique.
+export const moyenPaiementQrPublicRouter = Router();
+
+moyenPaiementQrPublicRouter.get('/:moyenId', async (req, res, next) => {
+  try {
+    const m = await prisma.moyenPaiement.findUnique({
+      where: { id: req.params.moyenId },
+      select: { qrData: true, qrMime: true },
+    });
+    if (!m?.qrData || !m.qrMime) return res.status(404).end();
+    res.setHeader('Content-Type', m.qrMime);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.send(Buffer.from(m.qrData));
+  } catch (e) {
+    next(e);
+  }
+});

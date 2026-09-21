@@ -245,3 +245,107 @@ organisationRouter.delete('/wave-qr', requireOrgRole('proprietaire', 'administra
     next(e);
   }
 });
+
+// ── Moyens de paiement (liste : Wave, Julaya, Orange Money…) ────────────────
+// Chaque org gère sa liste de moyens ; seuls les moyens `actif` sont proposés au
+// débiteur. Le QR de chaque moyen est stocké et servi par /api/moyen-paiement-qr/:id.
+
+function moyenPublic(m: { id: string; label: string; lien: string | null; numero: string | null; qrUrl: string | null; actif: boolean; ordre: number }) {
+  return { id: m.id, label: m.label, lien: m.lien, numero: m.numero, qrUrl: m.qrUrl, actif: m.actif, ordre: m.ordre };
+}
+
+organisationRouter.get('/moyens-paiement', async (req, res, next) => {
+  try {
+    const moyens = await prisma.moyenPaiement.findMany({
+      where: { organisationId: req.user!.organisationId },
+      orderBy: [{ ordre: 'asc' }, { createdAt: 'asc' }],
+      select: { id: true, label: true, lien: true, numero: true, qrUrl: true, actif: true, ordre: true },
+    });
+    res.json(moyens.map(moyenPublic));
+  } catch (e) {
+    next(e);
+  }
+});
+
+organisationRouter.post('/moyens-paiement', requireOrgRole('proprietaire', 'administrateur'), async (req, res, next) => {
+  try {
+    const label = String(req.body?.label ?? '').trim() || 'Nouveau moyen';
+    const lien = String(req.body?.lien ?? '').trim() || null;
+    const numero = String(req.body?.numero ?? '').trim() || null;
+    const orgId = req.user!.organisationId;
+    const max = await prisma.moyenPaiement.aggregate({ where: { organisationId: orgId }, _max: { ordre: true } });
+    const m = await prisma.moyenPaiement.create({
+      data: { organisationId: orgId, label, lien, numero, ordre: (max._max.ordre ?? -1) + 1 },
+      select: { id: true, label: true, lien: true, numero: true, qrUrl: true, actif: true, ordre: true },
+    });
+    res.json(moyenPublic(m));
+  } catch (e) {
+    next(e);
+  }
+});
+
+organisationRouter.patch('/moyens-paiement/:id', requireOrgRole('proprietaire', 'administrateur'), async (req, res, next) => {
+  try {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const data: Record<string, unknown> = {};
+    if (typeof body.label === 'string') data.label = body.label.trim() || 'Moyen';
+    if ('lien' in body) data.lien = typeof body.lien === 'string' && body.lien.trim() ? body.lien.trim() : null;
+    if ('numero' in body) data.numero = typeof body.numero === 'string' && body.numero.trim() ? body.numero.trim() : null;
+    if (typeof body.actif === 'boolean') data.actif = body.actif;
+    if (typeof body.ordre === 'number') data.ordre = Math.floor(body.ordre);
+    if (!Object.keys(data).length) return res.status(400).json({ error: 'Aucune modification' });
+    // Scopé au tenant : updateMany avec organisationId pour éviter toute fuite.
+    const r = await prisma.moyenPaiement.updateMany({
+      where: { id: req.params.id, organisationId: req.user!.organisationId },
+      data: data as never,
+    });
+    if (!r.count) return res.status(404).json({ error: 'Moyen introuvable' });
+    res.json({ ok: true });
+  } catch (e) {
+    next(e);
+  }
+});
+
+organisationRouter.delete('/moyens-paiement/:id', requireOrgRole('proprietaire', 'administrateur'), async (req, res, next) => {
+  try {
+    const r = await prisma.moyenPaiement.deleteMany({ where: { id: req.params.id, organisationId: req.user!.organisationId } });
+    if (!r.count) return res.status(404).json({ error: 'Moyen introuvable' });
+    res.json({ ok: true });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Téléversement du QR d'un moyen (image), stocké + servi par /api/moyen-paiement-qr/:id.
+organisationRouter.post('/moyens-paiement/:id/qr', requireOrgRole('proprietaire', 'administrateur'), uploadLogo.single('file'), async (req, res, next) => {
+  try {
+    const file = req.file;
+    if (!file) return res.status(400).json({ error: 'Aucun fichier reçu' });
+    if (!QR_MIMES.has(file.mimetype)) {
+      return res.status(400).json({ error: 'Format non supporté (PNG, JPEG ou WebP attendu). Si vous avez le QR en PDF, faites une capture d’écran.' });
+    }
+    // Vérifie l'appartenance au tenant avant d'écrire.
+    const moyen = await prisma.moyenPaiement.findFirst({ where: { id: req.params.id, organisationId: req.user!.organisationId }, select: { id: true } });
+    if (!moyen) return res.status(404).json({ error: 'Moyen introuvable' });
+    const proto = process.env.NODE_ENV === 'production' ? 'https' : req.protocol;
+    const host = req.get('host');
+    const qrUrl = `${proto}://${host}/api/moyen-paiement-qr/${moyen.id}?v=${Date.now()}`;
+    await prisma.moyenPaiement.update({ where: { id: moyen.id }, data: { qrData: file.buffer, qrMime: file.mimetype, qrUrl } });
+    res.json({ qrUrl });
+  } catch (e) {
+    next(e);
+  }
+});
+
+organisationRouter.delete('/moyens-paiement/:id/qr', requireOrgRole('proprietaire', 'administrateur'), async (req, res, next) => {
+  try {
+    const r = await prisma.moyenPaiement.updateMany({
+      where: { id: req.params.id, organisationId: req.user!.organisationId },
+      data: { qrData: null, qrMime: null, qrUrl: null },
+    });
+    if (!r.count) return res.status(404).json({ error: 'Moyen introuvable' });
+    res.json({ ok: true });
+  } catch (e) {
+    next(e);
+  }
+});

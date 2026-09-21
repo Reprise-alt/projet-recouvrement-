@@ -207,9 +207,9 @@ function Centre({ children }: { children: React.ReactNode }) {
   );
 }
 
-// Bloc « Payer maintenant » — Mobile Money (Wave / Orange Money) avec le montant
-// dû et la référence du dossier. Rien à afficher si le créancier n'a renseigné
-// aucun moyen.
+// Bloc « Payer maintenant » — liste des moyens de paiement du créancier (Wave,
+// Julaya, Orange Money…) avec le montant dû et la référence. Rien à afficher si
+// aucun moyen ni modalité libre.
 function PayerBlock({
   paiement,
   montant,
@@ -219,54 +219,61 @@ function PayerBlock({
   montant: number;
   reference: string;
 }) {
-  const wave = paiement?.waveLien?.trim();
-  const qr = paiement?.waveQrUrl?.trim();
-  const om = paiement?.orangeMoneyNumero?.trim();
+  const moyens = paiement?.moyens ?? [];
   const instructions = paiement?.instructions?.trim();
-  if (!wave && !qr && !om && !instructions) return null;
-  const lienWave = wave ? wave.replace(/\{montant\}/g, String(Math.round(montant))) : null;
+  if (!moyens.length && !instructions) return null;
 
   return (
     <div style={{ marginTop: 16, padding: '16px 18px', borderRadius: 12, border: '1px solid var(--line)', background: 'var(--accent-soft)' }}>
       <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--accent-dark)', marginBottom: 8 }}>
         Payer maintenant
       </div>
-      <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginBottom: 12 }}>
+      <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginBottom: 14 }}>
         Montant à régler : <b style={{ color: 'var(--ink)' }}>{fmtFCFA(montant)}</b> · Référence : <span className="mono">{reference}</span>
       </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
-        {lienWave && (
-          <a
-            href={lienWave}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'var(--accent)', color: '#fff', fontWeight: 700, fontSize: 14, textDecoration: 'none', padding: '11px 20px', borderRadius: 10 }}
-          >
-            Payer en ligne →
-          </a>
-        )}
-        {om && (
-          <div style={{ fontSize: 13.5 }}>
-            Orange&nbsp;Money : <b className="mono">{om}</b>
-          </div>
-        )}
+
+      <div style={{ display: 'grid', gap: 14 }}>
+        {moyens.map((m, i) => {
+          const lien = m.lien?.trim() ? m.lien.trim().replace(/\{montant\}/g, String(Math.round(montant))) : null;
+          const qr = m.qrUrl?.trim() || null;
+          const num = m.numero?.trim() || null;
+          return (
+            <div key={i}>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--ink)', marginBottom: 6 }}>{m.label}</div>
+              {lien && (
+                <a
+                  href={lien}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'var(--accent)', color: '#fff', fontWeight: 700, fontSize: 14, textDecoration: 'none', padding: '10px 18px', borderRadius: 10 }}
+                >
+                  Payer en ligne →
+                </a>
+              )}
+              {num && (
+                <div style={{ fontSize: 13.5, marginTop: lien ? 8 : 0 }}>
+                  <b className="mono">{num}</b>
+                </div>
+              )}
+              {qr && (
+                <div style={{ marginTop: lien || num ? 10 : 0 }}>
+                  <img
+                    src={qr}
+                    alt={`QR ${m.label}`}
+                    width={150}
+                    height={150}
+                    style={{ width: 150, height: 150, border: '1px solid var(--line)', borderRadius: 10, background: '#fff', padding: 6 }}
+                  />
+                  <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 5 }}>Scannez pour payer.</div>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
-      {qr && (
-        <div style={{ marginTop: 12 }}>
-          <img
-            src={qr}
-            alt="QR de paiement"
-            width={160}
-            height={160}
-            style={{ width: 160, height: 160, border: '1px solid var(--line)', borderRadius: 10, background: '#fff', padding: 6 }}
-          />
-          <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 6 }}>
-            Scannez ce code pour payer {fmtFCFA(montant)}.
-          </div>
-        </div>
-      )}
+
       {instructions && (
-        <div style={{ marginTop: 12, fontSize: 12.5, color: 'var(--ink-soft)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+        <div style={{ marginTop: 14, fontSize: 12.5, color: 'var(--ink-soft)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
           {instructions}
         </div>
       )}
