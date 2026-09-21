@@ -441,41 +441,72 @@ export function App() {
       </nav>
 
       <main className="app-main">
-        {/* Bandeau d'essai : compte à rebours discret tant que le compte est en
-            période d'essai. */}
-        {abo?.etat === 'essai' && (
-          <div
-            style={{
-              margin: '0 0 16px',
-              padding: '10px 16px',
-              borderRadius: 10,
-              background: 'var(--amber-soft, #fff4e0)',
-              border: '1px solid var(--amber, #e0a13a)',
-              fontSize: 13,
-              display: 'flex',
-              gap: 10,
-              alignItems: 'center',
-              flexWrap: 'wrap',
-            }}
-          >
-            <b>Essai gratuit</b>
-            <span>
-              {abo.joursRestants != null
-                ? `Il vous reste ${abo.joursRestants} jour${abo.joursRestants > 1 ? 's' : ''} d'essai${
-                    abo.dateFinEssai
-                      ? `, jusqu'au ${new Date(abo.dateFinEssai).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}`
-                      : ''
-                  }.`
-                : "Vous êtes en période d'essai."}
-            </span>
-            <button
-              onClick={() => setOffresOpen(true)}
-              style={{ marginLeft: 'auto', fontWeight: 600, background: 'none', border: 'none', color: 'var(--accent, #177f5e)', cursor: 'pointer', padding: 0, font: 'inherit' }}
+        {/* Bandeau d'essai (direction C « émeraude offre ») : incite à choisir une
+            formule tant que le compte est en essai. Passe en registre d'urgence
+            (ambre) dans les 3 derniers jours. Le clic ouvre les offres. */}
+        {abo?.etat === 'essai' && (() => {
+          const j = abo.joursRestants;
+          const urgent = j != null && j <= 3;
+          const dateStr = abo.dateFinEssai
+            ? new Date(abo.dateFinEssai).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })
+            : null;
+          const accent = urgent ? 'var(--amber, #b0700f)' : 'var(--accent, #0E7C5A)';
+          const accentSoft = urgent ? 'var(--amber-soft, #FBF1DE)' : 'var(--accent-soft, #E3F2EC)';
+          const border = urgent ? 'rgba(176,112,15,.30)' : 'rgba(14,124,90,.28)';
+          const eyebrow = urgent ? 'Dernière ligne droite' : 'Débloquez tout le potentiel';
+          const titre =
+            j != null
+              ? `${urgent ? 'Plus que' : 'Encore'} ${j} jour${j > 1 ? 's' : ''} d'essai — passez à Feyma illimité.`
+              : 'Votre essai est en cours — passez à Feyma illimité.';
+          return (
+            <div
+              style={{
+                margin: '0 0 16px',
+                padding: '16px 18px',
+                borderRadius: 14,
+                background: `linear-gradient(180deg, var(--surface, #fff) 0%, ${accentSoft} 100%)`,
+                border: `1px solid ${border}`,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 18,
+                flexWrap: 'wrap',
+              }}
             >
-              Voir les offres & activer →
-            </button>
-          </div>
-        )}
+              <div
+                aria-hidden="true"
+                style={{
+                  flex: 'none', width: 48, height: 48, borderRadius: 12, background: accent, color: '#fff',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z" />
+                </svg>
+              </div>
+              <div style={{ flex: '1 1 320px', minWidth: 0 }}>
+                <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '.12em', textTransform: 'uppercase', color: accent, marginBottom: 3 }}>
+                  {eyebrow}
+                </div>
+                <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 'clamp(16px, 2.4vw, 20px)', letterSpacing: '-.01em', lineHeight: 1.15 }}>
+                  {titre}
+                </div>
+                <div style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 3 }}>
+                  Portefeuille illimité, relances 24/7, contentieux — 2 mois offerts en annuel
+                  {dateStr ? ` · jusqu'au ${dateStr}` : ''}.
+                </div>
+              </div>
+              <button
+                onClick={() => setOffresOpen(true)}
+                style={{
+                  flex: 'none', background: 'var(--ink, #0E1D33)', color: '#fff', fontWeight: 700, fontSize: 15,
+                  padding: '12px 20px', borderRadius: 11, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap',
+                }}
+              >
+                Voir les formules →
+              </button>
+            </div>
+          );
+        })()}
 
         <div className="app-main-head">
           <h1>{meta.titre}</h1>
