@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import { IS_SAAS } from '../auth/mode';
+import { FeymaBrand } from './FeymaLogo';
 import { FicheEntreprise } from './FicheEntreprise';
 import { ImportPanel } from './ImportPanel';
 
@@ -95,15 +97,26 @@ export function OnboardingChecklist({ onEntrerConsole }: { onEntrerConsole: () =
   return (
     <div className="onb-wrap">
       <div className="onb-head">
-        <span className="brand-mark">
-          <svg viewBox="0 0 100 100" width="26" height="26" aria-hidden="true">
-            <circle cx="50" cy="50" r="34" fill="none" stroke="var(--accent)" strokeWidth="13" strokeLinecap="round" strokeDasharray="168 46" transform="rotate(100 50 50)" />
-          </svg>
-        </span>
-        <div style={{ flex: 1 }}>
-          <b style={{ fontSize: 15 }}>OLU 360 — Recouvrement</b>
-          <div style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>Bienvenue{user?.nom ? `, ${user.nom}` : ''} 👋</div>
-        </div>
+        {IS_SAAS ? (
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <FeymaBrand size={30} />
+            <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginTop: 8 }}>
+              Bienvenue{user?.nom ? `, ${user.nom}` : ''} 👋
+            </div>
+          </div>
+        ) : (
+          <>
+            <span className="brand-mark">
+              <svg viewBox="0 0 100 100" width="26" height="26" aria-hidden="true">
+                <circle cx="50" cy="50" r="34" fill="none" stroke="var(--accent)" strokeWidth="13" strokeLinecap="round" strokeDasharray="168 46" transform="rotate(100 50 50)" />
+              </svg>
+            </span>
+            <div style={{ flex: 1 }}>
+              <b style={{ fontSize: 15 }}>OLU 360 — Recouvrement</b>
+              <div style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>Bienvenue{user?.nom ? `, ${user.nom}` : ''} 👋</div>
+            </div>
+          </>
+        )}
         <button onClick={() => logout()} style={{ fontSize: 12.5 }}>Déconnexion</button>
       </div>
 
