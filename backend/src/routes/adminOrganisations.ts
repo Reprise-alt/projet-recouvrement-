@@ -145,3 +145,56 @@ adminOrganisationsRouter.post('/migration', async (req, res, next) => {
     next(err);
   }
 });
+
+// Nettoyage d'une entité résiduelle dans une organisation : supprime les clients
+// tagués `entite` (et, par cascade, leurs factures / actions / dossiers). Sert à
+// retirer des données laissées par une migration (ex. des clients « SIS » restés
+// dans le tenant SORAM). apply=false ⇒ DRY-RUN (compte, ne supprime rien).
+// Garde-fou : refuse de vider TOUTE l'organisation sauf force=true.
+adminOrganisationsRouter.post('/organisations/:id/nettoyer-entite', async (req, res, next) => {
+  try {
+    const orgId = req.params.id;
+    const entite = String(req.body?.entite ?? '').trim();
+    const apply = req.body?.apply === true;
+    if (!entite) return res.status(400).json({ error: 'entite requise' });
+
+    const org = await prisma.organisation.findUnique({ where: { id: orgId }, select: { id: true, raisonSociale: true } });
+    if (!org) return res.status(404).json({ error: 'Organisation introuvable' });
+
+    const clients = await prisma.client.findMany({
+      where: { organisationId: orgId, entite: entite as never },
+      select: { id: true, nom: true },
+    });
+    const clientIds = clients.map((c) => c.id);
+    const [nbFactures, nbActions, nbDossiers, totalClients] = await Promise.all([
+      prisma.facture.count({ where: { clientId: { in: clientIds } } }),
+      prisma.actionRecouvrement.count({ where: { clientId: { in: clientIds } } }),
+      prisma.dossierContentieux.count({ where: { clientId: { in: clientIds } } }),
+      prisma.client.count({ where: { organisationId: orgId } }),
+    ]);
+
+    const base = {
+      orgRaisonSociale: org.raisonSociale,
+      entite,
+      nbClients: clients.length,
+      nbFactures,
+      nbActions,
+      nbDossiers,
+      apercuClients: clients.slice(0, 50).map((c) => c.nom),
+    };
+
+    if (!apply) return res.json({ apply: false, ...base });
+
+    // Garde-fou : ne jamais vider toute l'organisation par erreur.
+    if (clients.length > 0 && clients.length === totalClients && req.body?.force !== true) {
+      return res.status(400).json({
+        error: `Refus : cela supprimerait TOUS les clients de ${org.raisonSociale}. Renvoyez force=true si c'est réellement voulu.`,
+      });
+    }
+
+    const del = await prisma.client.deleteMany({ where: { organisationId: orgId, entite: entite as never } });
+    res.json({ apply: true, ...base, supprimes: del.count });
+  } catch (err) {
+    next(err);
+  }
+});
