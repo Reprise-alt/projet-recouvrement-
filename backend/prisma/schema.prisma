@@ -416,6 +416,16 @@ model ActionRecouvrement {
   // jamais une action à un agent par supposition rétroactive.
   utilisateur   Utilisateur? @relation(fields: [utilisateurId], references: [id], onDelete: SetNull)
   utilisateurId String?
+
+  // Archive de l'email réellement envoyé (relance auto ou manuelle) — permet à
+  // l'agent de relire le message EXACT parti, et sert de pièce (preuve de la
+  // tentative amiable) pour le contentieux. Nullable : les actions antérieures
+  // à cette archive, et les actions non-email, restent sans contenu archivé.
+  emailSujet String?
+  emailTo    String? // destinataire principal (« À »)
+  emailCc    String? // autres destinataires en copie, séparés par « , »
+  emailHtml  String? // version HTML de marque (relances SaaS), si disponible
+  emailTexte String? // version texte (toujours renseignée pour un envoi email)
 }
 
 model EnvoiContrat {

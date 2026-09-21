@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useResource } from '../hooks/useResource';
+import { api, ApiError } from '../api/client';
 import { PALIERS } from '../lib/constants';
 
 // Journal des relances (historique des envois/actions) — filtrable par période
@@ -11,6 +12,20 @@ interface JournalItem {
   palier: number;
   palierLabel: string;
   note: string | null;
+  // Vrai si le message exact envoyé a été archivé (chargeable à la demande).
+  emailArchive?: boolean;
+}
+// Contenu de l'email archivé, chargé à la demande via /journal/:id/email.
+interface EmailArchive {
+  id: string;
+  date: string;
+  clientNom: string;
+  palierLabel: string;
+  sujet: string | null;
+  to: string | null;
+  cc: string | null;
+  html: string | null;
+  texte: string | null;
 }
 interface RecapItem {
   palier: number;
@@ -38,6 +53,24 @@ export function JournalRelances() {
   const [palier, setPalier] = useState('');
   const path = `/api/relances/journal?periode=${periode}${palier ? `&palier=${palier}` : ''}`;
   const { data, loading } = useResource<JournalResponse>(path);
+
+  // Aperçu de l'email archivé (modale). `chargement` distingue le clic en cours.
+  const [apercu, setApercu] = useState<EmailArchive | null>(null);
+  const [chargementId, setChargementId] = useState<string | null>(null);
+  const [erreurApercu, setErreurApercu] = useState<string | null>(null);
+
+  const ouvrirEmail = async (id: string) => {
+    setChargementId(id);
+    setErreurApercu(null);
+    try {
+      const email = await api.get<EmailArchive>(`/api/relances/journal/${id}/email`);
+      setApercu(email);
+    } catch (err) {
+      setErreurApercu(err instanceof ApiError ? err.message : 'Impossible de charger l’email.');
+    } finally {
+      setChargementId(null);
+    }
+  };
 
   return (
     <div>
@@ -85,6 +118,9 @@ export function JournalRelances() {
               </span>
             ))}
           </div>
+          {erreurApercu && (
+            <div className="empty-state" style={{ color: 'var(--danger, #b42318)', padding: '8px 0' }}>{erreurApercu}</div>
+          )}
           <table>
             <thead>
               <tr>
@@ -92,6 +128,7 @@ export function JournalRelances() {
                 <th>Client</th>
                 <th>Palier</th>
                 <th>Détail</th>
+                <th>Email</th>
               </tr>
             </thead>
             <tbody>
@@ -105,12 +142,88 @@ export function JournalRelances() {
                     </span>
                   </td>
                   <td style={{ color: 'var(--ink-soft)', fontSize: 12.5 }}>{it.note ?? '—'}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>
+                    {it.emailArchive ? (
+                      <button
+                        type="button"
+                        style={{ fontSize: 12, padding: '4px 10px' }}
+                        disabled={chargementId === it.id}
+                        onClick={() => ouvrirEmail(it.id)}
+                      >
+                        {chargementId === it.id ? 'Chargement…' : 'Voir l’email'}
+                      </button>
+                    ) : (
+                      <span style={{ color: 'var(--ink-soft)', fontSize: 12 }}>—</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </>
       )}
+
+      {apercu && <EmailApercuModal email={apercu} onClose={() => setApercu(null)} />}
+    </div>
+  );
+}
+
+// Modale d'aperçu de l'email exact envoyé. Le HTML de marque est rendu dans une
+// iframe `sandbox` (aucun script, isolée du DOM de l'app) ; à défaut, le corps
+// texte est affiché en `<pre>`. Fenêtre en lecture seule (relecture / preuve).
+const fmtDateHeurePleine = (iso: string) =>
+  new Date(iso).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+function EmailApercuModal({ email, onClose }: { email: EmailArchive; onClose: () => void }) {
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(14,29,51,.45)',
+        display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '5vh 16px', overflow: 'auto',
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: 'var(--surface, #fff)', color: 'var(--ink)', borderRadius: 14, width: 'min(720px, 100%)',
+          boxShadow: '0 20px 60px rgba(0,0,0,.3)', overflow: 'hidden', display: 'flex', flexDirection: 'column',
+        }}
+      >
+        <div style={{ padding: '16px 18px', borderBottom: '1px solid var(--line)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 15 }}>{email.sujet || 'Email de relance'}</div>
+              <div style={{ color: 'var(--ink-soft)', fontSize: 12.5, marginTop: 2 }}>
+                {email.clientNom} · {email.palierLabel} · {fmtDateHeurePleine(email.date)}
+              </div>
+            </div>
+            <button type="button" style={{ fontSize: 13, padding: '4px 10px' }} onClick={onClose}>
+              Fermer
+            </button>
+          </div>
+          <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginTop: 10, lineHeight: 1.5 }}>
+            <div><b>À :</b> {email.to || '—'}</div>
+            {email.cc && <div><b>Copie :</b> {email.cc}</div>}
+          </div>
+        </div>
+        <div style={{ padding: email.html ? 0 : 18, maxHeight: '60vh', overflow: 'auto' }}>
+          {email.html ? (
+            <iframe
+              title="Aperçu de l’email envoyé"
+              sandbox=""
+              srcDoc={email.html}
+              style={{ width: '100%', height: '58vh', border: 'none', background: '#fff' }}
+            />
+          ) : (
+            <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 13.5, lineHeight: 1.55 }}>
+              {email.texte}
+            </pre>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

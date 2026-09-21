@@ -122,7 +122,14 @@ relancesRouter.get('/journal', async (req, res, next) => {
       where,
       orderBy: { date: 'desc' },
       take: 500,
-      select: { id: true, date: true, palier: true, label: true, note: true, client: { select: { nom: true } } },
+      select: {
+        id: true, date: true, palier: true, label: true, note: true,
+        // On lit ces colonnes pour n'exposer qu'un booléen « email archivé » dans
+        // la liste ; le corps lui-même n'est jamais renvoyé ici (il se charge à la
+        // demande via /journal/:id/email), pour garder la réponse légère.
+        emailTexte: true, emailHtml: true,
+        client: { select: { nom: true } },
+      },
     });
 
     const reglages = await getReglagesPaliers();
@@ -136,6 +143,8 @@ relancesRouter.get('/journal', async (req, res, next) => {
       palier: a.palier,
       palierLabel: libelle(a.palier, a.label),
       note: a.note,
+      // Vrai si le message exact envoyé a été archivé (chargeable via /email).
+      emailArchive: !!(a.emailTexte || a.emailHtml),
     }));
 
     const parPalier = new Map<number, number>();
@@ -145,6 +154,41 @@ relancesRouter.get('/journal', async (req, res, next) => {
       .map(([palier, count]) => ({ palier, palierLabel: libelle(palier), count }));
 
     res.json({ periode, total: actions.length, recap, items });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Contenu EXACT de l'email archivé pour une action (relance auto ou manuelle).
+// Chargé à la demande depuis le Journal (« voir l'email envoyé ») : l'agent
+// relit le message réellement parti. ActionRecouvrement est isolé par RLS, donc
+// findUnique ne renvoie que les actions du tenant courant.
+relancesRouter.get('/journal/:id/email', async (req, res, next) => {
+  try {
+    const action = await prisma.actionRecouvrement.findUnique({
+      where: { id: req.params.id },
+      select: {
+        id: true, date: true, palier: true, label: true,
+        emailSujet: true, emailTo: true, emailCc: true, emailHtml: true, emailTexte: true,
+        client: { select: { nom: true } },
+      },
+    });
+    if (!action) return res.status(404).json({ error: 'Action introuvable' });
+    if (!action.emailTexte && !action.emailHtml) {
+      return res.status(404).json({ error: 'Aucun email archivé pour cette action (antérieure à l’archivage, ou action hors email).' });
+    }
+    res.json({
+      id: action.id,
+      date: action.date.toISOString(),
+      clientNom: action.client?.nom ?? '—',
+      palier: action.palier,
+      palierLabel: action.label,
+      sujet: action.emailSujet,
+      to: action.emailTo,
+      cc: action.emailCc,
+      html: action.emailHtml,
+      texte: action.emailTexte,
+    });
   } catch (err) {
     next(err);
   }

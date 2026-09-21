@@ -146,6 +146,12 @@ sendEmailRouter.post('/', uploadAttachments, async (req, res, next) => {
           label: PALIERS[context.palier].label,
           note: `Envoyé par email à ${to}${cc ? ` (cc: ${cc})` : ''}${attachmentsNote}`,
           utilisateurId: req.user!.id,
+          // Archive du message exact envoyé (envoi manuel relu par l'agent avant
+          // confirmation). Corps en texte ; pas de version HTML pour l'envoi manuel.
+          emailSujet: subject,
+          emailTo: to,
+          emailCc: cc || null,
+          emailTexte: body,
         },
       });
     } else {
