@@ -316,6 +316,75 @@ reportingRouter.get('/pilotage', async (req, res, next) => {
   }
 });
 
+// Tableau de bord « Impact » (accueil) : ce que Feyma a produit ce mois-ci —
+// montant recouvré, délai gagné, encours en retard, relances envoyées — avec la
+// tendance vs le mois précédent. Pensé pour être vu à chaque connexion.
+reportingRouter.get('/impact', async (req, res, next) => {
+  try {
+    const entiteFilter = resolveEntiteScope(req.user!, req.query.entite);
+    const where = entiteWhere(entiteFilter);
+    const iso = (d: Date) => d.toISOString().slice(0, 10);
+    const now = new Date();
+    const y = now.getUTCFullYear();
+    const m = now.getUTCMonth();
+    const jour = now.getUTCDate();
+
+    // Mois en cours, du 1er à aujourd'hui.
+    const moisDebut = new Date(Date.UTC(y, m, 1, 0, 0, 0));
+    const periodeCourante: Period = { from: moisDebut, to: now, fromStr: iso(moisDebut), toStr: iso(now) };
+
+    // Mois précédent, du 1er au même jour (comparaison équitable « à date »).
+    const prevDebut = new Date(Date.UTC(y, m - 1, 1, 0, 0, 0));
+    const dernierJourPrev = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    const prevFin = new Date(Date.UTC(y, m - 1, Math.min(jour, dernierJourPrev), 23, 59, 59, 999));
+    const periodePrecedente: Period = { from: prevDebut, to: prevFin, fromStr: iso(prevDebut), toStr: iso(prevFin) };
+
+    // Mois précédent COMPLET (pour comparer le DSO, qui est une moyenne).
+    const prevFinComplet = new Date(Date.UTC(y, m, 0, 23, 59, 59, 999));
+    const periodePrecedenteComplete: Period = { from: prevDebut, to: prevFinComplet, fromStr: iso(prevDebut), toStr: iso(prevFinComplet) };
+
+    const [sumCourant, sumPrec, sumPrecComplet, pilotage] = await Promise.all([
+      computeSummaryForPeriod(periodeCourante, where),
+      computeSummaryForPeriod(periodePrecedente, where),
+      computeSummaryForPeriod(periodePrecedenteComplete, where),
+      computePilotage(periodeCourante, where),
+    ]);
+
+    // Relances envoyées (palier ≥ 1) : ce mois-ci et au total — la preuve du
+    // travail automatique de Feyma.
+    const [relancesCeMois, relancesTotal] = await Promise.all([
+      prisma.actionRecouvrement.count({ where: { palier: { gte: 1 }, date: { gte: moisDebut, lte: now }, client: where } }),
+      prisma.actionRecouvrement.count({ where: { palier: { gte: 1 }, client: where } }),
+    ]);
+
+    const overdue = pilotage.balanceAgee.filter((t) => t.cle !== 'a_echoir');
+    const encoursRetardMontant = overdue.reduce((s, t) => s + t.montant, 0);
+    const encoursRetardNombre = overdue.reduce((s, t) => s + t.nombre, 0);
+
+    const recouvreMontant = sumCourant.facturesPayees.montantTotal;
+    const recouvrePrec = sumPrec.facturesPayees.montantTotal;
+    const variationPct = recouvrePrec > 0 ? Math.round(((recouvreMontant - recouvrePrec) / recouvrePrec) * 100) : null;
+
+    const dso = sumCourant.delaiEncaissement.global;
+    const dsoPrec = sumPrecComplet.delaiEncaissement.global;
+    const gainJours = dso !== null && dsoPrec !== null ? Math.round(dsoPrec - dso) : null;
+
+    const moisLabel = moisDebut.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+
+    res.json({
+      moisLabel,
+      recouvre: { montant: recouvreMontant, nombre: sumCourant.facturesPayees.nombre, montantMoisPrec: recouvrePrec, variationPct },
+      dso: { valeur: dso, valeurMoisPrec: dsoPrec, gainJours },
+      encoursRetard: { montant: encoursRetardMontant, nombre: encoursRetardNombre },
+      relancesEnvoyees: { ceMois: relancesCeMois, total: relancesTotal },
+      tauxRecouvrement: pilotage.recouvrement.taux,
+      evolution: sumCourant.evolutionMensuelle.map((mo) => ({ mois: mo.mois, montant: mo.montantTotal })),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 reportingRouter.get('/summary', async (req, res, next) => {
   try {
     const data = await fetchReportingData(req);

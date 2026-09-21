@@ -4,6 +4,7 @@ import { LoginPage } from './components/LoginPage';
 import { InscriptionOtpPage } from './components/InscriptionOtpPage';
 import { OnboardingChecklist } from './components/OnboardingChecklist';
 import { RecouvrementView } from './components/RecouvrementView';
+import { ImpactDashboard } from './components/ImpactDashboard';
 import { RelancesAVenirView } from './components/RelancesAVenirView';
 import { ModelesRelancePanel } from './components/ModelesRelancePanel';
 import { ContractsView } from './components/ContractsView';
@@ -38,7 +39,7 @@ import { AUTH_MODE, IS_SAAS, redirigerVersHub } from './auth/mode';
 import { setFeymaFavicon } from './lib/seo';
 
 type EntityFilter = Entite | 'ALL';
-type RecouvrementTab = 'recouvrement' | 'relances' | 'contrats' | 'contentieux';
+type RecouvrementTab = 'tableau' | 'recouvrement' | 'relances' | 'contrats' | 'contentieux';
 
 const ROLE_LABELS: Record<string, string> = {
   admin: 'Admin',
@@ -88,7 +89,8 @@ export function App() {
     return <InscriptionOtpPage />;
   }
 
-  const [recouvrementTab, setRecouvrementTab] = useState<RecouvrementTab>('recouvrement');
+  // En SaaS, le tableau de bord « Impact » est l'accueil (vu à chaque connexion).
+  const [recouvrementTab, setRecouvrementTab] = useState<RecouvrementTab>(IS_SAAS ? 'tableau' : 'recouvrement');
   const [entityFilter, setEntityFilter] = useState<EntityFilter>('ALL');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -236,6 +238,9 @@ export function App() {
   const caps = user.capacites;
   const canReporting = !IS_SAAS || caps?.reporting !== false;
   const canContentieux = !IS_SAAS || caps?.contentieux !== false;
+  // Onglet effectif : le tableau de bord n'existe qu'en SaaS avec le reporting ;
+  // sinon on retombe sur « Recouvrement » (évite un onglet actif mais masqué).
+  const tabActif: RecouvrementTab = recouvrementTab === 'tableau' && !(IS_SAAS && canReporting) ? 'recouvrement' : recouvrementTab;
   const canMultiEntites = !IS_SAAS || caps?.multiEntites !== false;
   // Contentieux non inclus dans la formule (SaaS « Petite structure ») : on
   // n'efface plus l'onglet, on le présente verrouillé avec un écran d'activation
@@ -339,13 +344,21 @@ export function App() {
               <>
                 {!contentieuxSeul && (
                   <>
+                    {IS_SAAS && canReporting && (
+                      <button
+                        className={tabActif === 'tableau' ? 'active' : ''}
+                        onClick={() => setRecouvrementTab('tableau')}
+                      >
+                        Tableau de bord
+                      </button>
+                    )}
                     <button
-                      className={recouvrementTab === 'recouvrement' ? 'active' : ''}
+                      className={tabActif === 'recouvrement' ? 'active' : ''}
                       onClick={() => setRecouvrementTab('recouvrement')}
                     >
                       Recouvrement
                     </button>
-                    <button className={recouvrementTab === 'relances' ? 'active' : ''} onClick={() => setRecouvrementTab('relances')}>
+                    <button className={tabActif === 'relances' ? 'active' : ''} onClick={() => setRecouvrementTab('relances')}>
                       Relances à venir
                     </button>
                     {/* Suivi des échéances de contrats = métier distinct du
@@ -353,7 +366,7 @@ export function App() {
                         pour rester une solution 100 % recouvrement ; la console
                         interne du groupe conserve la fonction. */}
                     {!IS_SAAS && (
-                      <button className={recouvrementTab === 'contrats' ? 'active' : ''} onClick={() => setRecouvrementTab('contrats')}>
+                      <button className={tabActif === 'contrats' ? 'active' : ''} onClick={() => setRecouvrementTab('contrats')}>
                         Échéances de contrats
                       </button>
                     )}
@@ -363,7 +376,7 @@ export function App() {
                     formule Petite (SaaS). Verrouillé, l'onglet reste visible et
                     mène à l'écran d'activation. */}
                 <button
-                  className={recouvrementTab === 'contentieux' ? 'active' : ''}
+                  className={tabActif === 'contentieux' ? 'active' : ''}
                   onClick={() => setRecouvrementTab('contentieux')}
                 >
                   Contentieux
@@ -538,14 +551,16 @@ export function App() {
           <OperationsView entityFilter={effectiveEntity} user={user} reloadKey={dataVersion} />
         ) : CONSOLE === 'coursier' ? (
           <PlanningView entityFilter={effectiveEntity} role={user.role} />
-        ) : contentieuxSeul || (recouvrementTab === 'contentieux' && canContentieux) ? (
+        ) : IS_SAAS && canReporting && tabActif === 'tableau' && !contentieuxSeul ? (
+          <ImpactDashboard onVoirReporting={() => setRecouvrementTab('recouvrement')} />
+        ) : contentieuxSeul || (tabActif === 'contentieux' && canContentieux) ? (
           <ContentieuxView entityFilter={effectiveEntity} role={user.role} avocat={contentieuxSeul} />
-        ) : recouvrementTab === 'contentieux' ? (
+        ) : tabActif === 'contentieux' ? (
           // Onglet Contentieux verrouillé (formule Petite) : écran d'activation.
           <ContentieuxUpsell canActivate={isAdmin} onActivated={refresh} />
-        ) : recouvrementTab === 'relances' ? (
+        ) : tabActif === 'relances' ? (
           <RelancesAVenirView reloadKey={dataVersion} canManage={isAdmin} />
-        ) : !IS_SAAS && recouvrementTab === 'contrats' ? (
+        ) : !IS_SAAS && tabActif === 'contrats' ? (
           <ContractsView entityFilter={effectiveEntity} role={user.role} reloadKey={dataVersion} />
         ) : (
           // Vue par défaut (onglet Recouvrement, et repli si l'onglet contrats
