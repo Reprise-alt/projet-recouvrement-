@@ -29,8 +29,22 @@ export function ParrainagePanel({ onClose }: { onClose: () => void }) {
     );
   }
 
+  // Lien robuste : on privilégie celui fourni par le serveur (FRONTEND_URL), et à
+  // défaut on le reconstruit depuis l'origine réelle du site (toujours correcte).
+  const lien = data
+    ? data.lien || `${window.location.origin}/inscription?parrain=${encodeURIComponent(data.code)}`
+    : '';
+
   const message = data
-    ? `Je gère mes relances de paiement avec Feyma et ça marche vraiment. Essaie avec mon code parrainage ${data.code} : tu as 1 mois offert.${data.lien ? ` ${data.lien}` : ''}`
+    ? [
+        'Bonjour 👋',
+        '',
+        "Je te recommande Feyma pour automatiser tes relances de paiement : les rappels partent tout seuls à ton nom (jusqu'au contentieux si besoin) et tu vois en temps réel ce qui est recouvré. Ça m'a vraiment fait gagner du temps et de la trésorerie.",
+        '',
+        `Avec mon code de parrainage ${data.code}, tu as 1 mois d'essai offert.`,
+        '',
+        `Pour essayer : ${lien}`,
+      ].join('\n')
     : '';
 
   return (
@@ -62,12 +76,12 @@ export function ParrainagePanel({ onClose }: { onClose: () => void }) {
                 </div>
               </div>
 
-              {data.lien && (
+              {lien && (
                 <div>
                   <label style={{ fontSize: 12, color: 'var(--ink-soft)' }}>Lien de parrainage</label>
                   <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                    <input readOnly value={data.lien} style={{ flex: 1, fontSize: 12.5 }} onFocus={(e) => e.target.select()} />
-                    <button onClick={() => copier('lien', data.lien)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, flex: 'none' }}>
+                    <input readOnly value={lien} style={{ flex: 1, fontSize: 12.5 }} onFocus={(e) => e.target.select()} />
+                    <button onClick={() => copier('lien', lien)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, flex: 'none' }}>
                       {copie === 'lien' ? <Check size={14} /> : <Copy size={14} />}
                     </button>
                   </div>
