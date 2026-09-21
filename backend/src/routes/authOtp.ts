@@ -6,6 +6,7 @@ import { signerSession, signerSessionPartenaire, signerSessionOperateur } from '
 import { estPartenaire } from '../lib/partenaires';
 import { superAdminEmails, estSuperAdmin } from '../lib/superAdmin';
 import { slugify } from '../lib/tenant';
+import { normaliserCode, codeParrainValide } from '../lib/parrainage';
 
 // Libellés lisibles des tranches de débiteurs (pour la notification exploitant).
 const TRANCHE_LABEL: Record<string, string> = {
@@ -91,16 +92,22 @@ authOtpRouter.post('/verify', async (req, res, next) => {
       const trancheDebiteurs = (TRANCHES as readonly string[]).includes(trancheBrute)
         ? (trancheBrute as Tranche)
         : null;
+      // Parrainage : si un code valide est fourni, le filleul gagne 1 mois d'essai
+      // en plus (44 j au lieu de 14). Le parrain sera crédité à l'activation.
+      const codeParrain = normaliserCode(req.body?.codeParrainage);
+      const parrainOk = codeParrain ? await codeParrainValide(codeParrain) : false;
+      const joursEssai = parrainOk ? 44 : 14;
       const org = await prisma.organisation.create({
         data: {
           raisonSociale,
           slug: await slugUnique(raisonSociale),
           statut: 'essai',
-          // Essai de 14 jours (cf. vitrine §8) — l'exploitant active ensuite.
-          dateFinEssai: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+          // Essai de 14 jours (cf. vitrine §8), 44 j si parrainé (14 + 1 mois offert).
+          dateFinEssai: new Date(Date.now() + joursEssai * 24 * 60 * 60 * 1000),
           secteur,
           outilFacturation,
           trancheDebiteurs,
+          parrainePar: parrainOk ? codeParrain : null,
           // Préremplit la formule recommandée (le client la confirme/ajuste plus tard).
           formule: formuleRecommandee(trancheDebiteurs),
         },

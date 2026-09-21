@@ -24,6 +24,14 @@ export function InscriptionOtpPage() {
   const [secteur, setSecteur] = useState('');
   const [tranche, setTranche] = useState<'' | 'moins_50' | 'entre_50_500' | 'plus_500'>('');
   const [outil, setOutil] = useState('');
+  // Code de parrainage : prérempli depuis ?parrain= (lien de parrainage partagé).
+  const [parrain, setParrain] = useState(() => {
+    try {
+      return new URLSearchParams(window.location.search).get('parrain')?.trim().toUpperCase() ?? '';
+    } catch {
+      return '';
+    }
+  });
   const [busy, setBusy] = useState(false);
   const [renvoye, setRenvoye] = useState(false);
 
@@ -49,6 +57,7 @@ export function InscriptionOtpPage() {
         secteur: secteur.trim() || undefined,
         trancheDebiteurs: tranche || undefined,
         outilFacturation: outil.trim() || undefined,
+        codeParrainage: parrain.trim() || undefined,
       });
       // Succès : AuthContext charge l'utilisateur et l'app bascule automatiquement.
       // On nettoie l'URL /inscription → racine (la console prend le relais).
@@ -178,6 +187,19 @@ export function InscriptionOtpPage() {
                   onChange={(e) => setOutil(e.target.value)}
                   placeholder="Ex. Excel, Sage, Odoo, aucun…"
                 />
+              </div>
+              <div className="field">
+                <label>Code de parrainage</label>
+                <input
+                  type="text"
+                  value={parrain}
+                  onChange={(e) => setParrain(e.target.value.toUpperCase())}
+                  placeholder="Ex. FEY-7K3Q"
+                  style={{ textTransform: 'uppercase' }}
+                />
+                {parrain.trim() && (
+                  <div className="otp-reco">🎁 1 mois d'essai offert en plus grâce à ce parrainage.</div>
+                )}
               </div>
 
               <button className="primary" type="submit" disabled={busy} style={{ width: '100%' }}>

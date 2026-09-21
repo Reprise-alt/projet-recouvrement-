@@ -4,6 +4,7 @@ import { prisma } from '../db';
 import { requireAuth } from '../middleware/auth';
 import { requireSuperAdmin } from '../middleware/superAdmin';
 import { etatAbonnement } from '../lib/abonnement';
+import { confirmerParrainageSiActif } from '../lib/parrainage';
 import { migrerTenant } from '../lib/migrationTenant';
 
 // Clients Prisma dédiés à la migration (créés à la demande, mis en cache) :
@@ -102,6 +103,8 @@ adminOrganisationsRouter.patch('/organisations/:id', async (req, res, next) => {
     if (!Object.keys(data).length) return res.status(400).json({ error: 'Aucune modification' });
 
     const org = await prisma.organisation.update({ where: { id: req.params.id }, data: data as never });
+    // Parrainage : si ce compte vient de passer « actif », on crédite son parrain.
+    if (data.statut === 'actif') await confirmerParrainageSiActif(org.id);
     res.json({
       id: org.id,
       statut: org.statut,

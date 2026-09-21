@@ -12,6 +12,7 @@ export interface ProfilInscription {
   secteur?: string;
   trancheDebiteurs?: 'moins_50' | 'entre_50_500' | 'plus_500';
   outilFacturation?: string;
+  codeParrainage?: string;
 }
 
 interface AuthState {
@@ -119,6 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         secteur: profil?.secteur,
         trancheDebiteurs: profil?.trancheDebiteurs,
         outilFacturation: profil?.outilFacturation,
+        codeParrainage: profil?.codeParrainage,
       });
       await applyToken(res.token);
       return { inscription: res.inscription };
