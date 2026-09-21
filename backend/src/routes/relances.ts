@@ -3,7 +3,7 @@ import { prisma, currentOrganisationId } from '../db';
 import { getConfig, getPaliersActifs, getReglagesPaliers } from '../services/configService';
 import { clientEncours, PALIERS } from '../lib/paliers';
 import { ClientRelance, dansFenetreEnvoi, relancesDues } from '../lib/moteurRelances';
-import { executerRelancesTenant, destinatairesRelance, PALIER_MAX_AUTO } from '../lib/executerRelances';
+import { executerRelancesTenant, destinatairesRelance, reconstruireEmailRelance, PALIER_MAX_AUTO } from '../lib/executerRelances';
 import {
   construireRelanceMarque,
   MODELES_DEFAUT,
@@ -136,16 +136,27 @@ relancesRouter.get('/journal', async (req, res, next) => {
     const libelleMap = new Map(reglages.map((r) => [r.palier, r.libelle]));
     const libelle = (p: number, fallback?: string | null) => libelleMap.get(p) || fallback || PALIERS[p]?.label || `Palier ${p}`;
 
-    const items = actions.map((a) => ({
-      id: a.id,
-      date: a.date.toISOString(),
-      clientNom: a.client?.nom ?? '—',
-      palier: a.palier,
-      palierLabel: libelle(a.palier, a.label),
-      note: a.note,
-      // Vrai si le message exact envoyé a été archivé (chargeable via /email).
-      emailArchive: !!(a.emailTexte || a.emailHtml),
-    }));
+    // Une action est un envoi email si sa note le dit (« … par email à … ») et
+    // que son palier correspond à un modèle connu — seul cas où l'aperçu peut
+    // être reconstitué. Les actions « Facture réglée/supprimée » ne matchent pas.
+    const estEmail = (note: string | null, palier: number) => !!note && /par email à/i.test(note) && !!PALIERS[palier];
+
+    const items = actions.map((a) => {
+      const archive = !!(a.emailTexte || a.emailHtml);
+      return {
+        id: a.id,
+        date: a.date.toISOString(),
+        clientNom: a.client?.nom ?? '—',
+        palier: a.palier,
+        palierLabel: libelle(a.palier, a.label),
+        note: a.note,
+        // Vrai si le message exact envoyé a été archivé (chargeable via /email).
+        emailArchive: archive,
+        // Vrai si, faute d'archive, l'aperçu peut être RECONSTITUÉ (envoi email
+        // antérieur à l'archivage) : même moteur, texte régénéré.
+        emailReconstituable: !archive && estEmail(a.note, a.palier),
+      };
+    });
 
     const parPalier = new Map<number, number>();
     for (const a of actions) parPalier.set(a.palier, (parPalier.get(a.palier) ?? 0) + 1);
@@ -168,26 +179,52 @@ relancesRouter.get('/journal/:id/email', async (req, res, next) => {
     const action = await prisma.actionRecouvrement.findUnique({
       where: { id: req.params.id },
       select: {
-        id: true, date: true, palier: true, label: true,
+        id: true, date: true, palier: true, label: true, note: true, clientId: true,
         emailSujet: true, emailTo: true, emailCc: true, emailHtml: true, emailTexte: true,
         client: { select: { nom: true } },
       },
     });
     if (!action) return res.status(404).json({ error: 'Action introuvable' });
-    if (!action.emailTexte && !action.emailHtml) {
-      return res.status(404).json({ error: 'Aucun email archivé pour cette action (antérieure à l’archivage, ou action hors email).' });
-    }
-    res.json({
+
+    const meta = {
       id: action.id,
       date: action.date.toISOString(),
       clientNom: action.client?.nom ?? '—',
       palier: action.palier,
       palierLabel: action.label,
-      sujet: action.emailSujet,
-      to: action.emailTo,
-      cc: action.emailCc,
-      html: action.emailHtml,
-      texte: action.emailTexte,
+    };
+
+    // 1) Archive exacte disponible → on renvoie le message tel qu'il est parti.
+    if (action.emailTexte || action.emailHtml) {
+      return res.json({
+        ...meta,
+        sujet: action.emailSujet,
+        to: action.emailTo,
+        cc: action.emailCc,
+        html: action.emailHtml,
+        texte: action.emailTexte,
+        reconstitue: false,
+      });
+    }
+
+    // 2) Pas d'archive (envoi antérieur à la fonctionnalité) : si l'action est
+    // bien un envoi email, on RECONSTITUE l'aperçu avec le même moteur que
+    // l'envoi. Sinon (action hors email), rien à montrer.
+    const estEmail = !!action.note && /par email à/i.test(action.note) && !!PALIERS[action.palier];
+    if (!estEmail) {
+      return res.status(404).json({ error: 'Cette action n’est pas un envoi email.' });
+    }
+    const rec = await reconstruireEmailRelance(action.clientId, action.palier);
+    if (!rec) return res.status(404).json({ error: 'Client introuvable pour la reconstitution.' });
+    return res.json({
+      ...meta,
+      sujet: rec.sujet,
+      // Destinataire réel de l'époque, si la note le mentionne ; sinon recalculé.
+      to: (action.note?.match(/par email à\s+([^\s(]+)/i)?.[1]) ?? rec.to,
+      cc: rec.cc || null,
+      html: rec.html ?? null,
+      texte: rec.texte,
+      reconstitue: true,
     });
   } catch (err) {
     next(err);
