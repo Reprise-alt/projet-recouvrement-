@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, ApiError, buildQuery, downloadFilePost } from '../api/client';
 import { useResource } from '../hooks/useResource';
 import { AgentStat, AnalyseResult, ComparaisonResult, Entite, RelanceDetail, ReportingSummary, RoleUtilisateur } from '../api/types';
-import { fmtDate, fmtFCFA, PALIERS } from '../lib/constants';
+import { fmtDate, fmtFCFA, fmtFCFAcompact, PALIERS } from '../lib/constants';
 import { usePaliersConfig } from '../lib/paliersConfig';
 import { IS_SAAS } from '../auth/mode';
 
@@ -995,9 +995,9 @@ function AnalyseVisuelle({
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(200px, 240px) 1fr', gap: 22, marginTop: 16, alignItems: 'center' }}>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
           <div style={{ width: 168, height: 168, borderRadius: '50%', background: donut, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ width: 108, height: 108, borderRadius: '50%', background: 'var(--surface)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-              <b className="mono" style={{ fontSize: 17 }}>{fmtFCFA(overdueTotal)}</b>
-              <span style={{ fontSize: 10.5, color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '.05em' }}>en retard</span>
+            <div style={{ width: 108, height: 108, borderRadius: '50%', background: 'var(--surface)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 6, textAlign: 'center' }} title={fmtFCFA(overdueTotal)}>
+              <b className="mono" style={{ fontSize: 19, lineHeight: 1 }}>{fmtFCFAcompact(overdueTotal)}</b>
+              <span style={{ fontSize: 9.5, color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '.04em', marginTop: 3 }}>FCFA en retard</span>
             </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5, width: '100%' }}>
