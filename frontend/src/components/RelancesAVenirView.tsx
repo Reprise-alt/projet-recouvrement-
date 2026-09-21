@@ -47,6 +47,8 @@ export function RelancesAVenirView({ reloadKey, canManage }: { reloadKey: unknow
   const { user } = useAuth();
   const [busy, setBusy] = useState(false);
   const [vue, setVue] = useState<'avenir' | 'historique'>('avenir');
+  // Édition rapide des coordonnées d'un client depuis la liste (gain de temps).
+  const [editClient, setEditClient] = useState<RelanceDueItem | null>(null);
 
   async function basculerEnvoi(actif: boolean) {
     setBusy(true);
@@ -156,7 +158,20 @@ export function RelancesAVenirView({ reloadKey, canManage }: { reloadKey: unknow
                 const waHref = lienWhatsApp(r.tel, messageRelanceWhatsApp({ entreprise: user?.raisonSociale, encours: r.encours }));
                 return (
                   <tr key={r.clientId}>
-                    <td>{r.nom}</td>
+                    <td>
+                      {canManage ? (
+                        <button
+                          type="button"
+                          onClick={() => setEditClient(r)}
+                          title="Compléter / modifier les coordonnées"
+                          style={{ border: 'none', background: 'none', padding: 0, font: 'inherit', color: 'var(--ink)', cursor: 'pointer', textAlign: 'left', textDecoration: 'underline', textDecorationColor: 'var(--line)', textUnderlineOffset: 3 }}
+                        >
+                          {r.nom}
+                        </button>
+                      ) : (
+                        r.nom
+                      )}
+                    </td>
                     <td>
                       <span className="badge" data-tone={tone}>
                         {r.palierLabel}
@@ -165,7 +180,19 @@ export function RelancesAVenirView({ reloadKey, canManage }: { reloadKey: unknow
                     <td>{r.joursRetard} j</td>
                     <td className="currency">{fmtFCFA(r.encours)}</td>
                     <td>
-                      {r.email ?? <span style={{ color: 'var(--danger)' }}>email manquant</span>}
+                      {r.email ? (
+                        r.email
+                      ) : canManage ? (
+                        <button
+                          type="button"
+                          onClick={() => setEditClient(r)}
+                          style={{ border: 'none', background: 'none', padding: 0, font: 'inherit', color: 'var(--danger)', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}
+                        >
+                          + ajouter un email
+                        </button>
+                      ) : (
+                        <span style={{ color: 'var(--danger)' }}>email manquant</span>
+                      )}
                       {r.email && r.ccCount > 0 && (
                         <span style={{ color: 'var(--ink-soft)', fontSize: 11.5 }}> +{r.ccCount} en copie</span>
                       )}
@@ -196,6 +223,14 @@ export function RelancesAVenirView({ reloadKey, canManage }: { reloadKey: unknow
                         >
                           <MessageCircle size={14} /> WhatsApp
                         </a>
+                      ) : canManage ? (
+                        <button
+                          type="button"
+                          onClick={() => setEditClient(r)}
+                          style={{ border: 'none', background: 'none', padding: 0, font: 'inherit', color: 'var(--ink-soft)', cursor: 'pointer', fontSize: 12, textDecoration: 'underline', textUnderlineOffset: 2 }}
+                        >
+                          + ajouter un n°
+                        </button>
                       ) : (
                         <span style={{ color: 'var(--ink-soft)', fontSize: 12 }} title="Aucun numéro de téléphone sur la fiche client">
                           n° manquant
@@ -249,6 +284,91 @@ export function RelancesAVenirView({ reloadKey, canManage }: { reloadKey: unknow
       )}
         </>
       )}
+      {editClient && (
+        <ContactQuickEdit
+          client={editClient}
+          onClose={() => setEditClient(null)}
+          onSaved={() => {
+            setEditClient(null);
+            res.refetch();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// Édition rapide des coordonnées (email + téléphone) d'un client, depuis la liste
+// des relances à venir. Enregistre dans la fiche client (PATCH .../contact).
+function ContactQuickEdit({
+  client,
+  onClose,
+  onSaved,
+}: {
+  client: RelanceDueItem;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const { showToast } = useToast();
+  const [email, setEmail] = useState(client.email ?? '');
+  const [tel, setTel] = useState(client.tel ?? '');
+  const [saving, setSaving] = useState(false);
+
+  async function enregistrer() {
+    setSaving(true);
+    try {
+      await api.patch(`/api/clients/${client.clientId}/contact`, { email: email.trim(), tel: tel.trim() });
+      showToast('Coordonnées enregistrées');
+      onSaved();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="modal-overlay open" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal" style={{ width: 'min(440px, 96%)' }}>
+        <h2 style={{ marginBottom: 2, fontSize: 18 }}>{client.nom}</h2>
+        <div style={{ color: 'var(--ink-soft)', fontSize: 12.5, marginBottom: 16 }}>
+          Complétez les coordonnées — enregistrées directement dans la fiche client.
+        </div>
+        <div className="field">
+          <label>Adresse email</label>
+          <input
+            type="email"
+            autoFocus
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && enregistrer()}
+            placeholder="client@exemple.sn"
+            style={{ width: '100%' }}
+          />
+          <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 3 }}>
+            Nécessaire pour l'envoi automatique des relances par email.
+          </div>
+        </div>
+        <div className="field">
+          <label>Téléphone</label>
+          <input
+            type="tel"
+            value={tel}
+            onChange={(e) => setTel(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && enregistrer()}
+            placeholder="77 000 00 00"
+            style={{ width: '100%' }}
+          />
+          <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 3 }}>
+            Sert à la relance WhatsApp et au rapprochement des paiements.
+          </div>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 18 }}>
+          <button onClick={onClose} disabled={saving}>Annuler</button>
+          <button className="primary" onClick={enregistrer} disabled={saving}>
+            {saving ? 'Enregistrement…' : 'Enregistrer'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
