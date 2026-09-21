@@ -3,8 +3,9 @@ import { RoleOrg } from '@prisma/client';
 import { prisma } from '../db';
 import { Entite, RoleUtilisateur, userCanAccessEntite } from '../lib/entites';
 import { extractEmailFromToken } from '../lib/verifyToken';
-import { verifierSession, verifierSessionPartenaire } from '../lib/authToken';
+import { verifierSession, verifierSessionPartenaire, verifierSessionOperateur } from '../lib/authToken';
 import { estPartenaire } from '../lib/partenaires';
+import { estSuperAdmin } from '../lib/superAdmin';
 import { accesDepuisMoi, lireCookie, resoudreSession } from '../lib/sso';
 
 // Mode d'authentification : 'sso' = session partagée du hub OLU 360 (cookie
@@ -47,6 +48,9 @@ declare global {
       // organisation (transverse aux sociétés). Posé par requirePartenaire /
       // requireAuthOuPartenaire, jamais en même temps que `user`.
       partenaire?: { email: string };
+      // Exploitant plateforme SANS société (email SUPERADMIN_EMAILS sans compte) :
+      // session « espace exploitant » autonome, posée par requireAuthOuPartenaire.
+      operateur?: { email: string };
     }
   }
 }
@@ -223,9 +227,17 @@ export function requirePartenaire(req: Request, res: Response, next: NextFunctio
 export async function requireAuthOuPartenaire(req: Request, res: Response, next: NextFunction) {
   const bearer = req.headers.authorization;
   if (bearer?.startsWith('Bearer ')) {
-    const p = verifierSessionPartenaire(bearer.slice('Bearer '.length));
+    const token = bearer.slice('Bearer '.length);
+    const p = verifierSessionPartenaire(token);
     if (p && estPartenaire(p.email)) {
       req.partenaire = { email: p.email };
+      return next();
+    }
+    // Session exploitant autonome (SUPERADMIN_EMAILS sans société) : le front
+    // bascule alors sur l'espace exploitant (mêmes règles que requireExploitant).
+    const op = verifierSessionOperateur(token);
+    if (op && estSuperAdmin(op.email)) {
+      req.operateur = { email: op.email };
       return next();
     }
   }

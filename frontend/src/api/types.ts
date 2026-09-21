@@ -92,6 +92,9 @@ export interface CurrentUser {
   // Session « cabinet partenaire » (avocat/huissier plateforme, sans
   // organisation) : le front bascule alors sur la console partenaire.
   partenaire?: boolean;
+  // Session « exploitant plateforme » (gère les demandes + activations, sans
+  // société) : le front bascule alors sur l'espace exploitant.
+  operateur?: boolean;
 }
 
 // Un dossier confié au cabinet partenaire (vue transverse aux sociétés).
