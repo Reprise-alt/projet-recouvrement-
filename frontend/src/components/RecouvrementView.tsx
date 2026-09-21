@@ -172,7 +172,7 @@ export function RecouvrementView({ entityFilter, role, reloadKey, onImport, canR
           <div className="kpi-value amber">{kpis.data?.enRetard ?? '—'}</div>
         </div>
         <div className="kpi">
-          <div className="kpi-label"><Gavel size={13} /> En contentieux (palier ≥ 6)</div>
+          <div className="kpi-label"><Gavel size={13} /> En litige (palier ≥ 6)</div>
           <div className="kpi-value danger currency">{kpis.data ? fmtFCFA(kpis.data.contentieux) : '—'}</div>
         </div>
         <div className="kpi">
