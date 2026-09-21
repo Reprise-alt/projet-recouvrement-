@@ -6,7 +6,6 @@ import { OnboardingChecklist } from './components/OnboardingChecklist';
 import { RecouvrementView } from './components/RecouvrementView';
 import { ImpactDashboard } from './components/ImpactDashboard';
 import { RelancesAVenirView } from './components/RelancesAVenirView';
-import { ModelesRelancePanel } from './components/ModelesRelancePanel';
 import { ContractsView } from './components/ContractsView';
 import { ContentieuxView } from './components/ContentieuxView';
 import { PlanningView } from './components/PlanningView';
@@ -18,16 +17,12 @@ import { DeclarationChequeView } from './components/DeclarationChequeView';
 import { PresentationView } from './components/PresentationView';
 import { ArticlePage, BlogIndex } from './components/BlogView';
 import { WelcomeSplash } from './components/WelcomeSplash';
-import { SettingsModal } from './components/SettingsModal';
 import { ImportPanel } from './components/ImportPanel';
-import { UsersPanel } from './components/UsersPanel';
 import { IntegrationsPanel } from './components/IntegrationsPanel';
-import { EntreprisesPanel } from './components/EntreprisesPanel';
-import { FicheEntreprise } from './components/FicheEntreprise';
+import { ParametresEntreprisePanel } from './components/ParametresEntreprisePanel';
 import { AbonnementBloque } from './components/AbonnementBloque';
 import { SuperAdminPanel } from './components/SuperAdminPanel';
 import { ParrainagePanel } from './components/ParrainagePanel';
-import { DeliverabilityPanel } from './components/DeliverabilityPanel';
 import { RapprochementPanel } from './components/RapprochementPanel';
 import { ChequesDeclaresPanel } from './components/ChequesDeclaresPanel';
 import { OffresAbonnement } from './components/OffresAbonnement';
@@ -102,18 +97,13 @@ export function App() {
   // En SaaS, le tableau de bord « Impact » est l'accueil (vu à chaque connexion).
   const [recouvrementTab, setRecouvrementTab] = useState<RecouvrementTab>(IS_SAAS ? 'tableau' : 'recouvrement');
   const [entityFilter, setEntityFilter] = useState<EntityFilter>('ALL');
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [parametresOpen, setParametresOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [usersOpen, setUsersOpen] = useState(false);
-  const [modelesOpen, setModelesOpen] = useState(false);
   const [integrationsOpen, setIntegrationsOpen] = useState(false);
-  const [entreprisesOpen, setEntreprisesOpen] = useState(false);
-  const [ficheOpen, setFicheOpen] = useState(false);
   const [superAdminOpen, setSuperAdminOpen] = useState(false);
   const [espaceExploitantOuvert, setEspaceExploitantOuvert] = useState(false);
   const [offresOpen, setOffresOpen] = useState(false);
   const [parrainageOpen, setParrainageOpen] = useState(false);
-  const [deliverabilityOpen, setDeliverabilityOpen] = useState(false);
   const [rapprochementOpen, setRapprochementOpen] = useState(false);
   const [chequesOpen, setChequesOpen] = useState(false);
   const [dataVersion, setDataVersion] = useState(0);
@@ -439,12 +429,10 @@ export function App() {
           <div className="rail-section">
             <div className="rail-section-label">Administration</div>
             <div className="rail-nav">
-              {/* Fiche entreprise : profil de la société (logo, NINEA/IFU, RCCM,
-                  adresse, contact, instructions de paiement). Accessible en
-                  permanence en SaaS — plus seulement pendant l'onboarding. */}
-              {IS_SAAS && <button onClick={() => setFicheOpen(true)}>Fiche entreprise</button>}
-              <button onClick={() => setSettingsOpen(true)}>Paramètres des paliers</button>
-              <button onClick={() => setModelesOpen(true)}>Modèles de relance</button>
+              {/* Paramètres entreprise : hub regroupant toute la configuration
+                  (fiche, paliers, modèles, utilisateurs, entités, délivrabilité)
+                  derrière une seule entrée du rail. */}
+              <button onClick={() => setParametresOpen(true)}>Paramètres entreprise</button>
               <button onClick={() => setImportOpen(true)}>Importer un fichier</button>
               {IS_SAAS && <button onClick={() => setRapprochementOpen(true)}>Rapprochement des paiements</button>}
               {IS_SAAS && (
@@ -457,15 +445,10 @@ export function App() {
                   )}
                 </button>
               )}
-              <button onClick={() => setUsersOpen(true)}>Utilisateurs</button>
               {/* Intégrations Gmail = envoi manuel côté groupe. En SaaS, l'envoi
                   (auto ET manuel) passe par le canal mutualisé au nom du client —
                   ce panneau ne sert à rien, on le masque. */}
               {!IS_SAAS && <button onClick={() => setIntegrationsOpen(true)}>Intégrations</button>}
-              {/* Gestion multi-entités : réservée PME / Grands comptes en SaaS. */}
-              {canMultiEntites && <button onClick={() => setEntreprisesOpen(true)}>Entreprises</button>}
-              {/* Vérificateur de délivrabilité (SPF/DKIM/DMARC) — SaaS. */}
-              {IS_SAAS && <button onClick={() => setDeliverabilityOpen(true)}>Délivrabilité e-mail</button>}
               {/* Parrainage : inviter une entreprise, 1 mois offert (SaaS). */}
               {IS_SAAS && <button onClick={() => setParrainageOpen(true)}>🎁 Parrainage</button>}
             </div>
@@ -611,16 +594,19 @@ export function App() {
         )}
       </main>
 
-      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} onSaved={bumpDataVersion} />}
+      {parametresOpen && (
+        <ParametresEntreprisePanel
+          onClose={() => setParametresOpen(false)}
+          onSaved={bumpDataVersion}
+          onEntreprisesChanged={refetchEntreprises}
+          domaineInitial={user.email}
+          canMultiEntites={canMultiEntites}
+        />
+      )}
       {importOpen && <ImportPanel onClose={() => setImportOpen(false)} onImported={bumpDataVersion} />}
-      {usersOpen && <UsersPanel onClose={() => setUsersOpen(false)} />}
-      {modelesOpen && <ModelesRelancePanel onClose={() => setModelesOpen(false)} />}
       {integrationsOpen && <IntegrationsPanel onClose={() => setIntegrationsOpen(false)} />}
-      {entreprisesOpen && <EntreprisesPanel onClose={() => setEntreprisesOpen(false)} onChanged={refetchEntreprises} />}
-      {ficheOpen && <FicheEntreprise onClose={() => setFicheOpen(false)} onSaved={bumpDataVersion} />}
       {superAdminOpen && <SuperAdminPanel onClose={() => setSuperAdminOpen(false)} />}
       {parrainageOpen && <ParrainagePanel onClose={() => setParrainageOpen(false)} />}
-      {deliverabilityOpen && <DeliverabilityPanel onClose={() => setDeliverabilityOpen(false)} domaineInitial={user.email} />}
       {rapprochementOpen && <RapprochementPanel onClose={() => setRapprochementOpen(false)} onChanged={bumpDataVersion} />}
       {chequesOpen && <ChequesDeclaresPanel onClose={() => setChequesOpen(false)} onChanged={bumpDataVersion} />}
       {offresOpen && (
