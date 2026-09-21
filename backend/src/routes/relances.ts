@@ -336,7 +336,7 @@ relancesRouter.post('/modeles/:palier/apercu', async (req, res, next) => {
           select: {
             raisonSociale: true, logoUrl: true, adresse: true, identifiantFiscal: true,
             rccm: true, formeJuridique: true, capitalSocial: true, contactRecouvrement: true,
-            instructionsPaiement: true, pays: true,
+            instructionsPaiement: true, waveLien: true, orangeMoneyNumero: true, pays: true,
           },
         })
       : null;
@@ -345,7 +345,8 @@ relancesRouter.post('/modeles/:palier/apercu', async (req, res, next) => {
       logoUrl: org?.logoUrl, adresse: org?.adresse, identifiantFiscal: org?.identifiantFiscal,
       rccm: org?.rccm, formeJuridique: org?.formeJuridique, capitalSocial: org?.capitalSocial,
       contactRecouvrement: org?.contactRecouvrement,
-      instructionsPaiement: org?.instructionsPaiement, pays: org?.pays,
+      instructionsPaiement: org?.instructionsPaiement, waveLien: org?.waveLien,
+      orangeMoneyNumero: org?.orangeMoneyNumero, pays: org?.pays,
     };
     const sujet = req.body?.sujet != null ? String(req.body.sujet) : MODELES_DEFAUT[palier].sujet;
     const corps = req.body?.corps != null ? String(req.body.corps) : MODELES_DEFAUT[palier].corps;

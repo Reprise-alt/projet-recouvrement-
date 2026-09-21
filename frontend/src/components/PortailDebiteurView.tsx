@@ -104,6 +104,9 @@ export function PortailDebiteurView({ token }: { token: string }) {
                 {fmtFCFA(data.montantDu)}
               </div>
 
+              {/* Payer maintenant (Mobile Money) */}
+              {!data.clos && <PayerBlock paiement={data.paiement} montant={data.montantDu} reference={data.reference} />}
+
               {/* Factures */}
               {data.factures.length > 0 && (
                 <div style={{ marginTop: 14 }}>
@@ -200,6 +203,58 @@ function Centre({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: 'var(--ink-soft)', padding: 24 }}>
       <div>{children}</div>
+    </div>
+  );
+}
+
+// Bloc « Payer maintenant » — Mobile Money (Wave / Orange Money) avec le montant
+// dû et la référence du dossier. Rien à afficher si le créancier n'a renseigné
+// aucun moyen.
+function PayerBlock({
+  paiement,
+  montant,
+  reference,
+}: {
+  paiement: PortailPublic['paiement'];
+  montant: number;
+  reference: string;
+}) {
+  const wave = paiement?.waveLien?.trim();
+  const om = paiement?.orangeMoneyNumero?.trim();
+  const instructions = paiement?.instructions?.trim();
+  if (!wave && !om && !instructions) return null;
+  const lienWave = wave ? wave.replace(/\{montant\}/g, String(Math.round(montant))) : null;
+
+  return (
+    <div style={{ marginTop: 16, padding: '16px 18px', borderRadius: 12, border: '1px solid var(--line)', background: 'var(--accent-soft)' }}>
+      <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--accent-dark)', marginBottom: 8 }}>
+        Payer maintenant
+      </div>
+      <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginBottom: 12 }}>
+        Montant à régler : <b style={{ color: 'var(--ink)' }}>{fmtFCFA(montant)}</b> · Référence : <span className="mono">{reference}</span>
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+        {lienWave && (
+          <a
+            href={lienWave}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: '#1DC3F0', color: '#00243a', fontWeight: 700, fontSize: 14, textDecoration: 'none', padding: '11px 20px', borderRadius: 10 }}
+          >
+            Payer par Wave →
+          </a>
+        )}
+        {om && (
+          <div style={{ fontSize: 13.5 }}>
+            Orange&nbsp;Money : <b className="mono">{om}</b>
+          </div>
+        )}
+      </div>
+      {instructions && (
+        <div style={{ marginTop: 12, fontSize: 12.5, color: 'var(--ink-soft)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+          {instructions}
+        </div>
+      )}
     </div>
   );
 }
