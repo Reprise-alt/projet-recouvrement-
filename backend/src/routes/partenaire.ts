@@ -86,7 +86,14 @@ partenaireRouter.get('/dossiers/:id', async (req, res, next) => {
       },
     });
     if (!dossier) return res.status(404).json({ error: 'Dossier introuvable ou non confié au partenaire' });
-    res.json(dossier);
+    // Historique des relances amiables du client (preuve des tentatives avant
+    // contentieux). Cross-tenant : filtré sur le client du dossier confié.
+    const relances = await prisma.actionRecouvrement.findMany({
+      where: { clientId: dossier.clientId },
+      orderBy: { date: 'desc' },
+      select: { id: true, date: true, palier: true, label: true, note: true },
+    });
+    res.json({ ...dossier, relances });
   } catch (e) {
     next(e);
   }

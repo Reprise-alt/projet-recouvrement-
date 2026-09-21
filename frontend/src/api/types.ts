@@ -1164,6 +1164,16 @@ export interface DossierContentieuxDetail {
   analyse: AnalyseContentieux | null;
   decompte: LigneDecompte[];
   actes: ActeContentieux[];
+  // Historique des relances amiables du client (preuve des tentatives avant contentieux).
+  relances?: RelanceHistorique[];
+}
+
+export interface RelanceHistorique {
+  id: string;
+  date: string;
+  palier: number;
+  label: string | null;
+  note: string | null;
 }
 
 // Réponse de POST /dossiers/:id/analyser.
