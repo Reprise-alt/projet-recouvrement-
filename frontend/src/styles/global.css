@@ -664,21 +664,21 @@ label{font-family:var(--font-mono);font-size:10.5px;text-transform:uppercase;let
 .faq-item[open] .faq-chevron{transform:rotate(180deg);}
 .faq-answer{padding:0 0 16px;font-size:14px;color:var(--ink-soft);line-height:1.6;}
 /* Feymatisation de la console SaaS (scopée à .is-feyma — la console groupe est
-   intacte). Fond clair conservé pour la lisibilité des données ; l'identité
-   Feyma vient de la typo Space Grotesk et de l'accent LIME dans le rail sombre
-   (l'îlot d'énergie), le corps gardant le vert lisible. */
+   intacte). Direction B « Encre & Menthe » : fond clair conservé pour la
+   lisibilité des données ; l'identité vient de la typo (Bricolage Grotesque /
+   Hanken Grotesk) et de l'accent ÉMERAUDE dans le rail marine. */
 .is-feyma{
-  --font-body:'Space Grotesk',system-ui,sans-serif;
-  --font-display:'Space Grotesk',system-ui,sans-serif;
+  --font-body:'Hanken Grotesk',system-ui,sans-serif;
+  --font-display:'Bricolage Grotesque','Hanken Grotesk',sans-serif;
 }
-.is-feyma .rail{--brand:#C6FB50;--brand-ink:#0C120F;}
-.is-feyma .rail-brand b{font-family:'Archivo Black',sans-serif;letter-spacing:-.01em;}
+.is-feyma .rail{--brand:#4BD0A0;--brand-ink:#0E1D33;}
+.is-feyma .rail-brand b{font-family:'Bricolage Grotesque',sans-serif;font-weight:800;letter-spacing:-.01em;}
 
 /* Splash d'accueil Feyma : la pièce traverse l'écran + « Bon recouvrement ! » */
-.splash{position:fixed;inset:0;z-index:9999;background:#0C120F;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;overflow:hidden;animation:splashOut .5s ease-in forwards;animation-delay:2.15s;}
-.splash-coin{animation:coinFly 2s ease-in-out forwards;filter:drop-shadow(0 10px 30px rgba(198,251,80,.35));}
+.splash{position:fixed;inset:0;z-index:9999;background:radial-gradient(circle at 50% -10%, #143154 0%, #0E1D33 60%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;overflow:hidden;animation:splashOut .5s ease-in forwards;animation-delay:2.15s;}
+.splash-coin{animation:coinFly 2s ease-in-out forwards;filter:drop-shadow(0 10px 30px rgba(75,208,160,.4));}
 .splash-coin svg{display:block;}
-.splash-text{font-family:'Archivo Black',sans-serif;color:#fff;font-size:clamp(24px,4.8vw,44px);letter-spacing:-.02em;text-align:center;max-width:90vw;padding:0 20px;text-wrap:balance;opacity:0;animation:splashText .6s ease-out forwards;animation-delay:.7s;}
+.splash-text{font-family:'Bricolage Grotesque',sans-serif;font-weight:800;color:#fff;font-size:clamp(24px,4.8vw,44px);letter-spacing:-.02em;text-align:center;max-width:90vw;padding:0 20px;text-wrap:balance;opacity:0;animation:splashText .6s ease-out forwards;animation-delay:.7s;}
 @keyframes coinFly{
   0%{transform:translateX(-80vw) rotate(-160deg) scale(.8);opacity:0;}
   12%{opacity:1;}
@@ -696,63 +696,75 @@ label{font-family:var(--font-mono);font-size:10.5px;text-transform:uppercase;let
 /* Page de connexion/inscription Feyma (SaaS) — îlot sombre, cohérent avec le
    hero. Scopée à .login-feyma pour ne pas toucher la connexion SSO du groupe. */
 .login-feyma{
-  --accent:#C6FB50; --accent-dark:#D4FB6E; --accent-soft:#182210;
-  --ink:#EAF3EA; --ink-soft:#9CB0A0;
-  --surface:#141C17; --line:#2A3830; --line-soft:#202C24;
-  --paper:#0C120F; --paper-2:#0F1712;
-  --chrome-bg:#C6FB50; --chrome-text:#0C120F;
-  --danger:#FF6B5A; --danger-soft:#2A1512;
-  --success:#8FE86B; --success-soft:#16250F;
-  --font-body:'Space Grotesk',system-ui,sans-serif;
-  --font-display:'Archivo Black','Space Grotesk',sans-serif;
-  background:radial-gradient(circle at 50% -10%, #17240F 0%, #0C120F 55%);
+  --accent:#4BD0A0; --accent-dark:#7FE9C4; --accent-soft:#122E27;
+  --coin-ink:#0E1D33; /* pièce menthe → « F » marine (accent clair) */
+  --ink:#EAF1F7; --ink-soft:#9DB0C4;
+  --surface:#15263D; --line:#294059; --line-soft:#1E3450;
+  --paper:#0E1D33; --paper-2:#122540;
+  --chrome-bg:#4BD0A0; --chrome-text:#0E1D33;
+  --danger:#FF7A6B; --danger-soft:#2C1613;
+  --success:#6FE3B8; --success-soft:#122E27;
+  --font-body:'Hanken Grotesk',system-ui,sans-serif;
+  --font-display:'Bricolage Grotesque','Hanken Grotesk',sans-serif;
+  background:radial-gradient(circle at 50% -10%, #143154 0%, #0E1D33 55%);
   color:var(--ink);
   font-family:var(--font-body);
 }
-.login-feyma .login-card h1{font-family:'Space Grotesk',sans-serif;font-weight:700;}
+.login-feyma .login-card h1{font-family:'Bricolage Grotesque',sans-serif;font-weight:800;}
 .login-feyma .brand-mark{background:transparent;border-color:transparent;box-shadow:none;}
 .login-feyma button.primary:hover{filter:brightness(1.05);}
 
-/* ============ Direction Neo-Cash HYBRIDE — vitrine & blog (.lp) ============ */
-/* Fondation CLAIRE (lisibilité + confiance) + îlots SOMBRES (hero, CTA final)
-   pour l'énergie. Typo Neo-Cash partout (Archivo Black + Space Grotesk). */
-body:has(.lp){background:#F7F8F6;}
+/* ============ Direction B « Encre & Menthe » — vitrine & blog (.lp) ============ */
+/* Registre CLAIR & ÉDITORIAL (fintech posée, rassurante) : fond ivoire, encre
+   marine, accent émeraude. Un SEUL îlot marine (le CTA final) pour ponctuer.
+   Typo Bricolage Grotesque (titres) + Hanken Grotesk (corps). */
+body:has(.lp){background:#FBFBF8;}
 .lp{
-  --accent:#1D9E75; --accent-dark:#177F5E; --accent-soft:#E9F7F2;
-  --ink:#1A1E1C; --ink-soft:#5C6560;
-  --surface:#FFFFFF; --line:#E4E7E3; --line-soft:#EDEFEA;
-  --paper:#F7F8F6; --paper-2:#ECEEE9;
+  --accent:#0E7C5A; --accent-dark:#0A5F45; --accent-soft:#E3F2EC;
+  --ink:#0E1D33; --ink-soft:#5A6472;
+  --surface:#FFFFFF; --line:#E7EAE7; --line-soft:#EFF1ED;
+  --paper:#FBFBF8; --paper-2:#F1F3EF;
   --danger:#C0392B; --danger-soft:#FBEAE8;
   --amber:#B0700F; --amber-soft:#FBF1DE;
-  --success:#3E7C4A; --success-soft:#EEF7E6;
-  --font-body:'Space Grotesk',system-ui,sans-serif;
-  --font-display:'Archivo Black','Space Grotesk',sans-serif;
+  --success:#0E7C5A; --success-soft:#E3F2EC;
+  --font-body:'Hanken Grotesk',system-ui,sans-serif;
+  --font-display:'Bricolage Grotesque','Hanken Grotesk',sans-serif;
   color:var(--ink);
   font-family:var(--font-body);
 }
-.lp h1,.lp h2,.lp h3{font-family:var(--font-display);}
-/* Titres de section & blog : Space Grotesk bold (Archivo Black réservé au hero/CTA) */
-.lp .lp-section h2{font-family:'Space Grotesk',sans-serif;font-weight:700;letter-spacing:-.01em;}
-.lp .blog-article-titre,.lp .blog-body h2,.lp .blog-card-titre{font-family:'Space Grotesk',sans-serif;font-weight:700;}
-/* Boutons principaux : vert plein, texte blanc (corps clair) */
+.lp h1,.lp h2,.lp h3{font-family:var(--font-display);font-weight:800;}
+/* Titres de section & blog : Bricolage semi-bold */
+.lp .lp-section h2{font-family:var(--font-display);font-weight:700;letter-spacing:-.01em;}
+.lp .blog-article-titre,.lp .blog-body h2,.lp .blog-card-titre{font-family:var(--font-display);font-weight:700;}
+/* Boutons principaux : émeraude plein, texte blanc */
 .lp .lp-btn-primary{background:var(--accent);color:#fff;}
+.lp .lp-btn-primary:hover:not(:disabled){background:var(--accent-dark);}
 .lp .lp-plan-pop{border-color:var(--accent);}
 
-/* --- Îlots sombres : le hero et le CTA final (accent lime) --- */
-.lp .lp-hero,.lp .lp-final{
-  --accent:#C6FB50; --accent-dark:#D4FB6E; --accent-soft:#182210;
-  --ink:#EAF3EA; --ink-soft:#9CB0A0; --surface:#141C17; --line:#2A3830;
-  background:#0C120F; color:var(--ink); border-radius:24px;
+/* --- Hero CLAIR & éditorial (registre posé, phrase en casse normale) --- */
+.lp .lp-hero{
+  background:linear-gradient(180deg, #FFFFFF 0%, #F4F7F3 100%);
+  border:1px solid var(--line); border-radius:24px;
+  padding:52px 28px 46px; margin-top:8px;
 }
-.lp .lp-hero{padding:48px 28px 42px;margin-top:8px;}
-.lp .lp-hero h1,.lp .lp-final h2{font-family:var(--font-display);text-transform:uppercase;letter-spacing:-.025em;line-height:.98;}
+.lp .lp-hero h1{font-family:var(--font-display);font-weight:800;letter-spacing:-.02em;line-height:1.02;}
 .lp .lp-hero h1 .hl{color:var(--accent);}
 .lp .lp-hero .lp-eyebrow{color:var(--accent-dark);}
-.lp .lp-final h2{color:#fff;}
-.lp .lp-hero .lp-btn-primary,.lp .lp-final .lp-btn-primary{background:var(--accent);color:#0C120F;}
+/* Coche de réassurance en émeraude (hero clair) */
+.lp .lp-hero .lp-reassurance li::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230E7C5A' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");}
+
+/* --- Îlot MARINE : le seul bloc sombre, le CTA final (accent menthe) --- */
+.lp .lp-final{
+  --accent:#4BD0A0; --accent-dark:#7FE9C4; --accent-soft:#122E27;
+  --coin-ink:#0E1D33; /* pièce menthe → « F » marine (accent clair) */
+  --ink:#EAF1F7; --ink-soft:#9DB0C4; --surface:#15263D; --line:#294059;
+  background:radial-gradient(circle at 50% -20%, #143154 0%, #0E1D33 65%);
+  color:var(--ink); border-radius:24px;
+}
+.lp .lp-final h2{font-family:var(--font-display);font-weight:800;letter-spacing:-.02em;line-height:1.02;color:#fff;}
+.lp .lp-final .lp-btn-primary{background:var(--accent);color:#0E1D33;}
+.lp .lp-final .lp-btn-primary:hover:not(:disabled){background:var(--accent-dark);}
 .lp .lp-btn-on-dark{border-color:rgba(255,255,255,.32);color:#fff;}
-/* Coche de réassurance en lime (dans le hero sombre) */
-.lp .lp-hero .lp-reassurance li::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23C6FB50' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");}
 @media(max-width:760px){.lp-steps,.lp-benefits,.lp-plans,.lp-stats,.lp-enjeux,.blog-list,.mock-kpis,.mock-duo,.lp-temoignages{grid-template-columns:1fr;}.lp-nav-links a:not(.lp-btn){display:none;}.lp-nav-links{gap:7px;}.lp-nav-links .lp-btn{padding:8px 11px;font-size:12.5px;white-space:nowrap;}}
 
 /* ===== Démarrage guidé SaaS (addendum §4.3) ===== */
