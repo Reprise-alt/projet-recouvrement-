@@ -3,7 +3,7 @@ import PDFDocument from 'pdfkit';
 import ExcelJS from 'exceljs';
 import fs from 'fs';
 import path from 'path';
-import { prisma, rlsActive, withTenant } from '../db';
+import { prisma, rlsActive, withTenant, currentOrganisationId } from '../db';
 import { getEmailProvider } from '../lib/email/provider';
 import { requireAccesRecouvrement, requireAuth, requireRole } from '../middleware/auth';
 import { Entite, resolveEntiteScope } from '../lib/entites';
@@ -717,18 +717,92 @@ function pdfSafe(s: string): string {
     .replace(/\u2264/g, '<=');
 }
 
-const PDF_INK = '#1B2430';
-const PDF_INK_SOFT = '#4B5566';
-const PDF_DARK = '#0E2A22';
-const PDF_ACCENT = '#1D9E75';
-const PDF_LINE = '#DDDAD0';
-const PDF_PAPER2 = '#ECEAE2';
-const PDF_SUCCESS = '#3E7C4A';
-const PDF_SUCCESS_SOFT = '#DEEAE0';
-const PDF_AMBER = '#B8860A';
-const PDF_AMBER_SOFT = '#F3E7C6';
-const PDF_DANGER = '#A8382F';
+// Palette direction B « Encre & Menthe ».
+const PDF_INK = '#0E1D33';
+const PDF_INK_SOFT = '#5A6472';
+const PDF_DARK = '#0E1D33';
+const PDF_ACCENT = '#0E7C5A';
+const PDF_MINT = '#4BD0A0';
+const PDF_LINE = '#E7EAE7';
+const PDF_PAPER2 = '#F1F3EF';
+const PDF_SUCCESS = '#0E7C5A';
+const PDF_SUCCESS_SOFT = '#E3F2EC';
+const PDF_AMBER = '#B0700F';
+const PDF_AMBER_SOFT = '#FBF1DE';
+const PDF_DANGER = '#C0392B';
+const PDF_DANGER_SOFT = '#FBEAE8';
 const PAGE_MARGIN = 44;
+
+// Montant compact pour les espaces contraints (155 433 850 → « 155,4 M »).
+function fmtCompact(n: number): string {
+  const abs = Math.abs(n);
+  const f = (x: number, s: string) => `${x.toFixed(1).replace(/\.0$/, '').replace('.', ',')} ${s}`;
+  if (abs >= 1e9) return f(n / 1e9, 'Md');
+  if (abs >= 1e6) return f(n / 1e6, 'M');
+  if (abs >= 1e3) return `${Math.round(n / 1e3)} k`;
+  return String(Math.round(n));
+}
+
+// Pièce Feyma dessinée en vectoriel (émeraude + « F » blanc) : nette à toute
+// taille, aucun asset. Le « F » est fait de 3 traits ronds, comme le logo.
+function drawFeymaMark(doc: PDFKit.PDFDocument, cx: number, cy: number, r: number) {
+  doc.save();
+  doc.circle(cx, cy, r).fill(PDF_ACCENT);
+  doc.circle(cx, cy, r * 0.84).lineWidth(r * 0.04).strokeColor('#FFFFFF').strokeOpacity(0.35).stroke();
+  doc.strokeOpacity(1);
+  const s = r * 0.9; // demi-largeur du F
+  const lw = r * 0.22;
+  const left = cx - s * 0.55;
+  const top = cy - s * 0.75;
+  const bot = cy + s * 0.75;
+  const mid = cy;
+  doc.lineWidth(lw).strokeColor('#FFFFFF').lineCap('round').lineJoin('round');
+  doc.moveTo(left, top).lineTo(cx + s * 0.62, top).stroke(); // barre haute
+  doc.moveTo(left, top).lineTo(left, bot).stroke(); // verticale
+  doc.moveTo(left, mid).lineTo(cx + s * 0.42, mid).stroke(); // barre médiane
+  doc.restore();
+}
+
+// Camembert (donut) dessiné en secteurs SVG, avec un trou blanc au centre.
+function drawDonut(doc: PDFKit.PDFDocument, cx: number, cy: number, r: number, segments: { value: number; color: string }[]) {
+  const total = segments.reduce((s, x) => s + x.value, 0);
+  doc.save();
+  if (total <= 0) {
+    doc.circle(cx, cy, r).fill(PDF_LINE);
+  } else {
+    let a0 = -Math.PI / 2;
+    for (const seg of segments) {
+      if (seg.value <= 0) continue;
+      const a1 = a0 + (seg.value / total) * Math.PI * 2;
+      const x0 = cx + r * Math.cos(a0);
+      const y0 = cy + r * Math.sin(a0);
+      const x1 = cx + r * Math.cos(a1);
+      const y1 = cy + r * Math.sin(a1);
+      const large = a1 - a0 > Math.PI ? 1 : 0;
+      doc.path(`M ${cx} ${cy} L ${x0} ${y0} A ${r} ${r} 0 ${large} 1 ${x1} ${y1} Z`).fill(seg.color);
+      a0 = a1;
+    }
+  }
+  doc.circle(cx, cy, r * 0.58).fill('#FFFFFF');
+  doc.restore();
+}
+
+// Histogramme vertical simple (montants par mois), avec valeur compacte au-dessus.
+function drawBarChart(doc: PDFKit.PDFDocument, x: number, y: number, w: number, h: number, data: { label: string; value: number }[]) {
+  const max = Math.max(1, ...data.map((d) => d.value));
+  const n = data.length;
+  const gap = 10;
+  const bw = Math.min(46, (w - gap * (n - 1)) / n);
+  const step = (w - bw) / Math.max(1, n - 1);
+  data.forEach((d, i) => {
+    const bx = x + i * step;
+    const bh = Math.max(2, (d.value / max) * (h - 26));
+    const by = y + (h - 16) - bh;
+    doc.roundedRect(bx, by, bw, bh, 3).fill(PDF_ACCENT);
+    doc.font('Courier').fontSize(6.8).fillColor(PDF_INK).text(fmtCompact(d.value), bx - 6, by - 11, { width: bw + 12, align: 'center' });
+    doc.font('Courier').fontSize(7).fillColor(PDF_INK_SOFT).text(pdfSafe(d.label), bx - 6, y + h - 12, { width: bw + 12, align: 'center' });
+  });
+}
 
 function pdfPageWidth(doc: PDFKit.PDFDocument): number {
   return doc.page.width - PAGE_MARGIN * 2;
@@ -737,47 +811,39 @@ function pdfPageWidth(doc: PDFKit.PDFDocument): number {
 // Bandeau de couverture -- logo(s) sur puce blanche (les logos du groupe ne
 // se lisent pas posés directement sur un fond vert), titre et période en
 // clair. Dessiné une fois par export, avant tout contenu.
-function drawHeader(doc: PDFKit.PDFDocument, periodLabel: string, logos: string[], marque = 'Olu 360') {
+function drawHeader(doc: PDFKit.PDFDocument, periodLabel: string, marque: string, clientLogo?: { data: Buffer; mime: string } | null) {
   const w = doc.page.width;
-  doc.rect(0, 0, w, 96).fill(PDF_DARK);
+  const H = 94;
+  doc.rect(0, 0, w, H).fill(PDF_DARK);
 
-  // Les puces logo peuvent occuper une largeur significative (jusqu'à 3
-  // logos avec des ratios très différents) -- on les mesure d'abord pour
-  // borner la largeur du texte de titre et ne jamais les faire chevaucher,
-  // plutôt que de risquer un chevauchement avec un long titre sur une ligne.
-  const chipH = 44;
-  const chipY = (96 - chipH) / 2;
-  const openImage = (doc as unknown as { openImage(src: string): { width: number; height: number } }).openImage.bind(doc);
-  const chips: { logoFile: string; iw: number; ih: number; chipW: number }[] = [];
-  for (const logoFile of logos.slice(0, 3)) {
+  // Marque Feyma (pièce vectorielle + mot).
+  drawFeymaMark(doc, PAGE_MARGIN + 15, H / 2 - 4, 15);
+  doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(19).text('Feyma', PAGE_MARGIN + 40, 25);
+  doc
+    .fillColor(PDF_MINT)
+    .font('Helvetica')
+    .fontSize(10)
+    .text(pdfSafe(`Rapport de recouvrement · ${periodLabel}`), PAGE_MARGIN + 40, 51, { width: w - 320, ellipsis: true });
+
+  // Logo du client (sur puce blanche) ou, à défaut, sa raison sociale.
+  const chipW = 132;
+  const chipH = 48;
+  const chipX = w - PAGE_MARGIN - chipW;
+  const chipY = (H - chipH) / 2;
+  let logoOk = false;
+  if (clientLogo?.data?.length) {
     try {
-      const dims = openImage(logoFile);
-      const scale = Math.min((chipH - 12) / dims.height, 1);
-      const iw = dims.width * scale;
-      const ih = dims.height * scale;
-      chips.push({ logoFile, iw, ih, chipW: iw + 20 });
+      doc.roundedRect(chipX, chipY, chipW, chipH, 7).fill('#FFFFFF');
+      doc.image(clientLogo.data, chipX + 9, chipY + 8, { fit: [chipW - 18, chipH - 16], align: 'center', valign: 'center' });
+      logoOk = true;
     } catch {
-      // Logo manquant ou illisible -- on continue sans, jamais bloquant pour l'export.
+      // Logo illisible : on retombe sur le texte.
     }
   }
-  const logosWidth = chips.reduce((s, c) => s + c.chipW, 0) + Math.max(0, chips.length - 1) * 8;
-  const titleWidth = w - PAGE_MARGIN * 2 - (logosWidth > 0 ? logosWidth + 20 : 0);
-
-  doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(20).text(pdfSafe(marque), PAGE_MARGIN, 28, { width: titleWidth });
-  doc
-    .fillColor('#B7D3C7')
-    .font('Helvetica')
-    .fontSize(10.5)
-    .text(`${pdfSafe(periodLabel)} — Reporting recouvrement`, PAGE_MARGIN, 58, { width: titleWidth, ellipsis: true });
-
-  let x = w - PAGE_MARGIN;
-  for (const chip of chips.slice().reverse()) {
-    x -= chip.chipW;
-    doc.roundedRect(x, chipY, chip.chipW, chipH, 6).fill('#FFFFFF');
-    doc.image(chip.logoFile, x + (chip.chipW - chip.iw) / 2, chipY + (chipH - chip.ih) / 2, { width: chip.iw, height: chip.ih });
-    x -= 8;
+  if (!logoOk && marque && marque !== 'Feyma') {
+    doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(13).text(pdfSafe(marque), w - PAGE_MARGIN - 230, 40, { width: 230, align: 'right', ellipsis: true });
   }
-  doc.y = 118;
+  doc.y = H + 20;
 }
 
 function drawSectionTitle(doc: PDFKit.PDFDocument, text: string) {
@@ -787,21 +853,26 @@ function drawSectionTitle(doc: PDFKit.PDFDocument, text: string) {
   doc.moveDown(0.4);
 }
 
-function drawKpiRow(doc: PDFKit.PDFDocument, items: { label: string; value: string; tone?: 'success' | 'amber' | 'danger' }[]) {
+function drawKpiRow(doc: PDFKit.PDFDocument, items: { label: string; value: string; sub?: string; tone?: 'success' | 'amber' | 'danger' }[]) {
   const toneColor = { success: PDF_SUCCESS, amber: PDF_AMBER, danger: PDF_DANGER } as const;
   const gap = 10;
   const w = (pdfPageWidth(doc) - gap * (items.length - 1)) / items.length;
   const y = doc.y;
-  const h = 52;
+  const h = 60;
   items.forEach((item, i) => {
     const x = PAGE_MARGIN + i * (w + gap);
-    doc.roundedRect(x, y, w, h, 5).lineWidth(0.75).strokeColor(PDF_LINE).stroke();
-    doc.font('Courier').fontSize(7.5).fillColor(PDF_INK_SOFT).text(pdfSafe(item.label.toUpperCase()), x + 10, y + 9, { width: w - 20 });
+    doc.roundedRect(x, y, w, h, 6).lineWidth(0.75).strokeColor(PDF_LINE).stroke();
+    // Libellé sur une ligne (ellipsis) pour ne jamais chevaucher la valeur.
+    doc.font('Courier').fontSize(6.8).fillColor(PDF_INK_SOFT).text(pdfSafe(item.label.toUpperCase()), x + 10, y + 10, { width: w - 20, lineBreak: false, ellipsis: true });
+    // Valeur compacte, une seule ligne (lineBreak:false = jamais de retour → pas de superposition).
     doc
       .font('Helvetica-Bold')
       .fontSize(15)
       .fillColor(item.tone ? toneColor[item.tone] : PDF_INK)
-      .text(pdfSafe(item.value), x + 10, y + 24, { width: w - 20 });
+      .text(pdfSafe(item.value), x + 10, y + 25, { width: w - 20, lineBreak: false, ellipsis: true });
+    if (item.sub) {
+      doc.font('Helvetica').fontSize(7).fillColor(PDF_INK_SOFT).text(pdfSafe(item.sub), x + 10, y + 46, { width: w - 20, lineBreak: false, ellipsis: true });
+    }
   });
   doc.y = y + h + 14;
 }
@@ -886,92 +957,163 @@ interface ReportingPdfData {
   agents: (AgentStat & { utilisateurId: string })[];
   snapshot: { clientsEnContentieux: { nombre: number; montant: number }; clientsRetardInhabituel: number };
   analyse: AnalyseResult;
+  pilotage: Awaited<ReturnType<typeof computePilotage>>;
+  marque: string;
+  clientLogo?: { data: Buffer; mime: string } | null;
 }
 
-// Dessine tout le rapport dans le document PDF fourni (en-tête → pied de page).
-// Partagé par l'export à la demande (stream) et l'envoi automatique (buffer).
-function drawReportingDocument(doc: PDFKit.PDFDocument, period: Period, data: ReportingPdfData, logos: string[], marque = 'Olu 360') {
-  const { summary, agents, snapshot, analyse } = data;
+const AGE_PDF: Record<string, { label: string; color: string }> = {
+  j0_30: { label: '0–30 j', color: PDF_ACCENT },
+  j31_60: { label: '31–60 j', color: PDF_MINT },
+  j61_90: { label: '61–90 j', color: PDF_AMBER },
+  j90_plus: { label: '+90 j', color: PDF_DANGER },
+};
 
-  drawHeader(doc, `Période du ${fmtDate(period.from)} au ${fmtDate(period.to)}`, logos, marque);
+// Encadré de synthèse (« La lecture du mois »).
+function drawSynthese(doc: PDFKit.PDFDocument, texte: string) {
+  const w = pdfPageWidth(doc);
+  const x = PAGE_MARGIN;
+  doc.font('Helvetica').fontSize(10.5);
+  const th = doc.heightOfString(pdfSafe(texte), { width: w - 28, lineGap: 2 });
+  const h = th + 42;
+  const y = doc.y;
+  doc.roundedRect(x, y, w, h, 8).fill(PDF_SUCCESS_SOFT);
+  doc.font('Helvetica-Bold').fontSize(11).fillColor(PDF_ACCENT).text('La lecture du mois', x + 14, y + 12);
+  doc.font('Helvetica').fontSize(10.5).fillColor(PDF_INK).text(pdfSafe(texte), x + 14, y + 30, { width: w - 28, lineGap: 2 });
+  doc.y = y + h + 14;
+}
 
+// Bloc « Santé de la trésorerie » : camembert de la balance âgée + légende.
+function drawBalanceAgee(doc: PDFKit.PDFDocument, tranches: { cle: string; label: string; montant: number; nombre: number }[]) {
+  const overdue = tranches.filter((t) => t.cle !== 'a_echoir');
+  const total = overdue.reduce((s, t) => s + t.montant, 0);
+  const w = pdfPageWidth(doc);
+  const x = PAGE_MARGIN;
+  const h = 148;
+  const y = doc.y;
+  doc.roundedRect(x, y, w, h, 8).lineWidth(0.75).strokeColor(PDF_LINE).stroke();
+  doc.font('Helvetica-Bold').fontSize(11).fillColor(PDF_INK).text('Balance âgée de l’encours en retard', x + 16, y + 14);
+
+  const cx = x + 78;
+  const cy = y + h / 2 + 10;
+  const r = 42;
+  drawDonut(doc, cx, cy, r, overdue.map((t) => ({ value: t.montant, color: AGE_PDF[t.cle]?.color ?? PDF_LINE })));
+  doc.font('Helvetica-Bold').fontSize(11).fillColor(PDF_INK).text(fmtCompact(total), cx - r, cy - 8, { width: r * 2, align: 'center' });
+  doc.font('Courier').fontSize(6.5).fillColor(PDF_INK_SOFT).text('EN RETARD', cx - r, cy + 6, { width: r * 2, align: 'center' });
+
+  // Légende à droite.
+  let ly = y + 40;
+  const lx = x + 170;
+  for (const t of overdue) {
+    const c = AGE_PDF[t.cle];
+    doc.roundedRect(lx, ly + 1, 9, 9, 2).fill(c?.color ?? PDF_LINE);
+    doc.font('Helvetica').fontSize(9.5).fillColor(PDF_INK).text(pdfSafe(c?.label ?? t.label), lx + 16, ly);
+    doc.font('Courier').fontSize(9).fillColor(PDF_INK).text(pdfSafe(fmtFCFA(t.montant)), lx + 16, ly, { width: w - (lx - x) - 30, align: 'right' });
+    ly += 20;
+  }
+  doc.y = y + h + 14;
+}
+
+// Dessine tout le rapport (en-tête → pied de page). Partagé par l'export à la
+// demande (stream) et l'envoi automatique (buffer). Rapport DG : KPIs, synthèse,
+// balance âgée, alertes, puis détail (encaissements, conversion, top débiteurs).
+function drawReportingDocument(doc: PDFKit.PDFDocument, period: Period, data: ReportingPdfData) {
+  const { summary, snapshot, analyse, pilotage, marque, clientLogo } = data;
+  const overdue = pilotage.balanceAgee.filter((t) => t.cle !== 'a_echoir');
+  const overdueTotal = overdue.reduce((s, t) => s + t.montant, 0);
+  const overdueCount = overdue.reduce((s, t) => s + t.nombre, 0);
+  const plus90 = overdue.find((t) => t.cle === 'j90_plus');
+  const dso = summary.delaiEncaissement.global;
+
+  drawHeader(doc, `${fmtDate(period.from)} au ${fmtDate(period.to)}`, marque, clientLogo);
+
+  // ── KPIs (compacts, jamais de superposition) ──
   drawKpiRow(doc, [
-    { label: 'Factures payées', value: String(summary.facturesPayees.nombre) },
-    { label: 'Montant encaissé', value: fmtFCFA(summary.facturesPayees.montantTotal) },
-    {
-      label: "Délai moyen d'encaissement",
-      value: summary.delaiEncaissement.global !== null ? `${Math.round(summary.delaiEncaissement.global)} j` : 'N/A',
-    },
-    {
-      label: 'Contentieux (encours)',
-      value: fmtFCFA(snapshot.clientsEnContentieux.montant),
-      tone: snapshot.clientsEnContentieux.nombre > 0 ? 'danger' : 'success',
-    },
+    { label: 'Encaissé', value: `${fmtCompact(summary.facturesPayees.montantTotal)} FCFA`, sub: `${summary.facturesPayees.nombre} factures réglées`, tone: 'success' },
+    { label: 'Taux de recouvrement', value: pilotage.recouvrement.taux !== null ? `${pilotage.recouvrement.taux} %` : '—', sub: 'du montant échu' },
+    { label: 'Délai moyen (DSO)', value: dso !== null ? `${Math.round(dso)} j` : '—', sub: 'pondéré par montant' },
+    { label: 'Encours en retard', value: `${fmtCompact(overdueTotal)} FCFA`, sub: `${overdueCount} factures échues`, tone: overdueTotal > 0 ? 'amber' : 'success' },
   ]);
 
-  drawSectionTitle(doc, 'Analyse de la période');
+  // ── Synthèse ──
+  const lecture =
+    `Vous avez encaissé ${fmtFCFA(summary.facturesPayees.montantTotal)} sur ${summary.facturesPayees.nombre} facture${summary.facturesPayees.nombre > 1 ? 's' : ''}` +
+    (dso !== null ? `, pour un délai moyen d'encaissement de ${Math.round(dso)} jours` : '') +
+    '. ' +
+    (plus90 && plus90.montant > 0
+      ? `Point d'attention : ${fmtFCFA(plus90.montant)} d'encours dépassent 90 jours de retard — c'est là que se concentre le risque.`
+      : overdueTotal > 0
+        ? `L'encours en retard (${fmtFCFA(overdueTotal)}) reste sans créance ancienne majeure.`
+        : `Aucun encours en retard sur la période.`);
+  drawSynthese(doc, lecture);
+
+  // ── Balance âgée (camembert) ──
+  drawBalanceAgee(doc, pilotage.balanceAgee);
+
+  // ── Alertes / recommandations ──
+  drawSectionTitle(doc, "Alertes & recommandations");
   drawAnalyseBlock(doc, 'pointsForts', analyse.pointsForts);
-  drawAnalyseBlock(doc, 'actionsPositives', analyse.actionsPositives);
   drawAnalyseBlock(doc, 'pointsVigilance', analyse.pointsVigilance);
-  drawAnalyseBlock(doc, 'axesAmelioration', analyse.axesAmelioration);
   drawAnalyseBlock(doc, 'recommandations', analyse.recommandations);
 
-  // « Par entité » : héritage groupe, seulement si plusieurs entités (jamais en SaaS mono-société).
-  if (summary.delaiEncaissement.parEntite.length > 1) {
-    drawSectionTitle(doc, "Délai d'encaissement par entité");
-    const w = pdfPageWidth(doc);
-    drawTable(
-      doc,
-      ['Entité', 'Délai moyen pondéré', 'Montant encaissé', 'Factures'],
-      summary.delaiEncaissement.parEntite.map((r) => [
-        r.entite,
-        r.delaiJours !== null ? `${Math.round(r.delaiJours)} j` : 'N/A',
-        fmtFCFA(r.montantTotal),
-        r.nombre,
-      ]),
-      [w * 0.22, w * 0.28, w * 0.3, w * 0.2],
-    );
-  }
+  // ── Page 2 : détail ──
+  doc.addPage();
 
-  drawSectionTitle(doc, 'Relances effectuées par palier');
+  drawSectionTitle(doc, `Encaissements par mois (${EVOLUTION_MONTHS} derniers mois)`);
   {
     const w = pdfPageWidth(doc);
-    drawTable(doc, ['Palier', 'Nombre de relances'], summary.relances.map((r) => [r.label, r.nombre]), [w * 0.6, w * 0.4]);
+    const y = doc.y;
+    const h = 150;
+    doc.roundedRect(PAGE_MARGIN, y, w, h, 8).lineWidth(0.75).strokeColor(PDF_LINE).stroke();
+    drawBarChart(
+      doc,
+      PAGE_MARGIN + 18,
+      y + 16,
+      w - 36,
+      h - 24,
+      summary.evolutionMensuelle.map((m) => ({ label: m.mois.slice(5), value: m.montantTotal })),
+    );
+    doc.y = y + h + 14;
   }
 
-  if (agents.length > 0) {
-    drawSectionTitle(doc, 'Performance par agent');
+  // Efficacité des relances (conversion par palier).
+  const convRows = pilotage.conversion.filter((c) => c.relances > 0);
+  if (convRows.length > 0) {
+    drawSectionTitle(doc, 'Efficacité des relances (payé sous 15 j)');
     const w = pdfPageWidth(doc);
     drawTable(
       doc,
-      ['Agent', 'Relances', 'Délai après intervention', 'Montant recouvré'],
-      agents.map((a) => [
-        a.nom,
-        a.actions,
-        a.delaiMoyenApresIntervention !== null ? `${a.delaiMoyenApresIntervention} j (sur ${a.nombreDelaisMesures})` : 'N/A',
-        a.montantRecouvre > 0 ? fmtFCFA(a.montantRecouvre) : '—',
-      ]),
-      [w * 0.28, w * 0.16, w * 0.3, w * 0.26],
+      ['Palier', 'Relances', 'Payé sous 15 j', 'Taux'],
+      convRows.map((c) => [c.label, c.relances, c.converties, c.taux !== null ? `${c.taux} %` : '—']),
+      [w * 0.4, w * 0.2, w * 0.24, w * 0.16],
     );
   }
 
-  drawSectionTitle(doc, `Évolution du délai d'encaissement (${EVOLUTION_MONTHS} derniers mois)`);
-  {
+  // Top débiteurs.
+  if (pilotage.topDebiteurs.length > 0) {
+    drawSectionTitle(doc, 'Top débiteurs à surveiller');
     const w = pdfPageWidth(doc);
     drawTable(
       doc,
-      ['Mois', 'Délai moyen pondéré', 'Montant encaissé', 'Factures'],
-      summary.evolutionMensuelle.map((r) => [
-        r.mois,
-        r.delaiJours !== null ? `${Math.round(r.delaiJours)} j` : 'N/A',
-        fmtFCFA(r.montantTotal),
-        r.nombre,
-      ]),
-      [w * 0.22, w * 0.28, w * 0.3, w * 0.2],
+      ['Client', 'Encours', 'Retard', 'Dernier palier'],
+      pilotage.topDebiteurs.map((d) => [d.nom, fmtFCFA(d.encours), `+${d.joursRetard} j`, d.dernierPalierLabel ?? '—']),
+      [w * 0.34, w * 0.26, w * 0.14, w * 0.26],
     );
   }
 
-  // Pied de page numéroté (voir note pdfkit sur la marge basse plus bas).
+  // Litige (palier élevé) — rappel chiffré.
+  if (snapshot.clientsEnContentieux.nombre > 0) {
+    drawSectionTitle(doc, 'En litige (palier élevé)');
+    doc.font('Helvetica').fontSize(10).fillColor(PDF_INK).text(
+      pdfSafe(`${snapshot.clientsEnContentieux.nombre} client(s) en litige, représentant ${fmtFCFA(snapshot.clientsEnContentieux.montant)} d'encours immobilisé.`),
+      PAGE_MARGIN,
+      doc.y,
+      { width: pdfPageWidth(doc) },
+    );
+    doc.moveDown(0.6);
+  }
+
+  // ── Pied de page numéroté (voir note pdfkit sur la marge basse). ──
   const range = doc.bufferedPageRange();
   const bottomMargin = doc.page.margins.bottom;
   for (let i = range.start; i < range.start + range.count; i++) {
@@ -981,20 +1123,20 @@ function drawReportingDocument(doc: PDFKit.PDFDocument, period: Period, data: Re
       .font('Courier')
       .fontSize(8)
       .fillColor(PDF_INK_SOFT)
-      .text(`${pdfSafe(marque)}  ·  ${i + 1}/${range.count}`, PAGE_MARGIN, doc.page.height - 30, { width: pdfPageWidth(doc), align: 'right' });
+      .text(`${pdfSafe(marque)}  ·  via Feyma  ·  ${i + 1}/${range.count}`, PAGE_MARGIN, doc.page.height - 30, { width: pdfPageWidth(doc), align: 'right' });
     doc.page.margins.bottom = bottomMargin;
   }
 }
 
 // Génère le rapport en Buffer (pour l'envoi par email). Même rendu que l'export.
-export function genererReportingPdfBuffer(period: Period, data: ReportingPdfData, logos: string[], marque = 'Olu 360'): Promise<Buffer> {
+export function genererReportingPdfBuffer(period: Period, data: ReportingPdfData): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ margin: PAGE_MARGIN, size: 'A4', bufferPages: true });
     const chunks: Buffer[] = [];
     doc.on('data', (c: Buffer) => chunks.push(c));
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
-    drawReportingDocument(doc, period, data, logos, marque);
+    drawReportingDocument(doc, period, data);
     doc.end();
   });
 }
@@ -1023,20 +1165,30 @@ reportingRouter.post('/export.pdf', async (req, res, next) => {
         agents,
         mono: rlsActive(),      });
 
+    const pilotage = await computePilotage(period, where);
+    const org = await chargerOrgPdf();
+
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="reporting_${period.fromStr}_${period.toStr}.pdf"`);
 
     const doc = new PDFDocument({ margin: PAGE_MARGIN, size: 'A4', bufferPages: true });
     doc.pipe(res);
-    // En SaaS, pas de logos du groupe (SORAM/IRIS/SIS) ni de marque « Olu 360 ».
-    const logos = rlsActive() ? [] : logosForScope(entiteFilter);
-    const marque = rlsActive() ? 'Feyma' : 'Olu 360';
-    drawReportingDocument(doc, period, { summary, agents, snapshot, analyse }, logos, marque);
+    drawReportingDocument(doc, period, { summary, agents, snapshot, analyse, pilotage, marque: org.marque, clientLogo: org.clientLogo });
     doc.end();
   } catch (err) {
     next(err);
   }
 });
+
+// Marque + logo du client courant pour l'en-tête du PDF (tenant en cours).
+async function chargerOrgPdf(): Promise<{ marque: string; clientLogo: { data: Buffer; mime: string } | null }> {
+  if (!rlsActive()) return { marque: 'Olu 360', clientLogo: null };
+  const orgId = currentOrganisationId();
+  if (!orgId) return { marque: 'Feyma', clientLogo: null };
+  const org = await prisma.organisation.findUnique({ where: { id: orgId }, select: { raisonSociale: true, logoData: true, logoMime: true } });
+  const clientLogo = org?.logoData ? { data: Buffer.from(org.logoData), mime: org.logoMime ?? 'image/png' } : null;
+  return { marque: org?.raisonSociale ?? 'Feyma', clientLogo };
+}
 
 // ── Envoi automatique du rapport mensuel par email ───────────────────────────
 // Cron externe (Render) → génère le PDF du mois civil écoulé pour chaque org
@@ -1064,7 +1216,7 @@ reportingCronRouter.post('/', async (req, res, next) => {
     // Hors contexte tenant : l'échappatoire RLS autorise la lecture des orgs éligibles.
     const orgs = await prisma.organisation.findMany({
       where: { reportingEmail: { not: null }, statut: { in: ['essai', 'actif'] } },
-      select: { id: true, reportingEmail: true, raisonSociale: true, emailReponse: true },
+      select: { id: true, reportingEmail: true, raisonSociale: true, emailReponse: true, logoData: true, logoMime: true },
     });
 
     const resultats: { organisationId: string; envoye?: boolean; erreur?: string }[] = [];
@@ -1072,10 +1224,11 @@ reportingCronRouter.post('/', async (req, res, next) => {
       try {
         await withTenant(org.id, async () => {
           const where = {}; // tout le tenant (scopé par RLS)
-          const [summary, agents, snapshot] = await Promise.all([
+          const [summary, agents, snapshot, pilotage] = await Promise.all([
             computeSummaryForPeriod(period, where),
             computeAgentStats(period, where),
             computeSnapshotKpis(where),
+            computePilotage(period, where),
           ]);
           const analyse = buildAnalyse({
             periodeLabel: `${fmtDate(period.from)} au ${fmtDate(period.to)}`,
@@ -1084,9 +1237,11 @@ reportingCronRouter.post('/', async (req, res, next) => {
             clientsEnContentieux: snapshot.clientsEnContentieux,
             clientsRetardInhabituel: snapshot.clientsRetardInhabituel,
             agents,
-            mono: rlsActive(),          });
+            mono: rlsActive(),
+          });
           const marque = org.raisonSociale ?? 'Feyma';
-          const pdf = await genererReportingPdfBuffer(period, { summary, agents, snapshot, analyse }, [], marque);
+          const clientLogo = org.logoData ? { data: Buffer.from(org.logoData), mime: org.logoMime ?? 'image/png' } : null;
+          const pdf = await genererReportingPdfBuffer(period, { summary, agents, snapshot, analyse, pilotage, marque, clientLogo });
           await getEmailProvider().send({
             to: org.reportingEmail!,
             subject: `Rapport de recouvrement — ${fmtDate(period.from)} au ${fmtDate(period.to)}`,
