@@ -148,14 +148,22 @@ button.danger-btn:hover:not(:disabled){border-color:var(--danger);color:var(--da
 .kpi-value.currency{font-size:18px;white-space:nowrap;}
 .kpi-sub{font-size:11px;color:var(--ink-soft);margin-top:4px;}
 
-.digest-banner{background:var(--amber-soft);border:1px solid var(--amber);color:var(--amber-dark);border-radius:var(--radius-md);padding:14px 20px;margin-bottom:20px;font-size:13px;font-weight:500;cursor:pointer;transition:box-shadow .15s var(--ease);display:flex;align-items:flex-start;gap:10px;}
-.digest-banner:hover{box-shadow:var(--shadow-sm);}
-.digest-banner strong{margin-left:6px;text-decoration:underline;}
-
-.signal-banner{background:var(--accent-soft);border:1px solid var(--accent);color:var(--accent-dark);border-radius:var(--radius-md);padding:14px 20px;margin-bottom:20px;font-size:13px;font-weight:500;cursor:pointer;transition:box-shadow .15s var(--ease);display:flex;align-items:flex-start;gap:10px;}
-.digest-banner svg,.signal-banner svg{flex-shrink:0;margin-top:1px;}
-.signal-banner:hover{box-shadow:var(--shadow-sm);}
-.signal-banner strong{margin-left:6px;text-decoration:underline;}
+/* Signaux « à traiter » / « retard inhabituel » : lignes d'alerte instrumentales
+   (surface neutre + filet de sévérité à gauche), pas de gros aplats pastel
+   pleine largeur — on évite le look « callout » générique. Le compteur ressort
+   dans un petit jeton chiffré ; le reste est du texte discret. */
+.digest-banner,.signal-banner{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--line);border-radius:10px;padding:11px 16px;margin-bottom:10px;font-size:13px;font-weight:500;color:var(--ink-soft);cursor:pointer;transition:border-color .15s var(--ease),box-shadow .15s var(--ease);display:flex;align-items:center;gap:12px;}
+.digest-banner{border-left-color:var(--amber);}
+.signal-banner{border-left-color:var(--accent);}
+.digest-banner:hover,.signal-banner:hover{box-shadow:var(--shadow-xs);border-color:var(--line-soft);}
+.digest-banner svg,.signal-banner svg{flex-shrink:0;}
+.digest-banner svg{color:var(--amber);}
+.signal-banner svg{color:var(--accent-dark);}
+/* Le compteur en tête de phrase : jeton chiffré (mono) coloré par la sévérité. */
+.digest-banner .n,.signal-banner .n{flex:none;font-family:var(--font-mono);font-weight:700;font-size:12.5px;line-height:1;padding:5px 9px;border-radius:7px;}
+.digest-banner .n{background:var(--amber-soft);color:var(--amber);}
+.signal-banner .n{background:var(--accent-soft);color:var(--accent-dark);}
+.digest-banner strong,.signal-banner strong{margin-left:6px;color:var(--ink);font-weight:600;}
 
 .repartition-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);padding:24px;margin-bottom:24px;box-shadow:var(--shadow-sm);}
 .repartition-title{font-size:14px;font-weight:600;margin-bottom:12px;}
