@@ -328,11 +328,13 @@ export function RecouvrementView({ entityFilter, role, reloadKey, onImport, canR
             )}
           </div>
         </div>
-        {/* Conteneur à défilement horizontal : le tableau (8 colonnes) peut
-            dépasser la largeur de la carte selon le viewport ; sans ça, la carte
-            (overflow:hidden pour ses coins arrondis) tronque la dernière colonne
-            (« Prochaine relance ») au lieu de la laisser défiler. */}
-        <div style={{ overflowX: 'auto' }}>
+        {/* Conteneur à défilement : le tableau (8 colonnes) peut dépasser la
+            largeur de la carte selon le viewport. On borne la hauteur et on fige
+            l'en-tête (thead sticky) pour que la barre de défilement HORIZONTALE
+            reste toujours visible en bas de la fenêtre du tableau — sinon elle se
+            retrouve tout en bas de la liste, hors écran, et l'utilisateur ne peut
+            pas atteindre les dernières colonnes (« Prochaine relance »). */}
+        <div className="table-scroll">
           {(() => {
             if (list.loading) {
               return <div className="empty-state">Chargement…</div>;
@@ -354,13 +356,14 @@ export function RecouvrementView({ entityFilter, role, reloadKey, onImport, canR
               );
             }
             return (
-            <table style={{ minWidth: 720 }}>
+            <table style={{ minWidth: 980 }}>
               <thead>
                 <tr>
                   <th onClick={() => toggleSort('nom')}>Client</th>
                   <th>Entité</th>
                   <th onClick={() => toggleSort('encours')}>Encours</th>
-                  <th onClick={() => toggleSort('joursRetard')}>Retard</th>
+                  <th>Échéance la + ancienne</th>
+                  <th onClick={() => toggleSort('joursRetard')}>Jours de retard</th>
                   <th>Palier</th>
                   <th>Dernière action</th>
                   <th>Prochaine relance</th>
@@ -418,14 +421,8 @@ export function RecouvrementView({ entityFilter, role, reloadKey, onImport, canR
                         </span>
                       </td>
                       <td className="mono">{fmtFCFA(c.encours)}</td>
-                      <td className="mono">
-                        {c.joursRetard} j
-                        {c.echeanceLaPlusAncienne && (
-                          <div style={{ fontSize: 10.5, color: 'var(--ink-soft)', marginTop: 2 }}>
-                            dep. {fmtDate(c.echeanceLaPlusAncienne)}
-                          </div>
-                        )}
-                      </td>
+                      <td className="mono">{fmtDate(c.echeanceLaPlusAncienne)}</td>
+                      <td className="mono">{c.joursRetard} j</td>
                       <td>
                         <span className="badge" data-tone={pal.tone}>
                           {libelle(c.palier)}
