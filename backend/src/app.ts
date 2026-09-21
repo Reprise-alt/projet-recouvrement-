@@ -6,7 +6,7 @@ import { authRouter } from './routes/auth';
 import { authOtpRouter } from './routes/authOtp';
 import { onboardingRouter } from './routes/onboarding';
 import { organisationRouter } from './routes/organisation';
-import { logoPublicRouter, waveQrPublicRouter } from './routes/logoPublic';
+import { logoPublicRouter, waveQrPublicRouter, moyenPaiementQrPublicRouter } from './routes/logoPublic';
 import { adminOrganisationsRouter } from './routes/adminOrganisations';
 import { usersRouter } from './routes/users';
 import { clientsRouter } from './routes/clients';
@@ -64,6 +64,8 @@ export function createApp() {
   app.use('/api/logo', logoPublicRouter);
   // Service public du QR code Wave (sans auth) — affiché dans relances et portail.
   app.use('/api/wave-qr', waveQrPublicRouter);
+  // Service public du QR d'un moyen de paiement (sans auth).
+  app.use('/api/moyen-paiement-qr', moyenPaiementQrPublicRouter);
   // Back-office exploitant (super-admin) — activation des comptes.
   app.use('/api/admin', adminOrganisationsRouter);
   app.use('/api/users', usersRouter);

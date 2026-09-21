@@ -224,6 +224,30 @@ model Organisation {
   entreprises    Entreprise[]
   paliers        PalierOrg[]
   demandes       DemandeAbonnement[]
+  moyensPaiement MoyenPaiement[]
+}
+
+// Moyen de paiement affiché au débiteur (relances + portail). Liste ordonnée par
+// organisation : chaque moyen a un libellé (« Wave », « Julaya », « Orange
+// Money »…) et au moins un canal — un lien cliquable, un QR (image stockée +
+// servie par un endpoint public), et/ou un numéro. Remplace les anciens champs
+// uniques waveLien / waveQrData / orangeMoneyNumero (conservés pour compat).
+model MoyenPaiement {
+  id             String       @id @default(cuid())
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  organisationId String
+  label          String
+  lien           String? // lien de paiement ({montant} substitué si présent)
+  numero         String? // ex. numéro Orange Money
+  qrData         Bytes? // image du QR (PNG/JPEG/WebP)
+  qrMime         String?
+  qrUrl          String? // URL publique absolue vers l'image (pour les emails)
+  // Coché/décoché : seuls les moyens actifs sont proposés au débiteur.
+  actif          Boolean      @default(true)
+  ordre          Int          @default(0)
+  createdAt      DateTime     @default(now())
+
+  @@index([organisationId])
 }
 
 // Demande d'abonnement émise depuis la console d'un client (clic « Choisir cette

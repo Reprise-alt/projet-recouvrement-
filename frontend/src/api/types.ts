@@ -1055,7 +1055,10 @@ export interface PortailPublic {
   commandementDisponible: boolean;
   factures: { numero: string; montant: number; dateEcheance: string | null }[];
   derniereProposition: { statut: StatutProposition; createdAt: string } | null;
-  paiement?: { waveLien: string | null; waveQrUrl: string | null; orangeMoneyNumero: string | null; instructions: string | null } | null;
+  paiement?: {
+    moyens: { label: string; lien: string | null; numero: string | null; qrUrl: string | null }[];
+    instructions: string | null;
+  } | null;
 }
 export type StatutActe = 'brouillon' | 'valide' | 'signe';
 

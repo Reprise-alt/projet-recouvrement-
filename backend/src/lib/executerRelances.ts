@@ -9,6 +9,7 @@ import { generateLetter, LetterClient } from './letters';
 import { PALIERS } from './paliers';
 import { ClientRelance, dansFenetreEnvoi, relancesDues } from './moteurRelances';
 import { construireRelanceMarque, OrgIdentite } from './modelesRelance';
+import { chargerMoyensPaiement } from './moyensPaiement';
 import { chargerModelesOrg } from '../services/modeleRelanceService';
 
 // Au-delà de ce palier, la relance n'est jamais envoyée automatiquement :
@@ -146,9 +147,6 @@ export async function executerRelancesTenant(opts: OptionsExecution = {}): Promi
         where: { id: orgId },
         select: {
           instructionsPaiement: true,
-          waveLien: true,
-          waveQrUrl: true,
-          orangeMoneyNumero: true,
           raisonSociale: true,
           emailReponse: true,
           logoUrl: true,
@@ -166,6 +164,7 @@ export async function executerRelancesTenant(opts: OptionsExecution = {}): Promi
   // renvoyées à l'adresse de l'organisation. L'adresse d'envoi reste mutualisée.
   const fromName = org?.raisonSociale ?? undefined;
   const replyTo = org?.emailReponse ?? undefined;
+  const moyensPaiement = orgId ? await chargerMoyensPaiement(orgId) : [];
   // Identité de marque pour l'email (logo + coordonnées) — §5.3.
   const orgIdentite: OrgIdentite | null = org
     ? {
@@ -178,9 +177,7 @@ export async function executerRelancesTenant(opts: OptionsExecution = {}): Promi
         capitalSocial: org.capitalSocial,
         contactRecouvrement: org.contactRecouvrement,
         instructionsPaiement: org.instructionsPaiement,
-        waveLien: org.waveLien,
-        waveQrUrl: org.waveQrUrl,
-        orangeMoneyNumero: org.orangeMoneyNumero,
+        moyensPaiement,
         pays: org.pays,
       }
     : null;
@@ -292,20 +289,20 @@ export async function reconstruireEmailRelance(
     ? await prisma.organisation.findUnique({
         where: { id: orgId },
         select: {
-          instructionsPaiement: true, waveLien: true, waveQrUrl: true, orangeMoneyNumero: true,
+          instructionsPaiement: true,
           raisonSociale: true, emailReponse: true, logoUrl: true,
           adresse: true, identifiantFiscal: true, rccm: true, formeJuridique: true,
           capitalSocial: true, contactRecouvrement: true, pays: true,
         },
       })
     : null;
+  const moyensPaiement = orgId ? await chargerMoyensPaiement(orgId) : [];
   const orgIdentite: OrgIdentite | null = org
     ? {
         raisonSociale: org.raisonSociale, logoUrl: org.logoUrl, adresse: org.adresse,
         identifiantFiscal: org.identifiantFiscal, rccm: org.rccm, formeJuridique: org.formeJuridique,
         capitalSocial: org.capitalSocial, contactRecouvrement: org.contactRecouvrement,
-        instructionsPaiement: org.instructionsPaiement, waveLien: org.waveLien,
-        waveQrUrl: org.waveQrUrl, orangeMoneyNumero: org.orangeMoneyNumero, pays: org.pays,
+        instructionsPaiement: org.instructionsPaiement, moyensPaiement, pays: org.pays,
       }
     : null;
   const modelesOrg = orgIdentite ? await chargerModelesOrg() : null;

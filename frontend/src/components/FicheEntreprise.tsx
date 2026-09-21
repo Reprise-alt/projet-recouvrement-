@@ -1,14 +1,14 @@
 import { ChangeEvent, FormEvent, useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { Organisation } from '../api/types';
+import { MoyensPaiementEditor } from './MoyensPaiementEditor';
 
 // Fiche entreprise (addendum §3, §4.3 étapes 1-2) : identité, identifiants fiscaux,
-// logo, et instructions de paiement affichées aux débiteurs. Modal branché sur
-// /api/organisation. `focusPaiement` fait défiler vers les instructions (étape 2).
+// logo, moyens de paiement affichés aux débiteurs. Modal branché sur
+// /api/organisation. `focusPaiement` est accepté pour compat (étape 2 onboarding).
 export function FicheEntreprise({
   onClose,
   onSaved,
-  focusPaiement,
 }: {
   onClose: () => void;
   onSaved: () => void;
@@ -28,9 +28,7 @@ export function FicheEntreprise({
     keyLength?: number;
   } | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
-  const [qrBusy, setQrBusy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const qrInputRef = useRef<HTMLInputElement>(null);
 
   // Envoie un email de test à l'administrateur et affiche le résultat exact
   // (mode actif + succès ou erreur) — pour vérifier la délivrabilité.
@@ -82,43 +80,6 @@ export function FicheEntreprise({
     }
   }
 
-  // Téléverse l'image du QR Wave (stockée + servie par une URL publique).
-  async function televerserQr(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
-    if (file.size > 1024 * 1024) {
-      setErreur('Image trop lourde (max 1 Mo).');
-      return;
-    }
-    setQrBusy(true);
-    setErreur(null);
-    try {
-      const { waveQrUrl } = await (async () => {
-        const form = new FormData();
-        form.append('file', file);
-        return api.upload<{ waveQrUrl: string }>('/api/organisation/wave-qr', form);
-      })();
-      champ('waveQrUrl', waveQrUrl);
-    } catch (err) {
-      setErreur(err instanceof ApiError ? err.message : 'Échec du téléversement du QR.');
-    } finally {
-      setQrBusy(false);
-    }
-  }
-
-  async function retirerQr() {
-    setQrBusy(true);
-    try {
-      await api.delete('/api/organisation/wave-qr');
-      champ('waveQrUrl', null);
-    } catch (err) {
-      setErreur(err instanceof ApiError ? err.message : 'Échec du retrait du QR.');
-    } finally {
-      setQrBusy(false);
-    }
-  }
-
   async function enregistrer(e: FormEvent) {
     e.preventDefault();
     if (!org) return;
@@ -137,8 +98,6 @@ export function FicheEntreprise({
         adresse: org.adresse,
         logoUrl: org.logoUrl,
         instructionsPaiement: org.instructionsPaiement,
-        waveLien: org.waveLien,
-        orangeMoneyNumero: org.orangeMoneyNumero,
         contactRecouvrement: org.contactRecouvrement,
         emailReponse: org.emailReponse,
       });
@@ -271,65 +230,13 @@ export function FicheEntreprise({
             </div>
 
             <div className="field">
-              <label>Paiement en ligne (Mobile Money / agrégateur)</label>
-              <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', margin: '2px 0 10px' }}>
-                Un bouton « Payer maintenant » apparaît dans vos relances et le portail, avec le montant dû pré-rempli.
-                Le plus rapide pour être payé.
+              <label>Moyens de paiement</label>
+              <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', margin: '2px 0 12px' }}>
+                Ajoutez tous vos moyens (Wave, Julaya, Orange Money…). Chacun peut avoir un lien, un QR et/ou un numéro.
+                Cochez « Utiliser » pour ceux à proposer au débiteur — ils apparaissent dans les relances et le portail,
+                avec le montant dû. Astuce : si un lien accepte un montant, écrivez <code>{'{montant}'}</code> à sa place.
               </div>
-              <div style={{ display: 'grid', gap: 10 }}>
-                <div>
-                  <label style={{ fontSize: 12, color: 'var(--ink-soft)' }}>Lien de paiement (Wave, Julaya, Orange Money…)</label>
-                  <input
-                    autoFocus={focusPaiement}
-                    type="url"
-                    value={org.waveLien ?? ''}
-                    onChange={(e) => champ('waveLien', e.target.value)}
-                    placeholder="https://pro.julaya.co/payment/… ou https://pay.wave.com/…"
-                    style={{ width: '100%' }}
-                  />
-                  <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 3 }}>
-                    Collez le lien de paiement de votre agrégateur (Julaya, Wave…). Astuce : si votre lien accepte un
-                    montant, écrivez <code>{'{montant}'}</code> à sa place — il sera remplacé par la somme due.
-                  </div>
-                </div>
-                <div>
-                  <label style={{ fontSize: 12, color: 'var(--ink-soft)' }}>QR code de paiement (image)</label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4 }}>
-                    {org.waveQrUrl ? (
-                      <img
-                        src={org.waveQrUrl}
-                        alt="QR Wave"
-                        style={{ width: 72, height: 72, objectFit: 'contain', border: '1px solid var(--line)', borderRadius: 8, background: '#fff', padding: 4 }}
-                      />
-                    ) : (
-                      <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}>Aucun QR</span>
-                    )}
-                    <input ref={qrInputRef} type="file" accept="image/png,image/jpeg,image/webp" style={{ display: 'none' }} onChange={televerserQr} />
-                    <button type="button" onClick={() => qrInputRef.current?.click()} disabled={qrBusy}>
-                      {qrBusy ? 'Envoi…' : org.waveQrUrl ? 'Remplacer' : 'Téléverser le QR'}
-                    </button>
-                    {org.waveQrUrl && (
-                      <button type="button" onClick={retirerQr} disabled={qrBusy} style={{ color: 'var(--danger)' }}>
-                        Retirer
-                      </button>
-                    )}
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 3 }}>
-                    PNG ou JPEG (QR Julaya, Wave…). Si vous n’avez que le QR en PDF, faites-en une capture d’écran.
-                    Il s’affichera dans vos relances et le portail pour que le débiteur le scanne.
-                  </div>
-                </div>
-                <div>
-                  <label style={{ fontSize: 12, color: 'var(--ink-soft)' }}>Numéro Orange Money</label>
-                  <input
-                    type="tel"
-                    value={org.orangeMoneyNumero ?? ''}
-                    onChange={(e) => champ('orangeMoneyNumero', e.target.value)}
-                    placeholder="Ex. 77 000 00 00 (numéro marchand ou compte)"
-                    style={{ width: '100%' }}
-                  />
-                </div>
-              </div>
+              <MoyensPaiementEditor />
             </div>
 
             <div className="field">
@@ -342,7 +249,7 @@ export function FicheEntreprise({
                 style={{ width: '100%', resize: 'vertical', fontFamily: 'inherit' }}
               />
               <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 4 }}>
-                Affichées telles quelles à vos débiteurs, sous le bouton Mobile Money.
+                Affichées telles quelles à vos débiteurs, sous les moyens de paiement.
               </div>
             </div>
 

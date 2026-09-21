@@ -9,6 +9,7 @@
 import { Router } from 'express';
 import { prisma } from '../db';
 import { mentionsLegales } from '../lib/actes/mentionsLegales';
+import { chargerMoyensPaiement } from '../lib/moyensPaiement';
 
 export const contentieuxPortailRouter = Router();
 
@@ -32,12 +33,13 @@ contentieuxPortailRouter.get('/:token', async (req, res, next) => {
     if (!d) return res.status(404).json({ error: 'Lien invalide ou expiré.' });
     const montantDu = d.montantReclame ?? d.factures.reduce((s, f) => s + f.montant, 0);
     const commandement = d.actes.some((a) => a.type === 'commandement_societe');
-    // Coordonnées de paiement du créancier (Mobile Money + modalités libres) —
-    // route publique, lecture hors contexte tenant : on n'expose que ces champs.
+    // Coordonnées de paiement du créancier (moyens de paiement + modalités libres)
+    // — route publique, lecture hors contexte tenant.
     const orgPaie = await prisma.organisation.findUnique({
       where: { id: d.client.organisationId },
-      select: { waveLien: true, waveQrUrl: true, orangeMoneyNumero: true, instructionsPaiement: true },
+      select: { instructionsPaiement: true },
     });
+    const moyens = await chargerMoyensPaiement(d.client.organisationId);
     const derniere = await prisma.propositionPaiement.findFirst({
       where: { dossierId: d.id },
       orderBy: { createdAt: 'desc' },
@@ -57,9 +59,7 @@ contentieuxPortailRouter.get('/:token', async (req, res, next) => {
       factures: d.factures.map((f) => ({ numero: f.numero, montant: f.montant, dateEcheance: f.dateEcheance })),
       derniereProposition: derniere,
       paiement: {
-        waveLien: orgPaie?.waveLien ?? null,
-        waveQrUrl: orgPaie?.waveQrUrl ?? null,
-        orangeMoneyNumero: orgPaie?.orangeMoneyNumero ?? null,
+        moyens,
         instructions: orgPaie?.instructionsPaiement ?? null,
       },
     });

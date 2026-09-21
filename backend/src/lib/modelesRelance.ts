@@ -9,6 +9,7 @@
 // de variables et le rendu HTML.
 import { fmtDate, fmtFCFA } from './dates';
 import { ClientWithFactures, clientEncours, clientJoursRetard, clientOldestEcheance } from './paliers';
+import { MoyenPaiementRender } from './moyensPaiement';
 
 // Variables disponibles dans les modèles (documentées pour l'éditeur §5.3).
 export const VARIABLES_RELANCE = [
@@ -82,48 +83,53 @@ export interface OrgIdentite {
   capitalSocial?: string | null;
   contactRecouvrement?: string | null;
   instructionsPaiement?: string | null;
-  waveLien?: string | null;
-  waveQrUrl?: string | null;
-  orangeMoneyNumero?: string | null;
+  // Liste des moyens de paiement actifs (Wave, Julaya, Orange Money…).
+  moyensPaiement?: MoyenPaiementRender[] | null;
   pays?: 'SN' | 'CI' | null;
 }
 
-// Bloc « Payer maintenant » — lien de paiement (Wave, Julaya, Orange Money…) +
-// QR + numéro Orange Money, avec le montant dû et une référence. Rendu HTML inline
-// (compatible email). `montant` en FCFA (entier) ; substitue {montant} dans le lien
-// si présent.
+// Bloc « Payer maintenant » — rendu de la LISTE des moyens de paiement actifs
+// (Wave, Julaya, Orange Money…), avec le montant dû et une référence. Rendu HTML
+// inline (compatible email). `montant` en FCFA (entier) ; substitue {montant} dans
+// le lien de chaque moyen si présent.
 export function blocPaiementHtml(
-  org: { waveLien?: string | null; waveQrUrl?: string | null; orangeMoneyNumero?: string | null },
+  moyens: MoyenPaiementRender[] | null | undefined,
   montant?: number | null,
   reference?: string | null,
 ): string {
-  const wave = org.waveLien?.trim();
-  const qr = org.waveQrUrl?.trim();
-  const om = org.orangeMoneyNumero?.trim();
-  if (!wave && !qr && !om) return '';
+  const liste = (moyens ?? []).filter((m) => m.lien?.trim() || m.numero?.trim() || m.qrUrl?.trim());
+  if (!liste.length) return '';
   const montantTxt = montant && montant > 0 ? fmtFCFA(montant) : null;
-  const lien = wave ? wave.replace(/\{montant\}/g, String(Math.round(montant ?? 0))) : null;
   const ligneMontant = montantTxt
-    ? `<div style="font-size:13px;color:#5b6469;margin-bottom:10px">Montant à régler : <b style="color:#0e1d33">${escapeHtml(montantTxt)}</b>${reference ? ` · Référence : ${escapeHtml(reference)}` : ''}</div>`
+    ? `<div style="font-size:13px;color:#5b6469;margin-bottom:12px">Montant à régler : <b style="color:#0e1d33">${escapeHtml(montantTxt)}</b>${reference ? ` · Référence : ${escapeHtml(reference)}` : ''}</div>`
     : reference
-      ? `<div style="font-size:13px;color:#5b6469;margin-bottom:10px">Référence : ${escapeHtml(reference)}</div>`
+      ? `<div style="font-size:13px;color:#5b6469;margin-bottom:12px">Référence : ${escapeHtml(reference)}</div>`
       : '';
-  const boutonWave = lien
-    ? `<a href="${escapeHtml(lien)}" style="display:inline-block;background:#0e7c5a;color:#ffffff;font-weight:700;font-size:14px;text-decoration:none;padding:11px 20px;border-radius:9px">Payer en ligne →</a>`
-    : '';
-  // QR de paiement : image scannable (l'appli de paiement demande/confirme le montant).
-  const blocQr = qr
-    ? `<div style="margin-top:${boutonWave ? '14' : '0'}px">
-         <img src="${escapeHtml(qr)}" alt="QR de paiement" width="150" height="150" style="width:150px;height:150px;border:1px solid #e4e7e3;border-radius:10px;background:#fff;padding:6px" />
-         <div style="font-size:12.5px;color:#5b6469;margin-top:6px">Scannez ce code pour payer${montantTxt ? ` ${escapeHtml(montantTxt)}` : ''}.</div>
-       </div>`
-    : '';
-  const blocOm = om
-    ? `<div style="font-size:13.5px;color:#22262a;margin-top:${boutonWave || blocQr ? '12' : '0'}px">Orange&nbsp;Money : <b>${escapeHtml(om)}</b>${montantTxt ? ` — envoyez ${escapeHtml(montantTxt)}` : ''}${reference ? `, réf. ${escapeHtml(reference)}` : ''}</div>`
-    : '';
+
+  const rendus = liste
+    .map((m) => {
+      const lien = m.lien?.trim() ? m.lien.trim().replace(/\{montant\}/g, String(Math.round(montant ?? 0))) : null;
+      const qr = m.qrUrl?.trim() || null;
+      const num = m.numero?.trim() || null;
+      const bouton = lien
+        ? `<a href="${escapeHtml(lien)}" style="display:inline-block;background:#0e7c5a;color:#ffffff;font-weight:700;font-size:14px;text-decoration:none;padding:10px 18px;border-radius:9px">Payer en ligne →</a>`
+        : '';
+      const image = qr
+        ? `<div style="margin-top:${bouton ? '10' : '0'}px"><img src="${escapeHtml(qr)}" alt="QR ${escapeHtml(m.label)}" width="140" height="140" style="width:140px;height:140px;border:1px solid #e4e7e3;border-radius:10px;background:#fff;padding:6px" /><div style="font-size:12px;color:#5b6469;margin-top:5px">Scannez pour payer.</div></div>`
+        : '';
+      const numTxt = num
+        ? `<div style="font-size:13.5px;color:#22262a;margin-top:${bouton || image ? '8' : '0'}px"><b>${escapeHtml(num)}</b>${montantTxt ? ` — envoyez ${escapeHtml(montantTxt)}` : ''}${reference ? `, réf. ${escapeHtml(reference)}` : ''}</div>`
+        : '';
+      return `<div style="margin-bottom:14px">
+           <div style="font-size:12.5px;font-weight:700;color:#0e1d33;margin-bottom:6px">${escapeHtml(m.label)}</div>
+           ${bouton}${image}${numTxt}
+         </div>`;
+    })
+    .join('');
+
   return `<div style="margin-top:18px;padding:16px 18px;background:#0e1d330a;border:1px solid #e4e7e3;border-radius:12px">
-       <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#0e7c5a;margin-bottom:8px">Payer maintenant</div>
-       ${ligneMontant}${boutonWave}${blocQr}${blocOm}
+       <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#0e7c5a;margin-bottom:10px">Payer maintenant</div>
+       ${ligneMontant}${rendus}
      </div>`;
 }
 
@@ -172,7 +178,7 @@ export function emailRelanceHtml(
     .map((p) => `<p style="margin:0 0 14px;font-size:15px;line-height:1.55;color:#22262a">${p.replace(/\n/g, '<br/>')}</p>`)
     .join('');
   // Bloc Mobile Money (bouton Payer) EN PREMIER, puis les modalités libres.
-  const blocMobile = blocPaiementHtml(org, paiementCtx?.montant, paiementCtx?.reference);
+  const blocMobile = blocPaiementHtml(org.moyensPaiement, paiementCtx?.montant, paiementCtx?.reference);
   const paiement = instructionsPaiement && instructionsPaiement.trim()
     ? `<div style="margin-top:14px;padding:14px 16px;background:#f4f6f5;border-radius:10px">
          <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#5b6469;margin-bottom:6px">Autres modalités de paiement</div>

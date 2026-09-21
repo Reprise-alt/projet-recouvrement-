@@ -11,6 +11,7 @@ import {
   VARIABLES_RELANCE,
 } from '../lib/modelesRelance';
 import { chargerModelesOrg } from '../services/modeleRelanceService';
+import { chargerMoyensPaiement } from '../lib/moyensPaiement';
 import { requireAccesRecouvrement, requireAuth, requireRole } from '../middleware/auth';
 import { tenantScope } from '../middleware/tenant';
 import { requireAbonnementActif } from '../middleware/abonnement';
@@ -336,17 +337,17 @@ relancesRouter.post('/modeles/:palier/apercu', async (req, res, next) => {
           select: {
             raisonSociale: true, logoUrl: true, adresse: true, identifiantFiscal: true,
             rccm: true, formeJuridique: true, capitalSocial: true, contactRecouvrement: true,
-            instructionsPaiement: true, waveLien: true, waveQrUrl: true, orangeMoneyNumero: true, pays: true,
+            instructionsPaiement: true, pays: true,
           },
         })
       : null;
+    const moyensPaiement = orgId ? await chargerMoyensPaiement(orgId) : [];
     const identite: OrgIdentite = {
       raisonSociale: org?.raisonSociale ?? 'Votre entreprise',
       logoUrl: org?.logoUrl, adresse: org?.adresse, identifiantFiscal: org?.identifiantFiscal,
       rccm: org?.rccm, formeJuridique: org?.formeJuridique, capitalSocial: org?.capitalSocial,
       contactRecouvrement: org?.contactRecouvrement,
-      instructionsPaiement: org?.instructionsPaiement, waveLien: org?.waveLien,
-      waveQrUrl: org?.waveQrUrl, orangeMoneyNumero: org?.orangeMoneyNumero, pays: org?.pays,
+      instructionsPaiement: org?.instructionsPaiement, moyensPaiement, pays: org?.pays,
     };
     const sujet = req.body?.sujet != null ? String(req.body.sujet) : MODELES_DEFAUT[palier].sujet;
     const corps = req.body?.corps != null ? String(req.body.corps) : MODELES_DEFAUT[palier].corps;
