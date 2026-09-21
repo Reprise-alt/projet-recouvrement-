@@ -187,3 +187,43 @@ organisationRouter.post('/logo', requireOrgRole('proprietaire', 'administrateur'
     next(e);
   }
 });
+
+// Types d'image acceptés pour le QR Wave (affiché dans les emails → images
+// classiques uniquement, pas de PDF/SVG qui ne se rendent pas partout).
+const QR_MIMES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+
+// Téléversement du QR code marchand Wave (image). Même mécanisme que le logo :
+// stocké en base, servi par /api/wave-qr/:orgId, URL absolue écrite dans waveQrUrl.
+organisationRouter.post('/wave-qr', requireOrgRole('proprietaire', 'administrateur'), uploadLogo.single('file'), async (req, res, next) => {
+  try {
+    const file = req.file;
+    if (!file) return res.status(400).json({ error: 'Aucun fichier reçu' });
+    if (!QR_MIMES.has(file.mimetype)) {
+      return res.status(400).json({ error: 'Format non supporté (PNG, JPEG ou WebP attendu). Si vous avez le QR en PDF, faites une capture d’écran.' });
+    }
+    const proto = process.env.NODE_ENV === 'production' ? 'https' : req.protocol;
+    const host = req.get('host');
+    const orgId = req.user!.organisationId;
+    const waveQrUrl = `${proto}://${host}/api/wave-qr/${orgId}?v=${Date.now()}`;
+    const org = await prisma.organisation.update({
+      where: { id: orgId },
+      data: { waveQrData: file.buffer, waveQrMime: file.mimetype, waveQrUrl },
+    });
+    res.json({ waveQrUrl: org.waveQrUrl });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Retrait du QR Wave.
+organisationRouter.delete('/wave-qr', requireOrgRole('proprietaire', 'administrateur'), async (req, res, next) => {
+  try {
+    await prisma.organisation.update({
+      where: { id: req.user!.organisationId },
+      data: { waveQrData: null, waveQrMime: null, waveQrUrl: null },
+    });
+    res.json({ ok: true });
+  } catch (e) {
+    next(e);
+  }
+});

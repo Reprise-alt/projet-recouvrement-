@@ -36,7 +36,7 @@ contentieuxPortailRouter.get('/:token', async (req, res, next) => {
     // route publique, lecture hors contexte tenant : on n'expose que ces champs.
     const orgPaie = await prisma.organisation.findUnique({
       where: { id: d.client.organisationId },
-      select: { waveLien: true, orangeMoneyNumero: true, instructionsPaiement: true },
+      select: { waveLien: true, waveQrUrl: true, orangeMoneyNumero: true, instructionsPaiement: true },
     });
     const derniere = await prisma.propositionPaiement.findFirst({
       where: { dossierId: d.id },
@@ -58,6 +58,7 @@ contentieuxPortailRouter.get('/:token', async (req, res, next) => {
       derniereProposition: derniere,
       paiement: {
         waveLien: orgPaie?.waveLien ?? null,
+        waveQrUrl: orgPaie?.waveQrUrl ?? null,
         orangeMoneyNumero: orgPaie?.orangeMoneyNumero ?? null,
         instructions: orgPaie?.instructionsPaiement ?? null,
       },

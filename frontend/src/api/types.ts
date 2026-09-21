@@ -30,6 +30,7 @@ export interface Organisation {
   logoUrl: string | null;
   instructionsPaiement: string | null;
   waveLien: string | null;
+  waveQrUrl: string | null;
   orangeMoneyNumero: string | null;
   contactRecouvrement: string | null;
   emailReponse: string | null;
@@ -1054,7 +1055,7 @@ export interface PortailPublic {
   commandementDisponible: boolean;
   factures: { numero: string; montant: number; dateEcheance: string | null }[];
   derniereProposition: { statut: StatutProposition; createdAt: string } | null;
-  paiement?: { waveLien: string | null; orangeMoneyNumero: string | null; instructions: string | null } | null;
+  paiement?: { waveLien: string | null; waveQrUrl: string | null; orangeMoneyNumero: string | null; instructions: string | null } | null;
 }
 export type StatutActe = 'brouillon' | 'valide' | 'signe';
 

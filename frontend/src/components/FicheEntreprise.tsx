@@ -28,7 +28,9 @@ export function FicheEntreprise({
     keyLength?: number;
   } | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
+  const [qrBusy, setQrBusy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const qrInputRef = useRef<HTMLInputElement>(null);
 
   // Envoie un email de test à l'administrateur et affiche le résultat exact
   // (mode actif + succès ou erreur) — pour vérifier la délivrabilité.
@@ -77,6 +79,43 @@ export function FicheEntreprise({
       setErreur(err instanceof ApiError ? err.message : 'Échec du téléversement du logo.');
     } finally {
       setLogoBusy(false);
+    }
+  }
+
+  // Téléverse l'image du QR Wave (stockée + servie par une URL publique).
+  async function televerserQr(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (file.size > 1024 * 1024) {
+      setErreur('Image trop lourde (max 1 Mo).');
+      return;
+    }
+    setQrBusy(true);
+    setErreur(null);
+    try {
+      const { waveQrUrl } = await (async () => {
+        const form = new FormData();
+        form.append('file', file);
+        return api.upload<{ waveQrUrl: string }>('/api/organisation/wave-qr', form);
+      })();
+      champ('waveQrUrl', waveQrUrl);
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Échec du téléversement du QR.');
+    } finally {
+      setQrBusy(false);
+    }
+  }
+
+  async function retirerQr() {
+    setQrBusy(true);
+    try {
+      await api.delete('/api/organisation/wave-qr');
+      champ('waveQrUrl', null);
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Échec du retrait du QR.');
+    } finally {
+      setQrBusy(false);
     }
   }
 
@@ -251,6 +290,33 @@ export function FicheEntreprise({
                   <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 3 }}>
                     Astuce : si votre lien accepte un montant, écrivez <code>{'{montant}'}</code> à sa place — il sera
                     remplacé par la somme due (ex. <code>…?amount={'{montant}'}</code>).
+                  </div>
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, color: 'var(--ink-soft)' }}>QR code Wave entreprise (image)</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4 }}>
+                    {org.waveQrUrl ? (
+                      <img
+                        src={org.waveQrUrl}
+                        alt="QR Wave"
+                        style={{ width: 72, height: 72, objectFit: 'contain', border: '1px solid var(--line)', borderRadius: 8, background: '#fff', padding: 4 }}
+                      />
+                    ) : (
+                      <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}>Aucun QR</span>
+                    )}
+                    <input ref={qrInputRef} type="file" accept="image/png,image/jpeg,image/webp" style={{ display: 'none' }} onChange={televerserQr} />
+                    <button type="button" onClick={() => qrInputRef.current?.click()} disabled={qrBusy}>
+                      {qrBusy ? 'Envoi…' : org.waveQrUrl ? 'Remplacer' : 'Téléverser le QR'}
+                    </button>
+                    {org.waveQrUrl && (
+                      <button type="button" onClick={retirerQr} disabled={qrBusy} style={{ color: 'var(--danger)' }}>
+                        Retirer
+                      </button>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 3 }}>
+                    PNG ou JPEG. Si vous n’avez que le PDF fourni par Wave, faites une capture d’écran du QR.
+                    Il s’affichera dans vos relances et le portail pour que le débiteur le scanne.
                   </div>
                 </div>
                 <div>

@@ -147,6 +147,7 @@ export async function executerRelancesTenant(opts: OptionsExecution = {}): Promi
         select: {
           instructionsPaiement: true,
           waveLien: true,
+          waveQrUrl: true,
           orangeMoneyNumero: true,
           raisonSociale: true,
           emailReponse: true,
@@ -178,6 +179,7 @@ export async function executerRelancesTenant(opts: OptionsExecution = {}): Promi
         contactRecouvrement: org.contactRecouvrement,
         instructionsPaiement: org.instructionsPaiement,
         waveLien: org.waveLien,
+        waveQrUrl: org.waveQrUrl,
         orangeMoneyNumero: org.orangeMoneyNumero,
         pays: org.pays,
       }
@@ -290,7 +292,7 @@ export async function reconstruireEmailRelance(
     ? await prisma.organisation.findUnique({
         where: { id: orgId },
         select: {
-          instructionsPaiement: true, waveLien: true, orangeMoneyNumero: true,
+          instructionsPaiement: true, waveLien: true, waveQrUrl: true, orangeMoneyNumero: true,
           raisonSociale: true, emailReponse: true, logoUrl: true,
           adresse: true, identifiantFiscal: true, rccm: true, formeJuridique: true,
           capitalSocial: true, contactRecouvrement: true, pays: true,
@@ -303,7 +305,7 @@ export async function reconstruireEmailRelance(
         identifiantFiscal: org.identifiantFiscal, rccm: org.rccm, formeJuridique: org.formeJuridique,
         capitalSocial: org.capitalSocial, contactRecouvrement: org.contactRecouvrement,
         instructionsPaiement: org.instructionsPaiement, waveLien: org.waveLien,
-        orangeMoneyNumero: org.orangeMoneyNumero, pays: org.pays,
+        waveQrUrl: org.waveQrUrl, orangeMoneyNumero: org.orangeMoneyNumero, pays: org.pays,
       }
     : null;
   const modelesOrg = orgIdentite ? await chargerModelesOrg() : null;
