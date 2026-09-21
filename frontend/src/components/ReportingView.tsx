@@ -200,6 +200,7 @@ export function ReportingView({ entityFilter, role }: Props) {
   const analysePath = canSeeAgents && from && to ? `/api/reporting/analyse${buildQuery(query)}` : null;
   const { data: analyseData, loading: loadingAnalyse } = useResource<AnalyseResult>(analysePath);
   const [analyseEdit, setAnalyseEdit] = useState<AnalyseResult | null>(null);
+  const [ajusterAnalyse, setAjusterAnalyse] = useState(false);
   useEffect(() => {
     setAnalyseEdit(analyseData);
   }, [analyseData]);
@@ -320,32 +321,26 @@ export function ReportingView({ entityFilter, role }: Props) {
           })()}
 
           {canSeeAgents && (
-            <div className="table-card" style={{ marginBottom: 24, padding: '18px 22px' }}>
-              <div style={{ marginBottom: 4 }}>
-                <div style={{ fontWeight: 600, fontSize: 14 }}>
-                  Analyse du mois — {fmtDate(from)} au {fmtDate(to)}
+            <>
+              {/* Analyse visuelle : synthèse claire (camembert + lecture du mois +
+                  points clés). L'éditeur texte (repris dans les exports) reste
+                  accessible via « Ajuster la synthèse ». */}
+              {loadingAnalyse || !analyseEdit ? (
+                <div className="table-card" style={{ marginBottom: 24, padding: '18px 22px' }}>
+                  <div className="empty-state">Chargement de l'analyse…</div>
                 </div>
-                <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 3, marginBottom: 14 }}>
-                  Suggestions générées automatiquement à partir des chiffres de la période — corrigez ou complétez librement,
-                  le texte ci-dessous sera repris tel quel dans les exports PDF et Excel.
-                </div>
-              </div>
-              {loadingAnalyse ? (
-                <div className="empty-state">Chargement…</div>
-              ) : !analyseEdit ? null : (
-                <div>
-                  {ANALYSE_SECTIONS.map((s) => (
-                    <AnalyseSection
-                      key={s.key}
-                      titre={s.titre}
-                      tone={s.tone}
-                      items={analyseEdit[s.key]}
-                      onChange={(items) => setAnalyseEdit({ ...analyseEdit, [s.key]: items })}
-                    />
-                  ))}
-                </div>
+              ) : (
+                <AnalyseVisuelle
+                  periodeLabel={`${fmtDate(from)} au ${fmtDate(to)}`}
+                  summary={summary}
+                  pilotage={pilotage}
+                  analyse={analyseEdit}
+                  ajuster={ajusterAnalyse}
+                  onToggleAjuster={() => setAjusterAnalyse((v) => !v)}
+                  onChangeAnalyse={setAnalyseEdit}
+                />
               )}
-            </div>
+            </>
           )}
 
           {canSeeAgents && (
@@ -920,6 +915,157 @@ function ReportingEmailAuto({ canEdit }: { canEdit: boolean }) {
       </div>
       {msg && <div style={{ marginTop: 8, fontSize: 12.5, color: 'var(--accent-dark)' }}>{msg}</div>}
       {err && <div className="login-error" style={{ marginTop: 8 }}>{err}</div>}
+    </div>
+  );
+}
+
+// Analyse visuelle du mois : synthèse claire et concise (camembert de la balance
+// âgée + « lecture du mois » + points clés), l'éditeur texte restant accessible
+// (« Ajuster la synthèse ») car il alimente les exports PDF/Excel.
+function AnalyseVisuelle({
+  periodeLabel,
+  summary,
+  pilotage,
+  analyse,
+  ajuster,
+  onToggleAjuster,
+  onChangeAnalyse,
+}: {
+  periodeLabel: string;
+  summary: ReportingSummary;
+  pilotage: PilotageData | null;
+  analyse: AnalyseResult;
+  ajuster: boolean;
+  onToggleAjuster: () => void;
+  onChangeAnalyse: (a: AnalyseResult) => void;
+}) {
+  const overdue = (pilotage?.balanceAgee ?? []).filter((t) => t.cle !== 'a_echoir');
+  const overdueTotal = overdue.reduce((s, t) => s + t.montant, 0);
+  const plus90 = overdue.find((t) => t.cle === 'j90_plus');
+
+  // Camembert (donut) : dégradé conique des tranches de retard.
+  let acc = 0;
+  const stops = overdue
+    .filter((t) => t.montant > 0)
+    .map((t) => {
+      const from = (acc / overdueTotal) * 100;
+      acc += t.montant;
+      const to = (acc / overdueTotal) * 100;
+      return `${AGE_COLORS[t.cle]} ${from}% ${to}%`;
+    });
+  const donut = stops.length ? `conic-gradient(${stops.join(', ')})` : 'conic-gradient(var(--line) 0 100%)';
+
+  const dso = summary.delaiEncaissement.global;
+  const taux = pilotage?.recouvrement.taux ?? null;
+
+  // Lecture du mois : une phrase chiffrée, honnête.
+  const lecture = [
+    `Vous avez encaissé ${fmtFCFA(summary.facturesPayees.montantTotal)} sur ${summary.facturesPayees.nombre} facture${summary.facturesPayees.nombre > 1 ? 's' : ''}`,
+    dso !== null ? `, pour un délai moyen d'encaissement de ${Math.round(dso)} jours` : '',
+    '. ',
+    plus90 && plus90.montant > 0
+      ? `Point d'attention : ${fmtFCFA(plus90.montant)} d'encours dépassent 90 jours de retard — c'est là que se concentre le risque.`
+      : overdueTotal > 0
+        ? `Encours en retard maîtrisé (${fmtFCFA(overdueTotal)}), sans créance ancienne majeure.`
+        : `Aucun encours en retard sur la période.`,
+  ].join('');
+
+  const insights: { tone: 'good' | 'warn' | 'reco'; tag: string; texte: string }[] = [];
+  if (analyse.pointsForts[0]) insights.push({ tone: 'good', tag: '▲ Point fort', texte: analyse.pointsForts[0] });
+  else if (analyse.actionsPositives[0]) insights.push({ tone: 'good', tag: '▲ Point fort', texte: analyse.actionsPositives[0] });
+  if (analyse.pointsVigilance[0]) insights.push({ tone: 'warn', tag: '⚠ Vigilance', texte: analyse.pointsVigilance[0] });
+  if (analyse.recommandations[0]) insights.push({ tone: 'reco', tag: '→ Recommandation', texte: analyse.recommandations[0] });
+  else if (analyse.axesAmelioration[0]) insights.push({ tone: 'reco', tag: '→ Recommandation', texte: analyse.axesAmelioration[0] });
+
+  const insBorder = { good: 'var(--accent)', warn: 'var(--amber, #B0700F)', reco: 'var(--ink)' } as const;
+  const insColor = { good: 'var(--accent-dark)', warn: 'var(--amber, #B0700F)', reco: 'var(--ink)' } as const;
+
+  return (
+    <div className="table-card" style={{ marginBottom: 24, padding: '20px 22px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 16, fontFamily: 'var(--font-display)' }}>Analyse du mois</div>
+          <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginTop: 2 }}>{periodeLabel} — une lecture claire, chiffrée.</div>
+        </div>
+        <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--accent-dark)', background: 'var(--accent-soft)', padding: '4px 10px', borderRadius: 20 }}>
+          ✦ Synthèse automatique
+        </span>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(200px, 240px) 1fr', gap: 22, marginTop: 16, alignItems: 'center' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+          <div style={{ width: 168, height: 168, borderRadius: '50%', background: donut, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: 108, height: 108, borderRadius: '50%', background: 'var(--surface)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+              <b className="mono" style={{ fontSize: 17 }}>{fmtFCFA(overdueTotal)}</b>
+              <span style={{ fontSize: 10.5, color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '.05em' }}>en retard</span>
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5, width: '100%' }}>
+            {overdue.map((t) => (
+              <div key={t.cle} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12 }}>
+                <span style={{ width: 10, height: 10, borderRadius: 3, background: AGE_COLORS[t.cle], flex: 'none' }} />
+                {t.label}
+                <span className="mono" style={{ marginLeft: 'auto', fontWeight: 600 }}>{fmtFCFA(t.montant)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 15, fontFamily: 'var(--font-display)', marginBottom: 6 }}>La lecture du mois</div>
+          <p style={{ fontSize: 14.5, lineHeight: 1.55, margin: 0 }}>{lecture}</p>
+          <div style={{ display: 'flex', gap: 26, marginTop: 16, flexWrap: 'wrap' }}>
+            <div>
+              <div className="mono" style={{ fontSize: 20, fontWeight: 600, color: 'var(--accent-dark)' }}>{taux !== null ? `${taux} %` : '—'}</div>
+              <div style={{ fontSize: 11, color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '.05em' }}>Taux de recouvrement</div>
+            </div>
+            <div>
+              <div className="mono" style={{ fontSize: 20, fontWeight: 600 }}>{dso !== null ? `${Math.round(dso)} j` : '—'}</div>
+              <div style={{ fontSize: 11, color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '.05em' }}>Délai moyen (DSO)</div>
+            </div>
+            <div>
+              <div className="mono" style={{ fontSize: 20, fontWeight: 600 }}>{summary.facturesPayees.nombre}</div>
+              <div style={{ fontSize: 11, color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '.05em' }}>Factures réglées</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {insights.length > 0 && (
+        <>
+          <div className="section-title" style={{ margin: '22px 0 12px' }}>Ce qu'il faut retenir</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+            {insights.map((i, k) => (
+              <div key={k} style={{ border: '1px solid var(--line)', borderLeft: `3px solid ${insBorder[i.tone]}`, borderRadius: 12, padding: '13px 15px', background: 'var(--surface)' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: insColor[i.tone], marginBottom: 6 }}>{i.tag}</div>
+                <div style={{ fontSize: 13.5, lineHeight: 1.5 }}>{i.texte}</div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      <div style={{ marginTop: 16 }}>
+        <button type="button" style={{ fontSize: 12.5, padding: '5px 12px' }} onClick={onToggleAjuster}>
+          {ajuster ? 'Masquer l’édition' : '✎ Ajuster la synthèse (avant export)'}
+        </button>
+      </div>
+      {ajuster && (
+        <div style={{ marginTop: 14, borderTop: '1px solid var(--line)', paddingTop: 14 }}>
+          <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginBottom: 12 }}>
+            Le texte ci-dessous est repris tel quel dans les exports PDF et Excel — corrigez ou complétez librement.
+          </div>
+          {ANALYSE_SECTIONS.map((s) => (
+            <AnalyseSection
+              key={s.key}
+              titre={s.titre}
+              tone={s.tone}
+              items={analyse[s.key]}
+              onChange={(items) => onChangeAnalyse({ ...analyse, [s.key]: items })}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

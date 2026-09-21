@@ -22,6 +22,9 @@ export interface AnalyseInput {
   // Statistiques agent déjà bornées à la période et aux comptes marqués
   // "agent de recouvrement" (cf. Utilisateur.estAgentRecouvrement).
   agents: AgentStat[];
+  // Mono-société (SaaS) : on supprime les comparaisons « par entité » (notion
+  // de groupe) — elles n'ont pas de sens et exposeraient des entités tierces.
+  mono?: boolean;
 }
 
 export type CategoriePoint = 'pointFort' | 'actionPositive' | 'vigilance' | 'amelioration';
@@ -87,8 +90,8 @@ export function buildAnalyse(input: AnalyseInput): AnalyseResult {
     }
   }
 
-  // --- Écart de délai entre entités ---
-  if (actuel.delaiEncaissement.parEntite.length > 1) {
+  // --- Écart de délai entre entités (jamais en mono-société / SaaS) ---
+  if (!input.mono && actuel.delaiEncaissement.parEntite.length > 1) {
     const avecDelai = actuel.delaiEncaissement.parEntite.filter((r) => r.delaiJours !== null);
     if (avecDelai.length > 1) {
       const meilleure = avecDelai.reduce((a, b) => (a.delaiJours! < b.delaiJours! ? a : b));
