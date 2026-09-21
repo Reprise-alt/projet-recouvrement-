@@ -328,13 +328,10 @@ export function RecouvrementView({ entityFilter, role, reloadKey, onImport, canR
             )}
           </div>
         </div>
-        {/* Conteneur à défilement : le tableau (8 colonnes) peut dépasser la
-            largeur de la carte selon le viewport. On borne la hauteur et on fige
-            l'en-tête (thead sticky) pour que la barre de défilement HORIZONTALE
-            reste toujours visible en bas de la fenêtre du tableau — sinon elle se
-            retrouve tout en bas de la liste, hors écran, et l'utilisateur ne peut
-            pas atteindre les dernières colonnes (« Prochaine relance »). */}
-        <div className="table-scroll">
+        {/* Tableau responsive : les colonnes se redimensionnent pour tenir dans
+            la largeur de l'écran (table-fit = table-layout fixed), sans aucun
+            défilement. Le contenu trop long est tronqué avec « … » + info-bulle. */}
+        <div>
           {(() => {
             if (list.loading) {
               return <div className="empty-state">Chargement…</div>;
@@ -356,14 +353,24 @@ export function RecouvrementView({ entityFilter, role, reloadKey, onImport, canR
               );
             }
             return (
-            <table style={{ minWidth: 980 }}>
+            <table className="table-fit">
+              <colgroup>
+                <col style={{ width: '20%' }} />
+                <col style={{ width: '9%' }} />
+                <col style={{ width: '14%' }} />
+                <col style={{ width: '10%' }} />
+                <col style={{ width: '8%' }} />
+                <col style={{ width: '12%' }} />
+                <col style={{ width: '15%' }} />
+                <col style={{ width: '12%' }} />
+              </colgroup>
               <thead>
                 <tr>
                   <th onClick={() => toggleSort('nom')}>Client</th>
                   <th>Entité</th>
                   <th onClick={() => toggleSort('encours')}>Encours</th>
-                  <th>Échéance la + ancienne</th>
-                  <th onClick={() => toggleSort('joursRetard')}>Jours de retard</th>
+                  <th title="Échéance la plus ancienne">Échéance</th>
+                  <th onClick={() => toggleSort('joursRetard')}>Retard</th>
                   <th>Palier</th>
                   <th>Dernière action</th>
                   <th>Prochaine relance</th>
@@ -375,69 +382,68 @@ export function RecouvrementView({ entityFilter, role, reloadKey, onImport, canR
                   return (
                     <tr key={c.id} className="row-hover" onClick={() => setSelectedClientId(c.id)}>
                       <td>
-                        <span
-                          title={c.nom}
-                          style={{ display: 'inline-block', maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', verticalAlign: 'middle' }}
-                        >
+                        <div title={c.nom} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {c.nom}
-                        </span>
-                        {c.retardInhabituel && (
-                          <span
-                            className="badge"
-                            data-tone="amber"
-                            style={{ marginLeft: 8 }}
-                            title="Ce client dépasse nettement son propre délai de paiement habituel, avant même son prochain palier."
-                          >
-                            <TrendingUp size={11} /> Retard inhabituel
-                          </span>
-                        )}
-                        {c.frequenceFacturation !== 'mensuelle' && (
-                          <span
-                            className="entity-tag"
-                            style={{ marginLeft: 8, fontSize: 10 }}
-                            title={
-                              c.frequenceFacturation === 'ponctuelle'
-                                ? "Facturation à l'acte : l'échéance fait foi telle quelle"
-                                : "L'échelle de paliers est adaptée à ce rythme de facturation"
-                            }
-                          >
-                            {c.frequenceFacturation === 'trimestrielle'
-                              ? 'Trimestriel'
-                              : c.frequenceFacturation === 'annuelle'
-                                ? 'Annuel'
-                                : 'Ponctuel'}
-                          </span>
+                        </div>
+                        {(c.retardInhabituel || c.frequenceFacturation !== 'mensuelle') && (
+                          <div style={{ display: 'flex', gap: 6, marginTop: 3, overflow: 'hidden' }}>
+                            {c.retardInhabituel && (
+                              <span
+                                className="badge"
+                                data-tone="amber"
+                                style={{ flex: 'none' }}
+                                title="Ce client dépasse nettement son propre délai de paiement habituel, avant même son prochain palier."
+                              >
+                                <TrendingUp size={11} /> Retard inhabituel
+                              </span>
+                            )}
+                            {c.frequenceFacturation !== 'mensuelle' && (
+                              <span
+                                className="entity-tag"
+                                style={{ flex: 'none', fontSize: 10 }}
+                                title={
+                                  c.frequenceFacturation === 'ponctuelle'
+                                    ? "Facturation à l'acte : l'échéance fait foi telle quelle"
+                                    : "L'échelle de paliers est adaptée à ce rythme de facturation"
+                                }
+                              >
+                                {c.frequenceFacturation === 'trimestrielle'
+                                  ? 'Trimestriel'
+                                  : c.frequenceFacturation === 'annuelle'
+                                    ? 'Annuel'
+                                    : 'Ponctuel'}
+                              </span>
+                            )}
+                          </div>
                         )}
                         {c.note && (
-                          <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 2, maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <div title={c.note} style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {c.note}
                           </div>
                         )}
                       </td>
                       <td>
-                        <span className="entity-tag" style={{ borderLeftColor: entityAccent(c.entite), borderLeftWidth: 3 }}>
+                        <span className="entity-tag" style={{ borderLeftColor: entityAccent(c.entite), borderLeftWidth: 3, maxWidth: '100%' }}>
                           <EntityLogo entite={c.entite} size={12} logoUrl={orgLogo} />
                           {c.entite}
                         </span>
                       </td>
-                      <td className="mono">{fmtFCFA(c.encours)}</td>
-                      <td className="mono">{fmtDate(c.echeanceLaPlusAncienne)}</td>
+                      <td className="mono" title={fmtFCFA(c.encours)}>{fmtFCFA(c.encours)}</td>
+                      <td className="mono" title={fmtDate(c.echeanceLaPlusAncienne)}>{fmtDate(c.echeanceLaPlusAncienne)}</td>
                       <td className="mono">{c.joursRetard} j</td>
                       <td>
                         <span className="badge" data-tone={pal.tone}>
                           {libelle(c.palier)}
                         </span>
                       </td>
-                      <td style={{ fontSize: 12, maxWidth: 230 }}>
+                      <td style={{ fontSize: 12 }}>
                         {c.derniereAction ? (
                           <span
                             title={`${c.derniereAction.label} · ${fmtDate(c.derniereAction.date)}`}
-                            style={{ display: 'flex', alignItems: 'center', gap: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: c.derniereAction.palier < c.palier ? 'var(--amber)' : 'var(--ink-soft)' }}
+                            style={{ color: c.derniereAction.palier < c.palier ? 'var(--amber)' : 'var(--ink-soft)' }}
                           >
-                            {c.derniereAction.palier < c.palier && <AlertTriangle size={11} style={{ flex: 'none' }} />}
-                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {c.derniereAction.label} · {fmtDate(c.derniereAction.date)}
-                            </span>
+                            {c.derniereAction.palier < c.palier && <AlertTriangle size={11} style={{ verticalAlign: -1, marginRight: 3 }} />}
+                            {c.derniereAction.label} · {fmtDate(c.derniereAction.date)}
                           </span>
                         ) : c.palier > 0 ? (
                           <span style={{ color: 'var(--amber)' }}>Aucune action</span>

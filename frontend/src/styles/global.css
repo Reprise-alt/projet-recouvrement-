@@ -241,14 +241,13 @@ td{padding:13px 16px;border-bottom:1px solid var(--paper-2);font-size:13.5px;ver
 tr:last-child td{border-bottom:none;}
 tr.row-hover{transition:background .12s var(--ease);}
 tr.row-hover:hover{background:var(--paper);cursor:pointer;}
-/* Tableau large : défilement HORIZONTAL uniquement (pas de boîte à scroll
-   verticale — le tableau garde sa hauteur naturelle). Barre horizontale épaissie
-   et stylée pour qu'on la voie et qu'on comprenne qu'on peut faire glisser. */
-.table-scroll{overflow-x:auto;overflow-y:hidden;}
-.table-scroll::-webkit-scrollbar{height:12px;}
-.table-scroll::-webkit-scrollbar-thumb{background:var(--line);border-radius:7px;border:3px solid var(--surface);}
-.table-scroll::-webkit-scrollbar-thumb:hover{background:var(--ink-soft);}
-.table-scroll::-webkit-scrollbar-track{background:transparent;}
+/* Tableau responsive : les colonnes se redimensionnent pour tenir dans la
+   largeur disponible (table-layout fixed), SANS aucun défilement (ni horizontal
+   ni vertical). Le contenu trop long est tronqué avec « … » (valeur complète en
+   info-bulle au survol). Sur mobile, la media query plus bas rétablit un scroll
+   horizontal (min-width) car 8 colonnes ne tiennent pas sur un téléphone. */
+.table-fit{table-layout:fixed;width:100%;}
+.table-fit th,.table-fit td{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .mono{font-family:var(--font-mono);}
 .badge{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:20px;font-size:11.5px;font-weight:600;font-family:var(--font-mono);}
 .badge::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0;}
