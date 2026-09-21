@@ -354,14 +354,13 @@ export function RecouvrementView({ entityFilter, role, reloadKey, onImport, canR
               );
             }
             return (
-            <table style={{ minWidth: 820 }}>
+            <table style={{ minWidth: 720 }}>
               <thead>
                 <tr>
                   <th onClick={() => toggleSort('nom')}>Client</th>
                   <th>Entité</th>
                   <th onClick={() => toggleSort('encours')}>Encours</th>
-                  <th>Échéance la + ancienne</th>
-                  <th onClick={() => toggleSort('joursRetard')}>Jours de retard</th>
+                  <th onClick={() => toggleSort('joursRetard')}>Retard</th>
                   <th>Palier</th>
                   <th>Dernière action</th>
                   <th>Prochaine relance</th>
@@ -419,8 +418,14 @@ export function RecouvrementView({ entityFilter, role, reloadKey, onImport, canR
                         </span>
                       </td>
                       <td className="mono">{fmtFCFA(c.encours)}</td>
-                      <td className="mono">{fmtDate(c.echeanceLaPlusAncienne)}</td>
-                      <td className="mono">{c.joursRetard} j</td>
+                      <td className="mono">
+                        {c.joursRetard} j
+                        {c.echeanceLaPlusAncienne && (
+                          <div style={{ fontSize: 10.5, color: 'var(--ink-soft)', marginTop: 2 }}>
+                            dep. {fmtDate(c.echeanceLaPlusAncienne)}
+                          </div>
+                        )}
+                      </td>
                       <td>
                         <span className="badge" data-tone={pal.tone}>
                           {libelle(c.palier)}
