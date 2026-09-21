@@ -5,6 +5,7 @@ import { requireAuth, requireOrgRole } from '../middleware/auth';
 import { emailMode, getEmailProvider } from '../lib/email/provider';
 import { capacites } from '../lib/formules';
 import { superAdminEmails } from '../lib/superAdmin';
+import { verifierDelivrabilite } from '../lib/deliverability';
 
 // Types d'image acceptés pour le logo. PNG/JPEG/WebP s'affichent partout, y
 // compris dans les emails ; SVG toléré (rendu via <img>, sans exécution de
@@ -37,6 +38,23 @@ const CHAMPS = [
   'contactRecouvrement',
   'emailReponse',
 ] as const;
+
+// Vérificateur de délivrabilité e-mail : diagnostic DNS (SPF/DKIM/DMARC/MX) du
+// domaine fourni (ou du domaine de l'adresse de réponse de l'organisation).
+organisationRouter.get('/deliverability', async (req, res, next) => {
+  try {
+    let domaine = typeof req.query.domain === 'string' ? req.query.domain : '';
+    if (!domaine) {
+      const org = await prisma.organisation.findUnique({ where: { id: req.user!.organisationId }, select: { emailReponse: true } });
+      domaine = org?.emailReponse ?? req.user!.email ?? '';
+    }
+    const rapport = await verifierDelivrabilite(domaine);
+    if (!rapport) return res.status(400).json({ error: 'Domaine invalide' });
+    res.json(rapport);
+  } catch (e) {
+    next(e);
+  }
+});
 
 organisationRouter.get('/', async (req, res, next) => {
   try {

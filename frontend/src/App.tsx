@@ -26,6 +26,7 @@ import { FicheEntreprise } from './components/FicheEntreprise';
 import { AbonnementBloque } from './components/AbonnementBloque';
 import { SuperAdminPanel } from './components/SuperAdminPanel';
 import { ParrainagePanel } from './components/ParrainagePanel';
+import { DeliverabilityPanel } from './components/DeliverabilityPanel';
 import { OffresAbonnement } from './components/OffresAbonnement';
 import { EntityLogo } from './components/EntityLogo';
 import { Entite, Entreprise } from './api/types';
@@ -104,6 +105,7 @@ export function App() {
   const [espaceExploitantOuvert, setEspaceExploitantOuvert] = useState(false);
   const [offresOpen, setOffresOpen] = useState(false);
   const [parrainageOpen, setParrainageOpen] = useState(false);
+  const [deliverabilityOpen, setDeliverabilityOpen] = useState(false);
   const [dataVersion, setDataVersion] = useState(0);
   // Démarrage guidé SaaS : les comptes d'organisation (roleOrg) atterrissent sur
   // la checklist tant qu'ils ne sont pas entrés dans la console.
@@ -434,6 +436,8 @@ export function App() {
               {!IS_SAAS && <button onClick={() => setIntegrationsOpen(true)}>Intégrations</button>}
               {/* Gestion multi-entités : réservée PME / Grands comptes en SaaS. */}
               {canMultiEntites && <button onClick={() => setEntreprisesOpen(true)}>Entreprises</button>}
+              {/* Vérificateur de délivrabilité (SPF/DKIM/DMARC) — SaaS. */}
+              {IS_SAAS && <button onClick={() => setDeliverabilityOpen(true)}>Délivrabilité e-mail</button>}
               {/* Parrainage : inviter une entreprise, 1 mois offert (SaaS). */}
               {IS_SAAS && <button onClick={() => setParrainageOpen(true)}>🎁 Parrainage</button>}
             </div>
@@ -588,6 +592,7 @@ export function App() {
       {ficheOpen && <FicheEntreprise onClose={() => setFicheOpen(false)} onSaved={bumpDataVersion} />}
       {superAdminOpen && <SuperAdminPanel onClose={() => setSuperAdminOpen(false)} />}
       {parrainageOpen && <ParrainagePanel onClose={() => setParrainageOpen(false)} />}
+      {deliverabilityOpen && <DeliverabilityPanel onClose={() => setDeliverabilityOpen(false)} domaineInitial={user.email} />}
       {offresOpen && (
         <div className="modal-overlay open" onClick={(e) => e.target === e.currentTarget && setOffresOpen(false)}>
           <div className="modal" style={{ width: 'min(760px, 96%)' }}>
