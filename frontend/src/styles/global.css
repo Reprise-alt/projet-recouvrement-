@@ -816,6 +816,18 @@ body:has(.lp){background:#FBFBF8;}
 .onb-demo-kpis>div{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius-md);padding:12px 14px;display:flex;flex-direction:column;}
 .onb-demo-kpis b{font-size:18px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;}
 .onb-demo-kpis span{font-size:11px;color:var(--ink-soft);margin-top:2px;}
+
+/* ===== Cartes d'offres (détail au survol + choix) ===== */
+.offre-card{border:1px solid var(--line);border-radius:12px;padding:16px 16px 14px;background:var(--surface);position:relative;display:flex;flex-direction:column;transition:box-shadow .15s var(--ease),border-color .15s var(--ease),transform .15s var(--ease);}
+.offre-card:hover{border-color:var(--accent);box-shadow:0 12px 32px rgba(14,29,51,.09);transform:translateY(-2px);}
+.offre-card.reco{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent);}
+.offre-hint{font-size:11px;color:var(--ink-soft);margin-top:8px;font-style:italic;}
+.offre-card:hover .offre-hint{display:none;}
+.offre-details{max-height:0;overflow:hidden;opacity:0;margin-top:0;transition:max-height .28s var(--ease),opacity .2s var(--ease),margin-top .2s var(--ease);}
+.offre-card:hover .offre-details{max-height:520px;opacity:1;margin-top:10px;}
+.offre-details ul{margin:0;padding-left:16px;font-size:12px;line-height:1.65;color:var(--ink);}
+.offre-choisir{margin-top:12px;width:100%;}
+@media (hover:none){.offre-details{max-height:none;opacity:1;margin-top:10px;}.offre-hint{display:none;}}
 .onb-demo-table{width:100%;border-collapse:collapse;font-size:13px;}
 .onb-demo-table th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);padding:8px 10px;border-bottom:1px solid var(--line);}
 .onb-demo-table td{padding:10px;border-bottom:1px solid var(--line-soft);}
