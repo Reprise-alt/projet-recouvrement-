@@ -894,7 +894,16 @@ function drawTable(doc: PDFKit.PDFDocument, headers: string[], rows: (string | n
 
   doc.font('Helvetica').fontSize(9.5).fillColor(PDF_INK);
   rows.forEach((row) => {
-    if (y > doc.page.height - 60) {
+    // Hauteur réelle de la ligne : on mesure chaque cellule au repli (les noms
+    // longs, ex. « SOCIETE EIFFAGE DE LA CONCESSION… », tiennent sur 2–3 lignes)
+    // et on prend la plus haute — sinon le texte déborde et chevauche la ligne
+    // suivante (cf. bug reporting).
+    const cellHeights = row.map((cell, i) =>
+      doc.heightOfString(pdfSafe(String(cell)), { width: widths[i] - 12 }),
+    );
+    const contentH = Math.max(...cellHeights);
+    const thisRowH = Math.max(rowH, contentH + 12);
+    if (y + thisRowH > doc.page.height - 60) {
       doc.addPage();
       y = PAGE_MARGIN;
     }
@@ -904,12 +913,12 @@ function drawTable(doc: PDFKit.PDFDocument, headers: string[], rows: (string | n
       x += widths[i];
     });
     doc
-      .moveTo(startX, y + rowH)
-      .lineTo(startX + pdfPageWidth(doc), y + rowH)
+      .moveTo(startX, y + thisRowH)
+      .lineTo(startX + pdfPageWidth(doc), y + thisRowH)
       .strokeColor(PDF_LINE)
       .lineWidth(0.5)
       .stroke();
-    y += rowH;
+    y += thisRowH;
   });
   doc.y = y + 10;
 }
