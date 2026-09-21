@@ -670,9 +670,24 @@ label{font-family:var(--font-mono);font-size:10.5px;text-transform:uppercase;let
 .is-feyma{
   --font-body:'Hanken Grotesk',system-ui,sans-serif;
   --font-display:'Bricolage Grotesque','Hanken Grotesk',sans-serif;
+  /* Palette direction B propagée à toute la console (corps clair, encre marine,
+     accent émeraude). Fond blanc conservé pour la lisibilité des données. */
+  --accent:#0E7C5A; --accent-dark:#0A5F45; --accent-soft:#E3F2EC;
+  --ink:#0E1D33; --ink-soft:#5A6472;
+  --paper:#FBFBF8; --paper-2:#F1F3EF;
+  --line:#E7EAE7; --line-soft:#EFF1ED;
+  /* Actions principales (boutons .primary, avatar) en émeraude, texte blanc. */
+  --chrome-bg:#0E7C5A; --chrome-text:#FFFFFF;
 }
-.is-feyma .rail{--brand:#4BD0A0;--brand-ink:#0E1D33;}
+/* Rail marine (l'îlot de marque) + accent menthe — la signature Feyma. */
+.is-feyma .rail{
+  --rail-bg:#0E1D33; --rail-bg-2:#16294A; --rail-line:#294059;
+  --rail-text:#D6E0EC; --rail-text-2:#8DA0B5;
+  --brand:#4BD0A0; --brand-ink:#0E1D33;
+}
 .is-feyma .rail-brand b{font-family:'Bricolage Grotesque',sans-serif;font-weight:800;letter-spacing:-.01em;}
+/* Titres d'écran en Bricolage (comme la vitrine). */
+.is-feyma h1,.is-feyma h2,.is-feyma h3{font-family:var(--font-display);font-weight:700;letter-spacing:-.01em;}
 
 /* Splash d'accueil Feyma : la pièce traverse l'écran + « Bon recouvrement ! » */
 .splash{position:fixed;inset:0;z-index:9999;background:radial-gradient(circle at 50% -10%, #143154 0%, #0E1D33 60%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;overflow:hidden;animation:splashOut .5s ease-in forwards;animation-delay:2.15s;}
