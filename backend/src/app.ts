@@ -20,6 +20,7 @@ import { entreprisesRouter } from './routes/entreprises';
 import { reportingRouter, reportingCronRouter } from './routes/reporting';
 import { relancesRouter } from './routes/relances';
 import { abonnementRouter } from './routes/abonnement';
+import { exploitantRouter } from './routes/exploitant';
 import { relancesCronRouter } from './routes/relancesCron';
 import { contactRouter } from './routes/contact';
 import { tachesRouter } from './routes/taches';
@@ -74,6 +75,7 @@ export function createApp() {
   app.use('/api/reporting', reportingRouter);
   app.use('/api/relances', relancesRouter);
   app.use('/api/abonnement', abonnementRouter);
+  app.use('/api/exploitant', exploitantRouter);
   app.use('/api/cron/relances', relancesCronRouter);
   app.use('/api/cron/reporting', reportingCronRouter);
   app.use('/api/contact', contactRouter);

@@ -49,3 +49,21 @@ export function verifierSessionPartenaire(token: string): { email: string } | nu
     return null;
   }
 }
+
+// Session d'un exploitant de la plateforme (SANS organisation) : gère les
+// nouvelles demandes et l'activation des comptes depuis un espace dédié. Le
+// jeton porte `operateur: true` + l'email en sujet ; pas de champ `org`, donc
+// verifierSession() le rejette — aucune collision avec les sessions org.
+export function signerSessionOperateur(email: string): string {
+  return jwt.sign({ operateur: true }, secret(), { subject: email.trim().toLowerCase(), expiresIn: EXPIRATION });
+}
+
+export function verifierSessionOperateur(token: string): { email: string } | null {
+  try {
+    const p = jwt.verify(token, secret()) as jwt.JwtPayload;
+    if (p.operateur === true && p.sub) return { email: String(p.sub) };
+    return null;
+  } catch {
+    return null;
+  }
+}

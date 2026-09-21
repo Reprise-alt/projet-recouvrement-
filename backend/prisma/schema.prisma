@@ -200,6 +200,24 @@ model Organisation {
   modelesRelance ModeleRelanceOrg[]
   entreprises    Entreprise[]
   paliers        PalierOrg[]
+  demandes       DemandeAbonnement[]
+}
+
+// Demande d'abonnement émise depuis la console d'un client (clic « Choisir cette
+// formule »). Persistée pour alimenter la file de l'espace exploitant, en plus
+// de la notification email. Hors périmètre RLS (donnée exploitant, pas tenant) :
+// l'exploitant la lit hors contexte, l'org la crée avec son organisationId.
+model DemandeAbonnement {
+  id             String       @id @default(cuid())
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  organisationId String
+  formule        String // petite | pme | grands_comptes
+  annuel         Boolean      @default(false)
+  demandeurEmail String
+  demandeurNom   String?
+  statut         String       @default("nouvelle") // nouvelle | traitee
+  createdAt      DateTime     @default(now())
+  traiteeLe      DateTime?
 }
 
 // Réglage d'un palier de recouvrement PAR organisation (addendum §5) : chaque

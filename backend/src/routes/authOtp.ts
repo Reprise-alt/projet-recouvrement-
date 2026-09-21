@@ -2,9 +2,9 @@ import { Router } from 'express';
 import { prisma } from '../db';
 import { creerCodeOtp, verifierCodeOtp, normaliserEmail } from '../lib/otp';
 import { getEmailProvider } from '../lib/email/provider';
-import { signerSession, signerSessionPartenaire } from '../lib/authToken';
+import { signerSession, signerSessionPartenaire, signerSessionOperateur } from '../lib/authToken';
 import { estPartenaire } from '../lib/partenaires';
-import { superAdminEmails } from '../lib/superAdmin';
+import { superAdminEmails, estSuperAdmin } from '../lib/superAdmin';
 import { slugify } from '../lib/tenant';
 
 // Libellés lisibles des tranches de débiteurs (pour la notification exploitant).
@@ -67,6 +67,15 @@ authOtpRouter.post('/verify', async (req, res, next) => {
 
     let utilisateur = await prisma.utilisateur.findUnique({ where: { email } });
     let inscription = false;
+
+    // Exploitant de la plateforme SANS compte société (email dans
+    // SUPERADMIN_EMAILS mais aucun Utilisateur) : session « espace exploitant »
+    // autonome — jamais de création d'organisation. Placé avant l'inscription
+    // pour qu'un exploitant recruté ne devienne pas un client par erreur.
+    if (!utilisateur && estSuperAdmin(email)) {
+      const token = signerSessionOperateur(email);
+      return res.json({ token, operateur: true, inscription: false });
+    }
 
     if (!utilisateur) {
       // INSCRIPTION : création de l'organisation + du compte propriétaire.
