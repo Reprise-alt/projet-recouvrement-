@@ -28,7 +28,7 @@ import { AbonnementBloque } from './components/AbonnementBloque';
 import { SuperAdminPanel } from './components/SuperAdminPanel';
 import { ParrainagePanel } from './components/ParrainagePanel';
 import { DeliverabilityPanel } from './components/DeliverabilityPanel';
-import { ImportRelevePanel } from './components/ImportRelevePanel';
+import { RapprochementPanel } from './components/RapprochementPanel';
 import { ChequesDeclaresPanel } from './components/ChequesDeclaresPanel';
 import { OffresAbonnement } from './components/OffresAbonnement';
 import { EntityLogo } from './components/EntityLogo';
@@ -114,7 +114,7 @@ export function App() {
   const [offresOpen, setOffresOpen] = useState(false);
   const [parrainageOpen, setParrainageOpen] = useState(false);
   const [deliverabilityOpen, setDeliverabilityOpen] = useState(false);
-  const [importReleveOpen, setImportReleveOpen] = useState(false);
+  const [rapprochementOpen, setRapprochementOpen] = useState(false);
   const [chequesOpen, setChequesOpen] = useState(false);
   const [dataVersion, setDataVersion] = useState(0);
   // Démarrage guidé SaaS : les comptes d'organisation (roleOrg) atterrissent sur
@@ -446,7 +446,7 @@ export function App() {
               <button onClick={() => setSettingsOpen(true)}>Paramètres des paliers</button>
               <button onClick={() => setModelesOpen(true)}>Modèles de relance</button>
               <button onClick={() => setImportOpen(true)}>Importer un fichier</button>
-              {IS_SAAS && <button onClick={() => setImportReleveOpen(true)}>Importer un relevé Julaya</button>}
+              {IS_SAAS && <button onClick={() => setRapprochementOpen(true)}>Rapprochement des paiements</button>}
               {IS_SAAS && (
                 <button onClick={() => setChequesOpen(true)} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                   <span>Chèques déclarés</span>
@@ -621,7 +621,7 @@ export function App() {
       {superAdminOpen && <SuperAdminPanel onClose={() => setSuperAdminOpen(false)} />}
       {parrainageOpen && <ParrainagePanel onClose={() => setParrainageOpen(false)} />}
       {deliverabilityOpen && <DeliverabilityPanel onClose={() => setDeliverabilityOpen(false)} domaineInitial={user.email} />}
-      {importReleveOpen && <ImportRelevePanel onClose={() => setImportReleveOpen(false)} onApplied={bumpDataVersion} />}
+      {rapprochementOpen && <RapprochementPanel onClose={() => setRapprochementOpen(false)} onChanged={bumpDataVersion} />}
       {chequesOpen && <ChequesDeclaresPanel onClose={() => setChequesOpen(false)} onChanged={bumpDataVersion} />}
       {offresOpen && (
         <div className="modal-overlay open" onClick={(e) => e.target === e.currentTarget && setOffresOpen(false)}>

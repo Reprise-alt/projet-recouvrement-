@@ -226,6 +226,31 @@ model Organisation {
   demandes       DemandeAbonnement[]
   moyensPaiement MoyenPaiement[]
   alertesCheque  AlerteCheque[]
+  cheques        Cheque[]
+}
+
+// Chèque scanné et rapproché (module Rapprochement). On enregistre le chèque
+// (photo + champs extraits) et on le rattache à un client / des factures. Le
+// cycle bancaire réel (dépôt, encaissement, rejet) est hors périmètre pour
+// l'instant — statut « enregistre ».
+model Cheque {
+  id              String        @id @default(cuid())
+  organisation    Organisation  @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  organisationId  String
+  client          Client?       @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  clientId        String?
+  montant         Int
+  banque          String?
+  numeroCheque    String?
+  dateCheque      DateTime?
+  tireur          String?
+  imageData       Bytes?
+  imageMime       String?
+  facturesReglees String? // numéros réglés (trace lisible)
+  statut          String        @default("enregistre")
+  createdAt       DateTime      @default(now())
+
+  @@index([organisationId])
 }
 
 // Alerte « chèque disponible » : le débiteur clique dans la relance pour signaler
@@ -364,6 +389,7 @@ model Client {
   operations            ClientOperations?
   dossiersContentieux   DossierContentieux[]
   alertesCheque         AlerteCheque[]
+  cheques               Cheque[]
 
   // Clé de rapprochement à l'import (Excel manuel aujourd'hui, sync ARTIS/MAPON demain) :
   // un même client ne doit jamais être dupliqué d'un import à l'autre. Unicité
