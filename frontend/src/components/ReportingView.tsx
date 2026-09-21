@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ApiError, buildQuery, downloadFilePost } from '../api/client';
+import { api, ApiError, buildQuery, downloadFilePost } from '../api/client';
 import { useResource } from '../hooks/useResource';
 import { AgentStat, AnalyseResult, ComparaisonResult, Entite, RelanceDetail, ReportingSummary, RoleUtilisateur } from '../api/types';
 import { fmtDate, fmtFCFA, PALIERS } from '../lib/constants';
@@ -255,6 +255,8 @@ export function ReportingView({ entityFilter, role }: Props) {
         </div>
         {exportError && <div className="login-error" style={{ marginTop: 12 }}>{exportError}</div>}
       </div>
+
+      {IS_SAAS && <ReportingEmailAuto canEdit={role === 'admin'} />}
 
       {loading ? (
         <div className="empty-state">Chargement…</div>
@@ -844,5 +846,80 @@ function PilotageSections({
         </div>
       )}
     </>
+  );
+}
+
+// Réglage de l'envoi automatique du rapport mensuel : adresse destinataire.
+// Le rapport (PDF du mois écoulé) part le 1er de chaque mois à cette adresse.
+function ReportingEmailAuto({ canEdit }: { canEdit: boolean }) {
+  const { data, refetch } = useResource<{ reportingEmail: string | null }>('/api/reporting/reglages');
+  const [email, setEmail] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => {
+    setEmail(data?.reportingEmail ?? '');
+  }, [data]);
+
+  async function save(next: string) {
+    setBusy(true);
+    setMsg(null);
+    setErr(null);
+    try {
+      const r = await api.put<{ reportingEmail: string | null }>('/api/reporting/reglages', { reportingEmail: next });
+      setEmail(r.reportingEmail ?? '');
+      setMsg(r.reportingEmail ? 'Envoi automatique activé.' : 'Envoi automatique désactivé.');
+      refetch();
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const actif = !!data?.reportingEmail;
+
+  return (
+    <div className="table-card" style={{ padding: '16px 20px', marginBottom: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <div style={{ flex: '1 1 320px', minWidth: 0 }}>
+          <div style={{ fontWeight: 600, fontSize: 14 }}>Envoi automatique du rapport mensuel</div>
+          <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginTop: 2 }}>
+            Le 1er de chaque mois, le rapport du mois écoulé (PDF) est envoyé à cette adresse.
+            {actif ? (
+              <span style={{ color: 'var(--accent-dark)', fontWeight: 600 }}> Activé.</span>
+            ) : (
+              <span> Actuellement désactivé.</span>
+            )}
+          </div>
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+        <input
+          type="email"
+          placeholder="agent@votresociete.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          disabled={!canEdit || busy}
+          style={{ flex: '1 1 260px', maxWidth: 360 }}
+        />
+        {canEdit ? (
+          <>
+            <button className="primary" disabled={busy} onClick={() => save(email.trim())}>
+              Enregistrer
+            </button>
+            {actif && (
+              <button disabled={busy} onClick={() => save('')}>
+                Désactiver
+              </button>
+            )}
+          </>
+        ) : (
+          <span style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>Seul un administrateur peut modifier ce réglage.</span>
+        )}
+      </div>
+      {msg && <div style={{ marginTop: 8, fontSize: 12.5, color: 'var(--accent-dark)' }}>{msg}</div>}
+      {err && <div className="login-error" style={{ marginTop: 8 }}>{err}</div>}
+    </div>
   );
 }
