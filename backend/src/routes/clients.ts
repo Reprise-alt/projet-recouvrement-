@@ -143,6 +143,44 @@ clientsRouter.get('/console', async (req, res, next) => {
   }
 });
 
+// Récap de la journée (« Le Fantôme du jour ») : compteurs de ce qui s'est
+// passé AUJOURD'HUI pour l'organisation. Léger (des count + une somme du jour).
+// Dakar = UTC+0, donc le jour UTC est bien le jour local — pas de décalage.
+// Pas de gate `reporting` : ce petit récap est visible par tous les comptes.
+clientsRouter.get('/journee', async (req, res, next) => {
+  try {
+    const entiteFilter = resolveEntiteScope(req.user!, req.query.entite);
+    const where = entiteWhere(entiteFilter);
+    const now = new Date();
+    const debutJour = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0));
+
+    const [relances, facturesPayees] = await Promise.all([
+      prisma.actionRecouvrement.count({ where: { palier: { gte: 1 }, date: { gte: debutJour }, client: where } }),
+      prisma.facture.findMany({
+        where: { statut: 'payee', datePaiement: { gte: debutJour }, client: where },
+        select: { montant: true, clientId: true },
+      }),
+    ]);
+
+    const encaisse = Math.round(facturesPayees.reduce((s, f) => s + f.montant, 0));
+    const facturesReglees = facturesPayees.length;
+
+    // Clients repassés « à jour » : parmi ceux qui ont réglé une facture
+    // aujourd'hui, ceux dont l'encours est désormais nul (solde total). Ensemble
+    // restreint (uniquement les payeurs du jour), donc peu coûteux.
+    const clientIdsPayes = [...new Set(facturesPayees.map((f) => f.clientId))];
+    let clientsAJour = 0;
+    if (clientIdsPayes.length) {
+      const clientsPayeurs = await prisma.client.findMany({ where: { id: { in: clientIdsPayes } }, include: { factures: true } });
+      clientsAJour = clientsPayeurs.filter((c) => clientEncours(c) === 0).length;
+    }
+
+    res.json({ relances, encaisse, facturesReglees, clientsAJour, date: now.toISOString().slice(0, 10) });
+  } catch (err) {
+    next(err);
+  }
+});
+
 clientsRouter.get('/', async (req, res, next) => {
   try {
     const entiteFilter = resolveEntiteScope(req.user!, req.query.entite);

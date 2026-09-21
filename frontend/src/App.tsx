@@ -24,6 +24,7 @@ import { AbonnementBloque } from './components/AbonnementBloque';
 import { SuperAdminPanel } from './components/SuperAdminPanel';
 import { ParrainagePanel } from './components/ParrainagePanel';
 import { RapprochementPanel } from './components/RapprochementPanel';
+import { RecapJournee } from './components/RecapJournee';
 import { ChequesDeclaresPanel } from './components/ChequesDeclaresPanel';
 import { OffresAbonnement } from './components/OffresAbonnement';
 import { EntityLogo } from './components/EntityLogo';
@@ -593,6 +594,10 @@ export function App() {
           />
         )}
       </main>
+
+      {/* « Le Fantôme du jour » : récap animé de la journée, bouton flottant.
+          Console recouvrement SaaS uniquement. */}
+      {IS_SAAS && CONSOLE === 'recouvrement' && <RecapJournee />}
 
       {parametresOpen && (
         <ParametresEntreprisePanel
