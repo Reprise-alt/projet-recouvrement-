@@ -124,6 +124,8 @@ export function ContentieuxDrawer({
   const signeRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [analysing, setAnalysing] = useState(false);
+  // Onglets de la fiche : réduit la densité (chaque écran reste court).
+  const [tab, setTab] = useState<'resume' | 'parcours' | 'pieces' | 'actes'>('resume');
   const [params, setParams] = useState({ tauxInteretAnnuel: '', penalite: '', frais: '' });
   const [openForm, setOpenForm] = useState<null | 'societe' | 'injonction' | 'commandement' | 'assignation' | 'protocole'>(null);
   // Id de l'acte en cours de dépôt de version signée (déclenche le sélecteur de fichier).
@@ -314,6 +316,37 @@ export function ContentieuxDrawer({
               {STATUT_LABEL[dossier.statut]}
             </div>
 
+            {/* Onglets : mêmes fonctions, mieux rangées — chaque écran reste court. */}
+            <div style={{ display: 'flex', gap: 2, borderBottom: '1px solid var(--line)', margin: '14px 0 16px', flexWrap: 'wrap' }}>
+              {([
+                ['resume', 'Résumé'],
+                ['parcours', 'Parcours'],
+                ['pieces', 'Pièces & analyse'],
+                ['actes', avocat ? 'Actes à valider' : 'Actes'],
+              ] as const).map(([k, lbl]) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setTab(k)}
+                  style={{
+                    border: 'none',
+                    background: 'none',
+                    padding: '9px 12px',
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    boxShadow: 'none',
+                    color: tab === k ? 'var(--accent-dark)' : 'var(--ink-soft)',
+                    borderBottom: `2px solid ${tab === k ? 'var(--accent)' : 'transparent'}`,
+                  }}
+                >
+                  {lbl}
+                </button>
+              ))}
+            </div>
+
+            {tab === 'resume' && (
+              <>
             {/* ---------- Bandeau dossier clôturé ---------- */}
             {dossier.statut === 'clos' && dossier.issue && (
               <div
@@ -366,9 +399,18 @@ export function ContentieuxDrawer({
             {/* ---------- Score de recouvrabilité ---------- */}
             {dossier.statut !== 'clos' && dossier.scoring && <ScoreCard s={dossier.scoring} />}
 
+              </>
+            )}
+
+            {tab === 'parcours' && (
+              <>
             {/* ---------- Frise d'escalade ---------- */}
             <FriseEscalade dossier={dossier} />
+              </>
+            )}
 
+            {tab === 'pieces' && (
+              <>
             {/* ---------- Copilote juridique ---------- */}
             <CopiloteJuridique dossierId={dossierId} />
 
@@ -580,6 +622,11 @@ export function ContentieuxDrawer({
               </>
             )}
 
+              </>
+            )}
+
+            {tab === 'actes' && (
+              <>
             {/* ---------- Actes ---------- */}
             <div className="section-title" style={{ marginTop: 26 }}>
               {avocat ? 'Actes à valider / signer' : 'Projets d’actes'}
@@ -916,6 +963,8 @@ export function ContentieuxDrawer({
                     </div>
                   </div>
                 )}
+              </>
+            )}
               </>
             )}
           </>
