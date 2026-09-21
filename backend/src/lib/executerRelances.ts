@@ -260,3 +260,76 @@ export async function executerRelancesTenant(opts: OptionsExecution = {}): Promi
 
   return { dryRun, fenetreOuverte, envoiEffectif, envoyees, ignorees };
 }
+
+// Reconstruit le message d'une relance pour un client + palier donnés, avec le
+// MÊME moteur que l'envoi réel (aucune divergence). Sert à l'aperçu « reconstitué »
+// des envois antérieurs à l'archivage du contenu : on régénère le texte tel que
+// le moteur le produit aujourd'hui, faute d'archive exacte. Toujours appelé dans
+// un contexte tenant (route relances). null = client introuvable.
+export async function reconstruireEmailRelance(
+  clientId: string,
+  palier: number,
+): Promise<{ sujet: string; texte: string; html?: string; to: string | null; cc: string } | null> {
+  const client = await prisma.client.findUnique({
+    where: { id: clientId },
+    include: {
+      factures: true,
+      contacts: { select: { email: true } },
+      actions: { select: { palier: true, date: true } },
+    },
+  });
+  if (!client) return null;
+
+  const dest = destinatairesRelance(client.email, client.contacts);
+  const orgId = currentOrganisationId();
+  const org = orgId
+    ? await prisma.organisation.findUnique({
+        where: { id: orgId },
+        select: {
+          instructionsPaiement: true, raisonSociale: true, emailReponse: true, logoUrl: true,
+          adresse: true, identifiantFiscal: true, rccm: true, formeJuridique: true,
+          capitalSocial: true, contactRecouvrement: true, pays: true,
+        },
+      })
+    : null;
+  const orgIdentite: OrgIdentite | null = org
+    ? {
+        raisonSociale: org.raisonSociale, logoUrl: org.logoUrl, adresse: org.adresse,
+        identifiantFiscal: org.identifiantFiscal, rccm: org.rccm, formeJuridique: org.formeJuridique,
+        capitalSocial: org.capitalSocial, contactRecouvrement: org.contactRecouvrement,
+        instructionsPaiement: org.instructionsPaiement, pays: org.pays,
+      }
+    : null;
+  const modelesOrg = orgIdentite ? await chargerModelesOrg() : null;
+
+  let sujet: string;
+  let texte: string;
+  let html: string | undefined;
+  if (orgIdentite) {
+    const r = construireRelanceMarque(
+      { nom: client.nom, factures: client.factures, frequenceFacturation: client.frequenceFacturation },
+      orgIdentite,
+      palier,
+      modelesOrg?.get(palier),
+    );
+    sujet = r.sujet;
+    texte = r.texte;
+    html = r.html;
+  } else {
+    const msg = construireMessage(
+      {
+        nom: client.nom,
+        entite: client.entite as LetterClient['entite'],
+        contact: client.contact ?? '',
+        factures: client.factures,
+        frequenceFacturation: client.frequenceFacturation,
+        actions: client.actions,
+      },
+      palier,
+      org?.instructionsPaiement,
+    );
+    sujet = msg.sujet;
+    texte = msg.corps;
+  }
+  return { sujet, texte, html, to: dest?.to ?? null, cc: dest?.cc.length ? dest.cc.join(', ') : '' };
+}

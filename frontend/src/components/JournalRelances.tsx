@@ -14,8 +14,10 @@ interface JournalItem {
   note: string | null;
   // Vrai si le message exact envoyé a été archivé (chargeable à la demande).
   emailArchive?: boolean;
+  // Vrai si, faute d'archive, l'aperçu peut être reconstitué (envoi antérieur).
+  emailReconstituable?: boolean;
 }
-// Contenu de l'email archivé, chargé à la demande via /journal/:id/email.
+// Contenu de l'email archivé (ou reconstitué), chargé via /journal/:id/email.
 interface EmailArchive {
   id: string;
   date: string;
@@ -26,6 +28,8 @@ interface EmailArchive {
   cc: string | null;
   html: string | null;
   texte: string | null;
+  // Vrai quand le contenu est une reconstitution (pas l'archive exacte).
+  reconstitue?: boolean;
 }
 interface RecapItem {
   palier: number;
@@ -143,14 +147,15 @@ export function JournalRelances() {
                   </td>
                   <td style={{ color: 'var(--ink-soft)', fontSize: 12.5 }}>{it.note ?? '—'}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>
-                    {it.emailArchive ? (
+                    {it.emailArchive || it.emailReconstituable ? (
                       <button
                         type="button"
                         style={{ fontSize: 12, padding: '4px 10px' }}
                         disabled={chargementId === it.id}
                         onClick={() => ouvrirEmail(it.id)}
+                        title={it.emailArchive ? 'Message exact envoyé' : 'Aperçu reconstitué (archive indisponible pour cet envoi)'}
                       >
-                        {chargementId === it.id ? 'Chargement…' : 'Voir l’email'}
+                        {chargementId === it.id ? 'Chargement…' : it.emailArchive ? 'Voir l’email' : 'Voir l’aperçu'}
                       </button>
                     ) : (
                       <span style={{ color: 'var(--ink-soft)', fontSize: 12 }}>—</span>
@@ -208,6 +213,14 @@ function EmailApercuModal({ email, onClose }: { email: EmailArchive; onClose: ()
             <div><b>À :</b> {email.to || '—'}</div>
             {email.cc && <div><b>Copie :</b> {email.cc}</div>}
           </div>
+          {email.reconstitue && (
+            <div style={{
+              marginTop: 10, fontSize: 12, lineHeight: 1.5, color: 'var(--ink-soft)',
+              background: 'var(--paper-2)', border: '1px solid var(--line)', borderRadius: 8, padding: '8px 11px',
+            }}>
+              <b>Aperçu reconstitué.</b> Cet envoi est antérieur à l’archivage du contenu : le message est régénéré à l’identique par le moteur pour ce palier. Les envois postérieurs sont archivés au mot près.
+            </div>
+          )}
         </div>
         <div style={{ padding: email.html ? 0 : 18, maxHeight: '60vh', overflow: 'auto' }}>
           {email.html ? (
