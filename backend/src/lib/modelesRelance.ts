@@ -96,6 +96,7 @@ export function blocPaiementHtml(
   moyens: MoyenPaiementRender[] | null | undefined,
   montant?: number | null,
   reference?: string | null,
+  extraHtml?: string | null,
 ): string {
   const liste = (moyens ?? []).filter((m) => m.lien?.trim() || m.numero?.trim() || m.qrUrl?.trim());
   if (!liste.length) return '';
@@ -129,7 +130,7 @@ export function blocPaiementHtml(
 
   return `<div style="margin-top:18px;padding:16px 18px;background:#0e1d330a;border:1px solid #e4e7e3;border-radius:12px">
        <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#0e7c5a;margin-bottom:10px">Payer maintenant</div>
-       ${ligneMontant}${rendus}
+       ${ligneMontant}${rendus}${extraHtml ?? ''}
      </div>`;
 }
 
@@ -178,20 +179,24 @@ export function emailRelanceHtml(
     .split('\n\n')
     .map((p) => `<p style="margin:0 0 14px;font-size:15px;line-height:1.55;color:#22262a">${p.replace(/\n/g, '<br/>')}</p>`)
     .join('');
-  // Bloc Mobile Money (bouton Payer) EN PREMIER, puis les modalités libres.
-  const blocMobile = blocPaiementHtml(org.moyensPaiement, paiementCtx?.montant, paiementCtx?.reference);
+  // Bouton « chèque disponible » : le débiteur signale qu'un chèque est prêt
+  // (déclaration publique via jeton). Vrai bouton (contour émeraude) placé HAUT,
+  // dans le bloc « Payer maintenant », aux côtés des autres moyens de règlement —
+  // sinon les clients ne le voyaient pas (il était perdu tout en bas).
+  const chequeBtn = lienChequeDispo
+    ? `<a href="${escapeHtml(lienChequeDispo)}" style="display:block;text-align:center;margin-top:11px;padding:12px 18px;background:#ffffff;border:1.6px solid #0e7c5a;border-radius:10px;color:#0e7c5a;font-weight:700;font-size:14px;text-decoration:none">🧾 J'ai un chèque prêt — le signaler</a>`
+    : '';
+  // Bloc Mobile Money (bouton Payer) EN PREMIER — le bouton chèque s'insère dans
+  // sa boîte, juste après les moyens en ligne.
+  const blocMobile = blocPaiementHtml(org.moyensPaiement, paiementCtx?.montant, paiementCtx?.reference, chequeBtn);
+  // Pas de moyens en ligne (donc pas de boîte « Payer maintenant ») : on affiche
+  // quand même le bouton chèque, seul, juste sous le message.
+  const blocCheque = !blocMobile && chequeBtn ? `<div style="margin-top:16px">${chequeBtn}</div>` : '';
+  // Modalités libres (virement, espèces…) : sous les actions de paiement.
   const paiement = instructionsPaiement && instructionsPaiement.trim()
     ? `<div style="margin-top:14px;padding:14px 16px;background:#f4f6f5;border-radius:10px">
          <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#5b6469;margin-bottom:6px">Autres modalités de paiement</div>
          <div style="font-size:14px;line-height:1.5;color:#22262a">${escapeHtml(instructionsPaiement.trim()).replace(/\n/g, '<br/>')}</div>
-       </div>`
-    : '';
-  // Bouton « chèque disponible » : le débiteur signale qu'un chèque est prêt
-  // (déclaration publique via jeton). Discret, sous les modalités de paiement.
-  const blocCheque = lienChequeDispo
-    ? `<div style="margin-top:14px;padding:12px 16px;background:#f4f6f5;border-radius:10px;font-size:13px;color:#22262a">
-         Vous réglez par chèque ?
-         <a href="${escapeHtml(lienChequeDispo)}" style="color:#0e7c5a;font-weight:700;text-decoration:underline">Signalez qu'il est disponible →</a>
        </div>`
     : '';
   // Mention légale « <forme> au capital de <montant> » (OHADA) — assemblée des
@@ -216,7 +221,7 @@ export function emailRelanceHtml(
   <div style="max-width:560px;margin:0 auto;padding:24px 16px">
     <div style="background:#fff;border:1px solid #e4e7e3;border-radius:14px;overflow:hidden">
       <div style="padding:22px 26px;border-bottom:1px solid #eef0eb">${logo}</div>
-      <div style="padding:24px 26px">${corpsHtml}${blocMobile}${paiement}${blocCheque}</div>
+      <div style="padding:24px 26px">${corpsHtml}${blocMobile}${blocCheque}${paiement}</div>
     </div>
     <div style="padding:16px 26px;font-size:11.5px;line-height:1.5;color:#8a9298;text-align:center">
       ${piedInfos ? `<div>${piedInfos}</div>` : ''}
