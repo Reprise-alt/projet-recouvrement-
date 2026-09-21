@@ -23,3 +23,23 @@ logoPublicRouter.get('/:orgId', async (req, res, next) => {
     next(e);
   }
 });
+
+// Service PUBLIC du QR code Wave (même logique que le logo) : image scannable
+// affichée dans les relances et le portail débiteur, chargée sans session.
+export const waveQrPublicRouter = Router();
+
+waveQrPublicRouter.get('/:orgId', async (req, res, next) => {
+  try {
+    const org = await prisma.organisation.findUnique({
+      where: { id: req.params.orgId },
+      select: { waveQrData: true, waveQrMime: true },
+    });
+    if (!org?.waveQrData || !org.waveQrMime) return res.status(404).end();
+    res.setHeader('Content-Type', org.waveQrMime);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.send(Buffer.from(org.waveQrData));
+  } catch (e) {
+    next(e);
+  }
+});

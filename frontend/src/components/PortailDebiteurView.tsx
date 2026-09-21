@@ -220,9 +220,10 @@ function PayerBlock({
   reference: string;
 }) {
   const wave = paiement?.waveLien?.trim();
+  const qr = paiement?.waveQrUrl?.trim();
   const om = paiement?.orangeMoneyNumero?.trim();
   const instructions = paiement?.instructions?.trim();
-  if (!wave && !om && !instructions) return null;
+  if (!wave && !qr && !om && !instructions) return null;
   const lienWave = wave ? wave.replace(/\{montant\}/g, String(Math.round(montant))) : null;
 
   return (
@@ -250,6 +251,20 @@ function PayerBlock({
           </div>
         )}
       </div>
+      {qr && (
+        <div style={{ marginTop: 12 }}>
+          <img
+            src={qr}
+            alt="QR Wave"
+            width={160}
+            height={160}
+            style={{ width: 160, height: 160, border: '1px solid var(--line)', borderRadius: 10, background: '#fff', padding: 6 }}
+          />
+          <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 6 }}>
+            Scannez ce code avec l’appli <b>Wave</b> pour payer {fmtFCFA(montant)}.
+          </div>
+        </div>
+      )}
       {instructions && (
         <div style={{ marginTop: 12, fontSize: 12.5, color: 'var(--ink-soft)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
           {instructions}

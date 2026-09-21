@@ -165,6 +165,12 @@ model Organisation {
   // montant dû en FCFA quand il est présent. orangeMoneyNumero = numéro OM
   // (marchand ou compte) affiché avec le montant et la référence.
   waveLien             String?
+  // QR code marchand Wave (image) : beaucoup d'entreprises ont un QR plutôt qu'un
+  // lien. Stocké en base + servi par un endpoint public (comme le logo), affiché
+  // dans les relances et le portail pour que le débiteur le scanne avec Wave.
+  waveQrData           Bytes?
+  waveQrMime           String?
+  waveQrUrl            String?
   orangeMoneyNumero    String?
   contactRecouvrement  String?
   // Adresse email de réponse affichée sur les relances (Reply-To) — §5.3/§6 :

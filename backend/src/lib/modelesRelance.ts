@@ -83,6 +83,7 @@ export interface OrgIdentite {
   contactRecouvrement?: string | null;
   instructionsPaiement?: string | null;
   waveLien?: string | null;
+  waveQrUrl?: string | null;
   orangeMoneyNumero?: string | null;
   pays?: 'SN' | 'CI' | null;
 }
@@ -91,13 +92,14 @@ export interface OrgIdentite {
 // avec le montant dû et une référence. Rendu HTML inline (compatible email).
 // `montant` en FCFA (entier) ; substitue {montant} dans le lien Wave si présent.
 export function blocPaiementHtml(
-  org: { waveLien?: string | null; orangeMoneyNumero?: string | null },
+  org: { waveLien?: string | null; waveQrUrl?: string | null; orangeMoneyNumero?: string | null },
   montant?: number | null,
   reference?: string | null,
 ): string {
   const wave = org.waveLien?.trim();
+  const qr = org.waveQrUrl?.trim();
   const om = org.orangeMoneyNumero?.trim();
-  if (!wave && !om) return '';
+  if (!wave && !qr && !om) return '';
   const montantTxt = montant && montant > 0 ? fmtFCFA(montant) : null;
   const lien = wave ? wave.replace(/\{montant\}/g, String(Math.round(montant ?? 0))) : null;
   const ligneMontant = montantTxt
@@ -108,12 +110,19 @@ export function blocPaiementHtml(
   const boutonWave = lien
     ? `<a href="${escapeHtml(lien)}" style="display:inline-block;background:#1DC3F0;color:#00243a;font-weight:700;font-size:14px;text-decoration:none;padding:11px 20px;border-radius:9px">Payer par Wave →</a>`
     : '';
+  // QR marchand Wave : image scannable (l'appli Wave demande le montant au débiteur).
+  const blocQr = qr
+    ? `<div style="margin-top:${boutonWave ? '14' : '0'}px">
+         <img src="${escapeHtml(qr)}" alt="QR Wave" width="150" height="150" style="width:150px;height:150px;border:1px solid #e4e7e3;border-radius:10px;background:#fff;padding:6px" />
+         <div style="font-size:12.5px;color:#5b6469;margin-top:6px">Scannez ce code avec l'appli <b>Wave</b> pour payer${montantTxt ? ` ${escapeHtml(montantTxt)}` : ''}.</div>
+       </div>`
+    : '';
   const blocOm = om
-    ? `<div style="font-size:13.5px;color:#22262a;margin-top:${boutonWave ? '12' : '0'}px">Orange&nbsp;Money : <b>${escapeHtml(om)}</b>${montantTxt ? ` — envoyez ${escapeHtml(montantTxt)}` : ''}${reference ? `, réf. ${escapeHtml(reference)}` : ''}</div>`
+    ? `<div style="font-size:13.5px;color:#22262a;margin-top:${boutonWave || blocQr ? '12' : '0'}px">Orange&nbsp;Money : <b>${escapeHtml(om)}</b>${montantTxt ? ` — envoyez ${escapeHtml(montantTxt)}` : ''}${reference ? `, réf. ${escapeHtml(reference)}` : ''}</div>`
     : '';
   return `<div style="margin-top:18px;padding:16px 18px;background:#0e1d330a;border:1px solid #e4e7e3;border-radius:12px">
        <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#0e7c5a;margin-bottom:8px">Payer maintenant</div>
-       ${ligneMontant}${boutonWave}${blocOm}
+       ${ligneMontant}${boutonWave}${blocQr}${blocOm}
      </div>`;
 }
 
