@@ -26,6 +26,16 @@ authRouter.get('/me', requireAuthOuPartenaire, async (req, res, next) => {
         nom: partenaireNom(),
       });
     }
+    // Session exploitant plateforme autonome (SANS société) : le front bascule
+    // sur l'espace exploitant (file des demandes + activation des comptes).
+    if (req.operateur) {
+      return res.json({
+        operateur: true,
+        email: req.operateur.email,
+        nom: 'Exploitant',
+        superAdmin: true,
+      });
+    }
     await prisma.utilisateur.update({ where: { id: req.user!.id }, data: { derniereConnexion: new Date() } });
     // On joint l'identité de l'organisation (raison sociale + logo) : le front
     // SaaS s'en sert pour afficher la marque DU CLIENT dans le bandeau, au lieu

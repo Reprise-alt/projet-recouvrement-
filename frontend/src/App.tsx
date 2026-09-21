@@ -32,6 +32,7 @@ import { useTheme } from './hooks/useTheme';
 import { Lock, Moon, Sun } from 'lucide-react';
 import { ContentieuxUpsell } from './components/ContentieuxUpsell';
 import { PartenaireConsole } from './components/PartenaireConsole';
+import { OperateurConsole } from './components/OperateurConsole';
 import { CONSOLE, CONSOLE_META, ECOSYSTEME } from './console';
 import { AUTH_MODE, IS_SAAS, redirigerVersHub } from './auth/mode';
 import { setFeymaFavicon } from './lib/seo';
@@ -193,6 +194,12 @@ export function App() {
   // toute la console normale (rail, onglets, abonnement…).
   if (user.partenaire) {
     return <PartenaireConsole nom={user.nom} onLogout={logout} />;
+  }
+
+  // Session exploitant plateforme (gère les demandes + activations, sans société) :
+  // espace dédié, transverse aux sociétés. Court-circuite la console normale.
+  if (user.operateur) {
+    return <OperateurConsole email={user.email} onLogout={logout} />;
   }
 
   if (!hasAccess) {

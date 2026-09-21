@@ -41,6 +41,17 @@ abonnementRouter.post('/demande', async (req, res, next) => {
       'À recontacter pour activer l’abonnement.',
     ].join('\n');
 
+    // Persiste la demande pour la file de l'espace exploitant (en plus de l'email).
+    await prisma.demandeAbonnement.create({
+      data: {
+        organisationId: req.user!.organisationId,
+        formule,
+        annuel,
+        demandeurEmail: req.user!.email,
+        demandeurNom: req.user!.nom ?? null,
+      },
+    });
+
     await getEmailProvider().send({
       to: dest.join(', '),
       subject: `Demande d’abonnement Feyma — ${org?.raisonSociale ?? ''} (${FORMULE_LABEL[formule]}, ${annuel ? 'annuel' : 'mensuel'})`,
