@@ -88,9 +88,10 @@ export interface OrgIdentite {
   pays?: 'SN' | 'CI' | null;
 }
 
-// Bloc « Payer maintenant » (Mobile Money) — bouton Wave + numéro Orange Money,
-// avec le montant dû et une référence. Rendu HTML inline (compatible email).
-// `montant` en FCFA (entier) ; substitue {montant} dans le lien Wave si présent.
+// Bloc « Payer maintenant » — lien de paiement (Wave, Julaya, Orange Money…) +
+// QR + numéro Orange Money, avec le montant dû et une référence. Rendu HTML inline
+// (compatible email). `montant` en FCFA (entier) ; substitue {montant} dans le lien
+// si présent.
 export function blocPaiementHtml(
   org: { waveLien?: string | null; waveQrUrl?: string | null; orangeMoneyNumero?: string | null },
   montant?: number | null,
@@ -108,13 +109,13 @@ export function blocPaiementHtml(
       ? `<div style="font-size:13px;color:#5b6469;margin-bottom:10px">Référence : ${escapeHtml(reference)}</div>`
       : '';
   const boutonWave = lien
-    ? `<a href="${escapeHtml(lien)}" style="display:inline-block;background:#1DC3F0;color:#00243a;font-weight:700;font-size:14px;text-decoration:none;padding:11px 20px;border-radius:9px">Payer par Wave →</a>`
+    ? `<a href="${escapeHtml(lien)}" style="display:inline-block;background:#0e7c5a;color:#ffffff;font-weight:700;font-size:14px;text-decoration:none;padding:11px 20px;border-radius:9px">Payer en ligne →</a>`
     : '';
-  // QR marchand Wave : image scannable (l'appli Wave demande le montant au débiteur).
+  // QR de paiement : image scannable (l'appli de paiement demande/confirme le montant).
   const blocQr = qr
     ? `<div style="margin-top:${boutonWave ? '14' : '0'}px">
-         <img src="${escapeHtml(qr)}" alt="QR Wave" width="150" height="150" style="width:150px;height:150px;border:1px solid #e4e7e3;border-radius:10px;background:#fff;padding:6px" />
-         <div style="font-size:12.5px;color:#5b6469;margin-top:6px">Scannez ce code avec l'appli <b>Wave</b> pour payer${montantTxt ? ` ${escapeHtml(montantTxt)}` : ''}.</div>
+         <img src="${escapeHtml(qr)}" alt="QR de paiement" width="150" height="150" style="width:150px;height:150px;border:1px solid #e4e7e3;border-radius:10px;background:#fff;padding:6px" />
+         <div style="font-size:12.5px;color:#5b6469;margin-top:6px">Scannez ce code pour payer${montantTxt ? ` ${escapeHtml(montantTxt)}` : ''}.</div>
        </div>`
     : '';
   const blocOm = om
