@@ -4,6 +4,46 @@ import { useResource } from '../hooks/useResource';
 import { AgentStat, AnalyseResult, ComparaisonResult, Entite, RelanceDetail, ReportingSummary, RoleUtilisateur } from '../api/types';
 import { fmtDate, fmtFCFA, PALIERS } from '../lib/constants';
 import { usePaliersConfig } from '../lib/paliersConfig';
+import { IS_SAAS } from '../auth/mode';
+
+// Données de pilotage mono-société (balance âgée, top débiteurs, conversion,
+// taux de recouvrement) — cf. GET /api/reporting/pilotage.
+interface TrancheAge {
+  cle: 'a_echoir' | 'j0_30' | 'j31_60' | 'j61_90' | 'j90_plus';
+  label: string;
+  montant: number;
+  nombre: number;
+}
+interface TopDebiteur {
+  nom: string;
+  encours: number;
+  joursRetard: number;
+  palier: number;
+  dernierPalierLabel: string | null;
+  derniereRelance: string | null;
+}
+interface ConversionPalier {
+  palier: number;
+  label: string;
+  relances: number;
+  converties: number;
+  taux: number | null;
+}
+interface PilotageData {
+  balanceAgee: TrancheAge[];
+  topDebiteurs: TopDebiteur[];
+  recouvrement: { montantEchu: number; montantPaye: number; taux: number | null };
+  conversion: ConversionPalier[];
+}
+
+// Couleurs séquentielles de la balance âgée (du sain vers le critique).
+const AGE_COLORS: Record<TrancheAge['cle'], string> = {
+  a_echoir: 'var(--ink-soft)',
+  j0_30: '#0E7C5A',
+  j31_60: '#4BD0A0',
+  j61_90: 'var(--amber, #B0700F)',
+  j90_plus: 'var(--danger, #C0392B)',
+};
 
 type CategorieAnalyse = 'pointsForts' | 'actionsPositives' | 'pointsVigilance' | 'axesAmelioration' | 'recommandations';
 
@@ -142,6 +182,9 @@ export function ReportingView({ entityFilter, role }: Props) {
   const query = { from, to, entite: entityFilter };
   const summaryPath = `/api/reporting/summary${buildQuery(query)}`;
   const { data: summary, loading, error } = useResource<ReportingSummary>(from && to ? summaryPath : null);
+
+  const pilotagePath = from && to ? `/api/reporting/pilotage${buildQuery(query)}` : null;
+  const { data: pilotage } = useResource<PilotageData>(pilotagePath);
 
   const relancesPath = selectedPalier !== null ? `/api/reporting/relances${buildQuery({ ...query, palier: selectedPalier })}` : null;
   const { data: relanceDetails, loading: loadingRelances } = useResource<RelanceDetail[]>(relancesPath);
@@ -424,7 +467,12 @@ export function ReportingView({ entityFilter, role }: Props) {
             </div>
           )}
 
-          {summary.delaiEncaissement.parEntite.length > 1 && (
+          {/* Pilotage mono-société : balance âgée, conversion, top débiteurs. */}
+          {pilotage && <PilotageSections pilotage={pilotage} libelle={libelle} />}
+
+          {/* « Par entité » = héritage de la console groupe : masqué en SaaS
+              (un client Feyma est une seule société). */}
+          {!IS_SAAS && summary.delaiEncaissement.parEntite.length > 1 && (
             <div className="table-card" style={{ marginBottom: 24 }}>
               <div className="table-head">
                 <div style={{ fontWeight: 600, fontSize: 14 }}>Délai d'encaissement par entité</div>
@@ -625,5 +673,176 @@ export function ReportingView({ entityFilter, role }: Props) {
         </div>
       )}
     </div>
+  );
+}
+
+// Sections de pilotage mono-société : taux de recouvrement + encours en retard,
+// balance âgée (barre empilée), conversion des relances par palier, top débiteurs.
+function PilotageSections({
+  pilotage,
+  libelle,
+}: {
+  pilotage: PilotageData;
+  libelle: (palier: number, fallback?: string | null) => string;
+}) {
+  const overdue = pilotage.balanceAgee.filter((t) => t.cle !== 'a_echoir');
+  const overdueTotal = overdue.reduce((s, t) => s + t.montant, 0);
+  const encoursRetard = overdueTotal;
+  const aEchoir = pilotage.balanceAgee.find((t) => t.cle === 'a_echoir');
+
+  return (
+    <>
+      {/* KPIs de pilotage */}
+      <div className="kpis" style={{ marginBottom: 24 }}>
+        <div className="kpi">
+          <div className="kpi-label">Taux de recouvrement (période)</div>
+          <div className="kpi-value">{pilotage.recouvrement.taux !== null ? `${pilotage.recouvrement.taux} %` : '—'}</div>
+          <div className="kpi-sub">
+            {fmtFCFA(pilotage.recouvrement.montantPaye)} encaissés sur {fmtFCFA(pilotage.recouvrement.montantEchu)} échus
+          </div>
+        </div>
+        <div className="kpi">
+          <div className="kpi-label">Encours en retard (actuel)</div>
+          <div className="kpi-value currency" style={{ color: encoursRetard > 0 ? 'var(--danger)' : undefined }}>
+            {fmtFCFA(encoursRetard)}
+          </div>
+          <div className="kpi-sub">{overdue.reduce((s, t) => s + t.nombre, 0)} factures échues</div>
+        </div>
+      </div>
+
+      {/* Balance âgée */}
+      <div className="table-card" style={{ marginBottom: 24, padding: '18px 22px' }}>
+        <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 3 }}>Balance âgée de l'encours</div>
+        <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginBottom: 16 }}>
+          Où en est l'argent en retard, par tranche d'ancienneté.
+        </div>
+        {overdueTotal > 0 ? (
+          <>
+            <div style={{ display: 'flex', height: 40, borderRadius: 9, overflow: 'hidden', marginBottom: 14 }}>
+              {overdue.map((t) =>
+                t.montant > 0 ? (
+                  <div
+                    key={t.cle}
+                    title={`${t.label} · ${fmtFCFA(t.montant)}`}
+                    style={{
+                      width: `${(t.montant / overdueTotal) * 100}%`,
+                      background: AGE_COLORS[t.cle],
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: t.cle === 'j31_60' ? 'var(--ink)' : '#fff', fontSize: 11.5, fontWeight: 700,
+                    }}
+                    className="mono"
+                  >
+                    {Math.round((t.montant / overdueTotal) * 100)}%
+                  </div>
+                ) : null,
+              )}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {overdue.map((t) => (
+                <div key={t.cle} style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 13 }}>
+                  <span style={{ width: 11, height: 11, borderRadius: 3, background: AGE_COLORS[t.cle], flex: 'none' }} />
+                  {t.label}
+                  <span className="mono" style={{ marginLeft: 'auto', fontWeight: 600 }}>{fmtFCFA(t.montant)}</span>
+                  <span className="mono" style={{ color: 'var(--ink-soft)', width: 74, textAlign: 'right' }}>{t.nombre} fact.</span>
+                </div>
+              ))}
+              {aEchoir && aEchoir.montant > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 12.5, color: 'var(--ink-soft)', marginTop: 2 }}>
+                  <span style={{ width: 11, height: 11, borderRadius: 3, background: AGE_COLORS.a_echoir, flex: 'none' }} />
+                  À échoir (pas encore exigible)
+                  <span className="mono" style={{ marginLeft: 'auto' }}>{fmtFCFA(aEchoir.montant)}</span>
+                  <span className="mono" style={{ width: 74, textAlign: 'right' }}>{aEchoir.nombre} fact.</span>
+                </div>
+              )}
+            </div>
+          </>
+        ) : (
+          <div style={{ fontSize: 13, color: 'var(--ink-soft)' }}>Aucun encours en retard sur la période.</div>
+        )}
+      </div>
+
+      {/* Conversion des relances par palier */}
+      <div className="table-card" style={{ marginBottom: 24 }}>
+        <div className="table-head">
+          <div>
+            <div style={{ fontWeight: 600, fontSize: 14 }}>Efficacité des relances</div>
+            <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginTop: 2 }}>
+              Part des relances suivies d'un paiement sous 15 jours (corrélation, pas une preuve).
+            </div>
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Palier</th>
+              <th>Relances</th>
+              <th>Payé sous 15 j</th>
+              <th>Taux de conversion</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pilotage.conversion
+              .filter((c) => c.relances > 0)
+              .map((c) => (
+                <tr key={c.palier}>
+                  <td>{libelle(c.palier, c.label)}</td>
+                  <td className="mono">{c.relances}</td>
+                  <td className="mono">{c.converties}</td>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ flex: 1, maxWidth: 120, height: 6, background: 'var(--line-soft)', borderRadius: 99, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${c.taux ?? 0}%`, background: 'var(--accent)', borderRadius: 99 }} />
+                      </div>
+                      <b className="mono">{c.taux !== null ? `${c.taux} %` : '—'}</b>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            {pilotage.conversion.every((c) => c.relances === 0) && (
+              <tr>
+                <td colSpan={4} style={{ color: 'var(--ink-soft)', fontSize: 13 }}>Aucune relance sur la période.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Top débiteurs */}
+      {pilotage.topDebiteurs.length > 0 && (
+        <div className="table-card" style={{ marginBottom: 24 }}>
+          <div className="table-head">
+            <div style={{ fontWeight: 600, fontSize: 14 }}>Top débiteurs à surveiller</div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Client</th>
+                <th>Encours</th>
+                <th>Retard</th>
+                <th>Dernier palier</th>
+                <th>Dernière relance</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pilotage.topDebiteurs.map((d) => (
+                <tr key={d.nom}>
+                  <td>{d.nom}</td>
+                  <td className="mono">{fmtFCFA(d.encours)}</td>
+                  <td className="mono">+{d.joursRetard} j</td>
+                  <td>
+                    {d.dernierPalierLabel ? (
+                      <span className="badge" data-tone={PALIERS[d.palier]?.tone ?? 'amber'}>{d.dernierPalierLabel}</span>
+                    ) : (
+                      <span style={{ color: 'var(--ink-soft)' }}>—</span>
+                    )}
+                  </td>
+                  <td className="mono" style={{ color: 'var(--ink-soft)' }}>{d.derniereRelance ? fmtDate(d.derniereRelance) : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
   );
 }
