@@ -240,9 +240,9 @@ function PayerBlock({
             href={lienWave}
             target="_blank"
             rel="noopener noreferrer"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: '#1DC3F0', color: '#00243a', fontWeight: 700, fontSize: 14, textDecoration: 'none', padding: '11px 20px', borderRadius: 10 }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'var(--accent)', color: '#fff', fontWeight: 700, fontSize: 14, textDecoration: 'none', padding: '11px 20px', borderRadius: 10 }}
           >
-            Payer par Wave →
+            Payer en ligne →
           </a>
         )}
         {om && (
@@ -255,13 +255,13 @@ function PayerBlock({
         <div style={{ marginTop: 12 }}>
           <img
             src={qr}
-            alt="QR Wave"
+            alt="QR de paiement"
             width={160}
             height={160}
             style={{ width: 160, height: 160, border: '1px solid var(--line)', borderRadius: 10, background: '#fff', padding: 6 }}
           />
           <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 6 }}>
-            Scannez ce code avec l’appli <b>Wave</b> pour payer {fmtFCFA(montant)}.
+            Scannez ce code pour payer {fmtFCFA(montant)}.
           </div>
         </div>
       )}

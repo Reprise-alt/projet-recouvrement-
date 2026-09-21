@@ -271,29 +271,29 @@ export function FicheEntreprise({
             </div>
 
             <div className="field">
-              <label>Paiement Mobile Money</label>
+              <label>Paiement en ligne (Mobile Money / agrégateur)</label>
               <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', margin: '2px 0 10px' }}>
                 Un bouton « Payer maintenant » apparaît dans vos relances et le portail, avec le montant dû pré-rempli.
                 Le plus rapide pour être payé.
               </div>
               <div style={{ display: 'grid', gap: 10 }}>
                 <div>
-                  <label style={{ fontSize: 12, color: 'var(--ink-soft)' }}>Lien de paiement Wave</label>
+                  <label style={{ fontSize: 12, color: 'var(--ink-soft)' }}>Lien de paiement (Wave, Julaya, Orange Money…)</label>
                   <input
                     autoFocus={focusPaiement}
                     type="url"
                     value={org.waveLien ?? ''}
                     onChange={(e) => champ('waveLien', e.target.value)}
-                    placeholder="https://pay.wave.com/… (collez votre lien Wave)"
+                    placeholder="https://pro.julaya.co/payment/… ou https://pay.wave.com/…"
                     style={{ width: '100%' }}
                   />
                   <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 3 }}>
-                    Astuce : si votre lien accepte un montant, écrivez <code>{'{montant}'}</code> à sa place — il sera
-                    remplacé par la somme due (ex. <code>…?amount={'{montant}'}</code>).
+                    Collez le lien de paiement de votre agrégateur (Julaya, Wave…). Astuce : si votre lien accepte un
+                    montant, écrivez <code>{'{montant}'}</code> à sa place — il sera remplacé par la somme due.
                   </div>
                 </div>
                 <div>
-                  <label style={{ fontSize: 12, color: 'var(--ink-soft)' }}>QR code Wave entreprise (image)</label>
+                  <label style={{ fontSize: 12, color: 'var(--ink-soft)' }}>QR code de paiement (image)</label>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4 }}>
                     {org.waveQrUrl ? (
                       <img
@@ -315,7 +315,7 @@ export function FicheEntreprise({
                     )}
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 3 }}>
-                    PNG ou JPEG. Si vous n’avez que le PDF fourni par Wave, faites une capture d’écran du QR.
+                    PNG ou JPEG (QR Julaya, Wave…). Si vous n’avez que le QR en PDF, faites-en une capture d’écran.
                     Il s’affichera dans vos relances et le portail pour que le débiteur le scanne.
                   </div>
                 </div>
