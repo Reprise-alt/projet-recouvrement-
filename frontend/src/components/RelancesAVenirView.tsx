@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CalendarClock, CheckCircle2, Clock, Gavel, Info, MessageCircle } from 'lucide-react';
 import { api, ApiError } from '../api/client';
 import { useResource } from '../hooks/useResource';
@@ -115,6 +115,8 @@ export function RelancesAVenirView({ reloadKey, canManage }: { reloadKey: unknow
           </button>
         )}
       </div>
+
+      {data.relancesActivees && <ProchainEnvoi fenetreOuverte={data.fenetreOuverte} />}
 
       <div className="rv-note">
         <Info size={15} />
@@ -247,6 +249,90 @@ export function RelancesAVenirView({ reloadKey, canManage }: { reloadKey: unknow
       )}
         </>
       )}
+    </div>
+  );
+}
+
+// Prochain envoi automatique : le cron passe à chaque heure pleine mais n'envoie
+// que dans la fenêtre 8h–19h, lun–ven (heure de Dakar = UTC+0). On calcule donc
+// le prochain « top d'heure » qui tombe dans cette fenêtre, et on décompte.
+function prochainEnvoi(now: Date): Date {
+  const d = new Date(now);
+  d.setUTCMinutes(0, 0, 0);
+  d.setUTCHours(d.getUTCHours() + 1); // prochain top d'heure
+  for (let i = 0; i < 24 * 8; i++) {
+    const jour = d.getUTCDay(); // 0 = dimanche, 6 = samedi
+    const h = d.getUTCHours();
+    if (jour >= 1 && jour <= 5 && h >= 8 && h < 19) return d;
+    d.setUTCHours(d.getUTCHours() + 1);
+  }
+  return d;
+}
+
+function ProchainEnvoi({ fenetreOuverte }: { fenetreOuverte: boolean }) {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const cible = prochainEnvoi(now);
+  const reste = Math.max(0, Math.floor((cible.getTime() - now.getTime()) / 1000));
+  const hh = Math.floor(reste / 3600);
+  const mm = Math.floor((reste % 3600) / 60);
+  const ss = reste % 60;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const compteur = hh > 0 ? `${hh} h ${pad(mm)} min ${pad(ss)} s` : `${pad(mm)} min ${pad(ss)} s`;
+
+  // Libellé de la cible en heure de Dakar (= UTC).
+  const memeJour = cible.getUTCDate() === now.getUTCDate() && cible.getUTCMonth() === now.getUTCMonth();
+  const jourLbl = memeJour
+    ? "aujourd'hui"
+    : cible.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
+  const heureLbl = cible.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 14,
+        margin: '0 0 18px',
+        padding: '14px 18px',
+        borderRadius: 14,
+        border: '1px solid var(--line)',
+        borderLeft: '3px solid var(--accent)',
+        background: 'linear-gradient(180deg, var(--surface, #fff) 0%, var(--accent-soft) 100%)',
+      }}
+    >
+      <div
+        style={{
+          flex: 'none',
+          width: 42,
+          height: 42,
+          borderRadius: 11,
+          background: 'var(--accent)',
+          color: '#fff',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Clock size={21} />
+      </div>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--accent-dark)' }}>
+          Prochain envoi automatique
+        </div>
+        <div className="mono" style={{ fontSize: 24, fontWeight: 600, letterSpacing: '-.01em', marginTop: 2, lineHeight: 1.05 }}>
+          {compteur}
+        </div>
+        <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginTop: 3 }}>
+          {fenetreOuverte
+            ? `Départ ${jourLbl} à ${heureLbl} (heure de Dakar)`
+            : `Fenêtre fermée — reprise ${jourLbl} à ${heureLbl} (8h–19h, lun–ven)`}
+        </div>
+      </div>
     </div>
   );
 }
