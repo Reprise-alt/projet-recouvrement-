@@ -135,9 +135,10 @@ export function RecouvrementView({ entityFilter, role, reloadKey, onImport, canR
             setPalierFilter(null);
           }}
         >
-          <AlertTriangle size={17} />
+          <AlertTriangle size={16} />
+          <span className="n">{aTraiter.length}</span>
           <div>
-            {aTraiter.length} client{aTraiter.length > 1 ? 's' : ''} à traiter aujourd'hui — palier atteint sans action correspondante, ou promesse de paiement dépassée.
+            client{aTraiter.length > 1 ? 's' : ''} à traiter aujourd'hui — palier atteint sans action correspondante, ou promesse de paiement dépassée.
             {onlyATraiter && <strong> Filtre actif — cliquer pour tout réafficher.</strong>}
           </div>
         </div>
@@ -151,9 +152,10 @@ export function RecouvrementView({ entityFilter, role, reloadKey, onImport, canR
             setPalierFilter(null);
           }}
         >
-          <TrendingUp size={17} />
+          <TrendingUp size={16} />
+          <span className="n">{retardsInhabituels.length}</span>
           <div>
-            {retardsInhabituels.length} client{retardsInhabituels.length > 1 ? 's' : ''} avec un retard inhabituel — nettement au-dessus de leur propre
+            client{retardsInhabituels.length > 1 ? 's' : ''} avec un retard inhabituel — nettement au-dessus de leur propre
             délai de paiement habituel, avant même d'atteindre leur prochain palier.
             {onlyRetardInhabituel && <strong> Filtre actif — cliquer pour tout réafficher.</strong>}
           </div>
