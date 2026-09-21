@@ -1,9 +1,10 @@
 import { useState } from 'react';
+import { api, ApiError } from '../api/client';
 
 // Bloc « offres + activation » réutilisable (bandeau d'essai en console ET
 // écran de blocage). Montre les formules en mensuel ou annuel (2 mois offerts),
-// met en avant la formule recommandée, et donne un contact clair pour activer.
-// Prix alignés sur la vitrine (§8.2).
+// met en avant la formule recommandée, détaille chaque offre au survol, et
+// permet d'envoyer sa demande d'abonnement en un clic. Prix alignés vitrine (§8.2).
 
 interface Formule {
   v: string;
@@ -12,6 +13,8 @@ interface Formule {
   prixMensuel: number | null;
   cible: string;
   points: string[];
+  // Détail complet, révélé au survol de la carte (ou toujours visible au tactile).
+  details: string[];
 }
 
 // Fonctions communes à toutes les formules (le « socle »).
@@ -29,6 +32,15 @@ const FORMULES: Formule[] = [
     prixMensuel: 35000,
     cible: "Jusqu'à 50 débiteurs",
     points: ['2 utilisateurs', 'Module contentieux en option (+10 000/mois)'],
+    details: [
+      "Jusqu'à 50 débiteurs actifs",
+      '2 utilisateurs inclus',
+      'Relances automatiques par email, à votre nom + logo',
+      'Paliers & modèles de relance personnalisables',
+      'Tableau de bord des encours + import Excel/CSV',
+      'Module contentieux en option (+10 000 FCFA/mois)',
+      'Support par email',
+    ],
   },
   {
     v: 'pme',
@@ -36,6 +48,16 @@ const FORMULES: Formule[] = [
     prixMensuel: 65000,
     cible: "Jusqu'à 500 débiteurs",
     points: ["Jusqu'à 5 utilisateurs", 'Reporting & suivi de performance', 'Gestion multi-entités', 'Module contentieux inclus'],
+    details: [
+      "Jusqu'à 500 débiteurs actifs",
+      "Jusqu'à 5 utilisateurs",
+      'Tout « Petite structure », et en plus :',
+      'Reporting complet : balance âgée, DSO, taux de conversion',
+      'Envoi automatique du rapport mensuel par email',
+      'Gestion multi-entités',
+      'Module contentieux inclus (actes, portail débiteur)',
+      'Support prioritaire',
+    ],
   },
   {
     v: 'grands_comptes',
@@ -43,6 +65,15 @@ const FORMULES: Formule[] = [
     prixMensuel: null,
     cible: '500 débiteurs et plus',
     points: ['Utilisateurs illimités', 'Module contentieux inclus', 'Intégrations sur mesure & accompagnement'],
+    details: [
+      '500 débiteurs et plus',
+      'Utilisateurs illimités',
+      'Tout « PME », et en plus :',
+      'Intégrations sur mesure (ERP, comptabilité)',
+      'Cabinet partenaire (avocat / huissier) inclus',
+      'Accompagnement & onboarding dédiés',
+      'Interlocuteur dédié & engagement de service',
+    ],
   },
 ];
 
@@ -56,8 +87,24 @@ const CONTACT_TEL_WA = '221770998952';
 
 const fcfa = (n: number) => n.toLocaleString('fr-FR');
 
+type StatutDemande = 'idle' | 'busy' | 'ok' | 'err';
+
 export function OffresAbonnement({ formuleRecommandee }: { formuleRecommandee?: string | null }) {
   const [annuel, setAnnuel] = useState(false);
+  const [statuts, setStatuts] = useState<Record<string, StatutDemande>>({});
+  const [erreur, setErreur] = useState<string | null>(null);
+
+  async function demander(v: string) {
+    setStatuts((s) => ({ ...s, [v]: 'busy' }));
+    setErreur(null);
+    try {
+      await api.post('/api/abonnement/demande', { formule: v, annuel });
+      setStatuts((s) => ({ ...s, [v]: 'ok' }));
+    } catch (e) {
+      setStatuts((s) => ({ ...s, [v]: 'err' }));
+      setErreur(e instanceof ApiError ? e.message : 'Envoi impossible — réessayez ou écrivez-nous.');
+    }
+  }
 
   return (
     <div>
@@ -116,23 +163,14 @@ export function OffresAbonnement({ formuleRecommandee }: { formuleRecommandee?: 
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
         {FORMULES.map((f) => {
           const reco = f.v === formuleRecommandee;
           const surDevis = f.prixMensuel === null;
           const prixAnnuel = f.prixMensuel != null ? f.prixMensuel * MOIS_PAYES_ANNUEL : null;
+          const st = statuts[f.v] ?? 'idle';
           return (
-            <div
-              key={f.v}
-              style={{
-                border: `1px solid ${reco ? 'var(--accent, #177f5e)' : 'var(--line)'}`,
-                borderRadius: 12,
-                padding: '16px 16px 14px',
-                background: 'var(--surface)',
-                position: 'relative',
-                boxShadow: reco ? '0 0 0 1px var(--accent, #177f5e)' : 'none',
-              }}
-            >
+            <div key={f.v} className={`offre-card${reco ? ' reco' : ''}`}>
               {reco && (
                 <span
                   style={{
@@ -185,10 +223,45 @@ export function OffresAbonnement({ formuleRecommandee }: { formuleRecommandee?: 
                   <li key={p}>{p}</li>
                 ))}
               </ul>
+
+              {/* Détail complet, révélé au survol (toujours visible au tactile). */}
+              <div className="offre-hint">Survolez pour le détail complet ↓</div>
+              <div className="offre-details">
+                <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--ink-soft)', marginBottom: 4 }}>
+                  Détail de la formule
+                </div>
+                <ul>
+                  {f.details.map((d) => (
+                    <li key={d}>{d}</li>
+                  ))}
+                </ul>
+              </div>
+
+              <button
+                type="button"
+                className={`offre-choisir${st === 'ok' ? '' : ' primary'}`}
+                disabled={st === 'busy' || st === 'ok'}
+                onClick={() => demander(f.v)}
+                title={surDevis ? 'Demander un devis' : 'Envoyer ma demande d’abonnement'}
+              >
+                {st === 'busy'
+                  ? 'Envoi…'
+                  : st === 'ok'
+                    ? '✓ Demande envoyée'
+                    : surDevis
+                      ? 'Demander un devis'
+                      : 'Choisir cette formule'}
+              </button>
+              {st === 'ok' && (
+                <div style={{ fontSize: 11.5, color: 'var(--accent-dark, #177f5e)', marginTop: 6, textAlign: 'center' }}>
+                  On vous recontacte sous 24 h.
+                </div>
+              )}
             </div>
           );
         })}
       </div>
+      {erreur && <div className="login-error" style={{ marginTop: 10 }}>{erreur}</div>}
 
       <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 10 }}>
         Prix hors taxes (TVA 18 %). SMS/WhatsApp par crédits. {annuel ? 'Engagement 12 mois.' : 'Sans engagement.'}
