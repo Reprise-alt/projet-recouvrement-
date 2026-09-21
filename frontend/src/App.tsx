@@ -25,6 +25,7 @@ import { EntreprisesPanel } from './components/EntreprisesPanel';
 import { FicheEntreprise } from './components/FicheEntreprise';
 import { AbonnementBloque } from './components/AbonnementBloque';
 import { SuperAdminPanel } from './components/SuperAdminPanel';
+import { ParrainagePanel } from './components/ParrainagePanel';
 import { OffresAbonnement } from './components/OffresAbonnement';
 import { EntityLogo } from './components/EntityLogo';
 import { Entite, Entreprise } from './api/types';
@@ -102,6 +103,7 @@ export function App() {
   const [superAdminOpen, setSuperAdminOpen] = useState(false);
   const [espaceExploitantOuvert, setEspaceExploitantOuvert] = useState(false);
   const [offresOpen, setOffresOpen] = useState(false);
+  const [parrainageOpen, setParrainageOpen] = useState(false);
   const [dataVersion, setDataVersion] = useState(0);
   // Démarrage guidé SaaS : les comptes d'organisation (roleOrg) atterrissent sur
   // la checklist tant qu'ils ne sont pas entrés dans la console.
@@ -432,6 +434,8 @@ export function App() {
               {!IS_SAAS && <button onClick={() => setIntegrationsOpen(true)}>Intégrations</button>}
               {/* Gestion multi-entités : réservée PME / Grands comptes en SaaS. */}
               {canMultiEntites && <button onClick={() => setEntreprisesOpen(true)}>Entreprises</button>}
+              {/* Parrainage : inviter une entreprise, 1 mois offert (SaaS). */}
+              {IS_SAAS && <button onClick={() => setParrainageOpen(true)}>🎁 Parrainage</button>}
             </div>
           </div>
         )}
@@ -583,6 +587,7 @@ export function App() {
       {entreprisesOpen && <EntreprisesPanel onClose={() => setEntreprisesOpen(false)} onChanged={refetchEntreprises} />}
       {ficheOpen && <FicheEntreprise onClose={() => setFicheOpen(false)} onSaved={bumpDataVersion} />}
       {superAdminOpen && <SuperAdminPanel onClose={() => setSuperAdminOpen(false)} />}
+      {parrainageOpen && <ParrainagePanel onClose={() => setParrainageOpen(false)} />}
       {offresOpen && (
         <div className="modal-overlay open" onClick={(e) => e.target === e.currentTarget && setOffresOpen(false)}>
           <div className="modal" style={{ width: 'min(760px, 96%)' }}>
