@@ -159,6 +159,13 @@ model Organisation {
   logoMime             String?
   // Affichées au débiteur sur les messages et le portail (§3, §7.1).
   instructionsPaiement String?
+  // Paiement Mobile Money (Sénégal/OHADA) : bouton « Payer maintenant » dans les
+  // relances et le portail. waveLien = lien de paiement Wave collé par le client
+  // (Business/checkout ou wave.me) ; le jeton {montant} y est remplacé par le
+  // montant dû en FCFA quand il est présent. orangeMoneyNumero = numéro OM
+  // (marchand ou compte) affiché avec le montant et la référence.
+  waveLien             String?
+  orangeMoneyNumero    String?
   contactRecouvrement  String?
   // Adresse email de réponse affichée sur les relances (Reply-To) — §5.3/§6 :
   // le débiteur voit et répond à l'entreprise cliente, pas à OLU.

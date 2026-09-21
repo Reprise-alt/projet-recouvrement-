@@ -32,6 +32,8 @@ const CHAMPS = [
   'adresse',
   'logoUrl',
   'instructionsPaiement',
+  'waveLien',
+  'orangeMoneyNumero',
   'contactRecouvrement',
   'emailReponse',
 ] as const;

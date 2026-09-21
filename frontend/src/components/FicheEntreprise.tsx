@@ -98,6 +98,8 @@ export function FicheEntreprise({
         adresse: org.adresse,
         logoUrl: org.logoUrl,
         instructionsPaiement: org.instructionsPaiement,
+        waveLien: org.waveLien,
+        orangeMoneyNumero: org.orangeMoneyNumero,
         contactRecouvrement: org.contactRecouvrement,
         emailReponse: org.emailReponse,
       });
@@ -230,17 +232,51 @@ export function FicheEntreprise({
             </div>
 
             <div className="field">
-              <label>Instructions de paiement</label>
+              <label>Paiement Mobile Money</label>
+              <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', margin: '2px 0 10px' }}>
+                Un bouton « Payer maintenant » apparaît dans vos relances et le portail, avec le montant dû pré-rempli.
+                Le plus rapide pour être payé.
+              </div>
+              <div style={{ display: 'grid', gap: 10 }}>
+                <div>
+                  <label style={{ fontSize: 12, color: 'var(--ink-soft)' }}>Lien de paiement Wave</label>
+                  <input
+                    autoFocus={focusPaiement}
+                    type="url"
+                    value={org.waveLien ?? ''}
+                    onChange={(e) => champ('waveLien', e.target.value)}
+                    placeholder="https://pay.wave.com/… (collez votre lien Wave)"
+                    style={{ width: '100%' }}
+                  />
+                  <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 3 }}>
+                    Astuce : si votre lien accepte un montant, écrivez <code>{'{montant}'}</code> à sa place — il sera
+                    remplacé par la somme due (ex. <code>…?amount={'{montant}'}</code>).
+                  </div>
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, color: 'var(--ink-soft)' }}>Numéro Orange Money</label>
+                  <input
+                    type="tel"
+                    value={org.orangeMoneyNumero ?? ''}
+                    onChange={(e) => champ('orangeMoneyNumero', e.target.value)}
+                    placeholder="Ex. 77 000 00 00 (numéro marchand ou compte)"
+                    style={{ width: '100%' }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="field">
+              <label>Autres modalités de paiement</label>
               <textarea
-                autoFocus={focusPaiement}
-                rows={4}
+                rows={3}
                 value={org.instructionsPaiement ?? ''}
                 onChange={(e) => champ('instructionsPaiement', e.target.value)}
-                placeholder="Ex. Virement CBAO n° 0012345 — ou Wave au 77 000 00 00 — référence : n° de facture."
+                placeholder="Ex. Virement CBAO n° 0012345 — référence : n° de facture."
                 style={{ width: '100%', resize: 'vertical', fontFamily: 'inherit' }}
               />
               <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 4 }}>
-                Affichées telles quelles à vos débiteurs dans les relances et le portail.
+                Affichées telles quelles à vos débiteurs, sous le bouton Mobile Money.
               </div>
             </div>
 

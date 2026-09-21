@@ -82,7 +82,39 @@ export interface OrgIdentite {
   capitalSocial?: string | null;
   contactRecouvrement?: string | null;
   instructionsPaiement?: string | null;
+  waveLien?: string | null;
+  orangeMoneyNumero?: string | null;
   pays?: 'SN' | 'CI' | null;
+}
+
+// Bloc « Payer maintenant » (Mobile Money) — bouton Wave + numéro Orange Money,
+// avec le montant dû et une référence. Rendu HTML inline (compatible email).
+// `montant` en FCFA (entier) ; substitue {montant} dans le lien Wave si présent.
+export function blocPaiementHtml(
+  org: { waveLien?: string | null; orangeMoneyNumero?: string | null },
+  montant?: number | null,
+  reference?: string | null,
+): string {
+  const wave = org.waveLien?.trim();
+  const om = org.orangeMoneyNumero?.trim();
+  if (!wave && !om) return '';
+  const montantTxt = montant && montant > 0 ? fmtFCFA(montant) : null;
+  const lien = wave ? wave.replace(/\{montant\}/g, String(Math.round(montant ?? 0))) : null;
+  const ligneMontant = montantTxt
+    ? `<div style="font-size:13px;color:#5b6469;margin-bottom:10px">Montant à régler : <b style="color:#0e1d33">${escapeHtml(montantTxt)}</b>${reference ? ` · Référence : ${escapeHtml(reference)}` : ''}</div>`
+    : reference
+      ? `<div style="font-size:13px;color:#5b6469;margin-bottom:10px">Référence : ${escapeHtml(reference)}</div>`
+      : '';
+  const boutonWave = lien
+    ? `<a href="${escapeHtml(lien)}" style="display:inline-block;background:#1DC3F0;color:#00243a;font-weight:700;font-size:14px;text-decoration:none;padding:11px 20px;border-radius:9px">Payer par Wave →</a>`
+    : '';
+  const blocOm = om
+    ? `<div style="font-size:13.5px;color:#22262a;margin-top:${boutonWave ? '12' : '0'}px">Orange&nbsp;Money : <b>${escapeHtml(om)}</b>${montantTxt ? ` — envoyez ${escapeHtml(montantTxt)}` : ''}${reference ? `, réf. ${escapeHtml(reference)}` : ''}</div>`
+    : '';
+  return `<div style="margin-top:18px;padding:16px 18px;background:#0e1d330a;border:1px solid #e4e7e3;border-radius:12px">
+       <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#0e7c5a;margin-bottom:8px">Payer maintenant</div>
+       ${ligneMontant}${boutonWave}${blocOm}
+     </div>`;
 }
 
 // Valeurs des variables pour un client + une organisation à un palier donné.
@@ -115,7 +147,12 @@ function escapeHtml(s: string): string {
 
 // Email de marque : logo et coordonnées de l'organisation autour du message.
 // Styles INLINE (les clients mail ignorent les <style>). Neutre, lisible, sobre.
-export function emailRelanceHtml(org: OrgIdentite, corpsRendu: string, instructionsPaiement?: string | null): string {
+export function emailRelanceHtml(
+  org: OrgIdentite,
+  corpsRendu: string,
+  instructionsPaiement?: string | null,
+  paiementCtx?: { montant?: number | null; reference?: string | null },
+): string {
   const nom = escapeHtml(org.raisonSociale);
   const logo = org.logoUrl
     ? `<img src="${escapeHtml(org.logoUrl)}" alt="${nom}" style="max-height:48px;max-width:200px;display:block" />`
@@ -124,9 +161,11 @@ export function emailRelanceHtml(org: OrgIdentite, corpsRendu: string, instructi
     .split('\n\n')
     .map((p) => `<p style="margin:0 0 14px;font-size:15px;line-height:1.55;color:#22262a">${p.replace(/\n/g, '<br/>')}</p>`)
     .join('');
+  // Bloc Mobile Money (bouton Payer) EN PREMIER, puis les modalités libres.
+  const blocMobile = blocPaiementHtml(org, paiementCtx?.montant, paiementCtx?.reference);
   const paiement = instructionsPaiement && instructionsPaiement.trim()
-    ? `<div style="margin-top:18px;padding:14px 16px;background:#f4f6f5;border-radius:10px">
-         <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#5b6469;margin-bottom:6px">Modalités de paiement</div>
+    ? `<div style="margin-top:14px;padding:14px 16px;background:#f4f6f5;border-radius:10px">
+         <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#5b6469;margin-bottom:6px">Autres modalités de paiement</div>
          <div style="font-size:14px;line-height:1.5;color:#22262a">${escapeHtml(instructionsPaiement.trim()).replace(/\n/g, '<br/>')}</div>
        </div>`
     : '';
@@ -152,7 +191,7 @@ export function emailRelanceHtml(org: OrgIdentite, corpsRendu: string, instructi
   <div style="max-width:560px;margin:0 auto;padding:24px 16px">
     <div style="background:#fff;border:1px solid #e4e7e3;border-radius:14px;overflow:hidden">
       <div style="padding:22px 26px;border-bottom:1px solid #eef0eb">${logo}</div>
-      <div style="padding:24px 26px">${corpsHtml}${paiement}</div>
+      <div style="padding:24px 26px">${corpsHtml}${blocMobile}${paiement}</div>
     </div>
     <div style="padding:16px 26px;font-size:11.5px;line-height:1.5;color:#8a9298;text-align:center">
       ${piedInfos ? `<div>${piedInfos}</div>` : ''}
@@ -173,6 +212,10 @@ export function construireRelanceMarque(
   const vars = variablesRelance(client, org);
   const sujet = rendreVariables(tpl.sujet, vars);
   const texte = rendreVariables(tpl.corps, vars);
-  const html = emailRelanceHtml(org, texte, org.instructionsPaiement);
+  const oldest = clientOldestEcheance(client);
+  const html = emailRelanceHtml(org, texte, org.instructionsPaiement, {
+    montant: clientEncours(client),
+    reference: oldest?.numero ?? null,
+  });
   return { sujet, texte, html };
 }
