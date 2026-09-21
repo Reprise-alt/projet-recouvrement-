@@ -1,10 +1,12 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { prisma } from '../db';
 import { requireAuth, requireAccesRecouvrement, requireRole } from '../middleware/auth';
 import { requireAbonnementActif } from '../middleware/abonnement';
 import { tenantScope } from '../middleware/tenant';
 import { verifierTokenCheque } from '../lib/authToken';
 import { mentionsLegales } from '../lib/actes/mentionsLegales';
+import { scanDisponible, extraireCheque } from '../lib/scanCheque';
 
 // ── Public : déclaration « chèque disponible » par le débiteur ──────────────
 // Accès par un jeton signé, sans authentification. Le débiteur signale qu'un
@@ -103,6 +105,115 @@ chequesRouter.post('/alertes/:id/traiter', requireRole('admin', 'manager_entite'
     });
     if (!r.count) return res.status(404).json({ error: 'Alerte introuvable' });
     res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── Scan de chèque (extraction assistée par photo) + enregistrement ─────────
+const uploadCheque = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
+
+// Indique si l'extraction auto par photo est disponible (clé API configurée).
+chequesRouter.get('/scan/disponible', (_req, res) => res.json({ disponible: scanDisponible() }));
+
+// Extraction des champs depuis la photo (ne stocke rien) — l'agent relit/corrige.
+chequesRouter.post('/scan', uploadCheque.single('file'), async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Aucune image reçue' });
+    if (!scanDisponible()) return res.json({ disponible: false });
+    const champs = await extraireCheque(req.file.buffer.toString('base64'), req.file.mimetype);
+    res.json({ disponible: true, ...champs });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Enregistre un chèque (image + champs) et, si des factures sont cochées, les
+// marque réglées. Rapprochement validé par l'agent (rôles de gestion).
+chequesRouter.post('/', requireRole('admin', 'manager_entite', 'comptable'), uploadCheque.single('file'), async (req, res, next) => {
+  try {
+    const b = (req.body ?? {}) as Record<string, string>;
+    const montant = Math.round(Number(b.montant));
+    if (!Number.isFinite(montant) || montant <= 0) return res.status(400).json({ error: 'Montant invalide' });
+
+    const clientId = b.clientId?.trim() || null;
+    const factureIds = (b.factureIds || '').split(',').map((s) => s.trim()).filter(Boolean);
+    const dateCheque = b.dateCheque && !Number.isNaN(new Date(b.dateCheque).getTime()) ? new Date(b.dateCheque) : null;
+
+    // Vérifie l'appartenance du client au tenant.
+    if (clientId) {
+      const c = await prisma.client.findUnique({ where: { id: clientId }, select: { id: true } });
+      if (!c) return res.status(400).json({ error: 'Client introuvable' });
+    }
+
+    // Marque les factures réglées (scopées au client + tenant).
+    let numerosRegles: string[] = [];
+    if (clientId && factureIds.length) {
+      const factures = await prisma.facture.findMany({
+        where: { id: { in: factureIds }, clientId, statut: 'impayee' },
+        select: { id: true, numero: true },
+      });
+      numerosRegles = factures.map((f) => f.numero);
+      if (factures.length) {
+        await prisma.facture.updateMany({
+          where: { id: { in: factures.map((f) => f.id) }, clientId, statut: 'impayee' },
+          data: { statut: 'payee', datePaiement: dateCheque ?? new Date() },
+        });
+        await prisma.actionRecouvrement.create({
+          data: {
+            clientId,
+            palier: 0,
+            label: 'Réglé par chèque',
+            note: `Chèque ${b.numeroCheque || ''}${b.banque ? ' (' + b.banque + ')' : ''} — ${montant.toLocaleString('fr-FR')} FCFA — ${numerosRegles.join(', ')}`.trim(),
+            utilisateurId: req.user!.id,
+          },
+        });
+      }
+    }
+
+    const cheque = await prisma.cheque.create({
+      data: {
+        organisationId: req.user!.organisationId,
+        clientId,
+        montant,
+        banque: b.banque?.trim() || null,
+        numeroCheque: b.numeroCheque?.trim() || null,
+        dateCheque,
+        tireur: b.tireur?.trim() || null,
+        imageData: req.file?.buffer ?? null,
+        imageMime: req.file?.mimetype ?? null,
+        facturesReglees: numerosRegles.join(', ') || null,
+      },
+      select: { id: true },
+    });
+    res.json({ id: cheque.id, facturesReglees: numerosRegles.length });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Liste des chèques enregistrés (récents d'abord).
+chequesRouter.get('/', async (req, res, next) => {
+  try {
+    const cheques = await prisma.cheque.findMany({
+      where: { organisationId: req.user!.organisationId },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+      include: { client: { select: { nom: true } } },
+    });
+    res.json(
+      cheques.map((c) => ({
+        id: c.id,
+        montant: c.montant,
+        banque: c.banque,
+        numeroCheque: c.numeroCheque,
+        dateCheque: c.dateCheque,
+        tireur: c.tireur,
+        clientNom: c.client?.nom ?? null,
+        facturesReglees: c.facturesReglees,
+        createdAt: c.createdAt,
+      })),
+    );
   } catch (err) {
     next(err);
   }
