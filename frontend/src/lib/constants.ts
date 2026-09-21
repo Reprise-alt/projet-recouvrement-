@@ -124,7 +124,9 @@ export const FREQUENCE_LABELS: Record<string, string> = {
 };
 
 export function fmtFCFA(n: number): string {
-  return n.toLocaleString('fr-FR') + ' FCFA';
+  // Espaces insécables partout (séparateurs de milliers ET avant « FCFA ») pour
+  // que le montant tienne toujours sur une seule ligne, jamais coupé.
+  return n.toLocaleString('fr-FR').replace(/\s/g, ' ') + ' FCFA';
 }
 
 export function fmtDate(d: string | null | undefined): string {

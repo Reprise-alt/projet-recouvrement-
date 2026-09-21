@@ -12,12 +12,14 @@ import {
   AgentStat,
   buildAgentMontantRecouvre,
   buildAgentStats,
+  buildBalanceAgee,
+  buildConversionParPalier,
   buildReportingSummary,
   lastNMonthKeys,
   PaymentAttributionEntry,
   ReportingSummary,
 } from '../lib/reporting';
-import { clientEncours, clientPalier, clientRetardInhabituel, PALIERS } from '../lib/paliers';
+import { clientEncours, clientJoursRetard, clientPalier, clientRetardInhabituel, PALIERS } from '../lib/paliers';
 import { getConfig } from '../services/configService';
 import { AnalyseResult, buildAnalyse } from '../lib/analyse';
 
@@ -213,6 +215,83 @@ async function computeSnapshotKpis(where: object) {
     clientsRetardInhabituel: clients.filter((c) => clientRetardInhabituel(c)).length,
   };
 }
+
+// Pilotage mono-société : balance âgée de l'encours, top débiteurs, conversion
+// des relances par palier et taux de recouvrement sur la période. Complète
+// /summary (qui reste centré sur les encaissements de la période).
+export async function computePilotage(period: Period, where: object) {
+  const config = await getConfig();
+  const clients = await prisma.client.findMany({
+    where,
+    include: {
+      factures: true,
+      actions: { where: { palier: { gte: 1 } }, orderBy: { date: 'desc' }, take: 1, select: { date: true, label: true, palier: true } },
+    },
+  });
+
+  // Balance âgée : sur toutes les factures impayées, réparties par tranche de retard.
+  const facturesImpayees = clients.flatMap((c) =>
+    c.factures.map((f) => ({ montant: f.montant, dateEcheance: f.dateEcheance, statut: f.statut as 'impayee' | 'payee' })),
+  );
+  const balanceAgee = buildBalanceAgee(facturesImpayees);
+
+  // Top débiteurs : plus gros encours en retard, avec leur dernier palier relancé.
+  const topDebiteurs = clients
+    .map((c) => ({
+      nom: c.nom,
+      encours: clientEncours(c as never),
+      joursRetard: clientJoursRetard(c as never),
+      palier: clientPalier(c as never, config),
+      dernierPalierLabel: c.actions[0]?.label ?? null,
+      derniereRelance: c.actions[0]?.date ?? null,
+    }))
+    .filter((d) => d.encours > 0 && d.joursRetard > 0)
+    .sort((a, b) => b.encours - a.encours)
+    .slice(0, 8);
+
+  // Taux de recouvrement : part (en montant) des factures échues SUR LA PÉRIODE
+  // qui ont été payées. Mesure honnête « de ce qui devenait exigible, combien a
+  // rentré ».
+  let montantEchu = 0;
+  let montantPaye = 0;
+  for (const c of clients) {
+    for (const f of c.factures) {
+      const ech = new Date(f.dateEcheance).getTime();
+      if (ech >= period.from.getTime() && ech <= period.to.getTime()) {
+        montantEchu += f.montant;
+        if (f.statut === 'payee') montantPaye += f.montant;
+      }
+    }
+  }
+  const tauxRecouvrement = montantEchu > 0 ? Math.round((montantPaye / montantEchu) * 1000) / 10 : null;
+
+  // Conversion des relances par palier sur la période.
+  const actions = await prisma.actionRecouvrement.findMany({
+    where: { palier: { gte: 1 }, date: { gte: period.from, lte: period.to }, client: where },
+    include: { client: { include: { factures: { where: { statut: 'payee' }, select: { datePaiement: true } } } } },
+  });
+  const conversion = buildConversionParPalier(
+    actions.map((a) => ({ palier: a.palier, date: a.date, datesPaiementClient: a.client.factures.map((f) => f.datePaiement) })),
+  );
+
+  return {
+    balanceAgee,
+    topDebiteurs,
+    recouvrement: { montantEchu, montantPaye, taux: tauxRecouvrement },
+    conversion,
+  };
+}
+
+reportingRouter.get('/pilotage', async (req, res, next) => {
+  try {
+    const period = parsePeriod(req.query);
+    if (!period) return res.status(400).json({ error: 'Période invalide — from et to sont requis (format AAAA-MM-JJ)' });
+    const entiteFilter = resolveEntiteScope(req.user!, req.query.entite);
+    res.json(await computePilotage(period, entiteWhere(entiteFilter)));
+  } catch (err) {
+    next(err);
+  }
+});
 
 reportingRouter.get('/summary', async (req, res, next) => {
   try {

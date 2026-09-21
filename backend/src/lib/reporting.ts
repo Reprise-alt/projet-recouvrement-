@@ -151,6 +151,99 @@ export function buildReportingSummary(
   };
 }
 
+// ── Balance âgée de l'encours (aging) ────────────────────────────────────────
+// Répartit le montant des factures IMPAYÉES par tranche de retard (jours entre
+// l'échéance et aujourd'hui). « À échoir » = pas encore exigible. Indicateur clé
+// de trésorerie : montre où dort l'argent.
+export interface TrancheAge {
+  cle: 'a_echoir' | 'j0_30' | 'j31_60' | 'j61_90' | 'j90_plus';
+  label: string;
+  montant: number;
+  nombre: number;
+}
+
+const TRANCHES_AGE: { cle: TrancheAge['cle']; label: string; min: number; max: number | null }[] = [
+  { cle: 'a_echoir', label: 'À échoir', min: -Infinity, max: 0 },
+  { cle: 'j0_30', label: '0–30 jours', min: 0, max: 30 },
+  { cle: 'j31_60', label: '31–60 jours', min: 31, max: 60 },
+  { cle: 'j61_90', label: '61–90 jours', min: 61, max: 90 },
+  { cle: 'j90_plus', label: '+90 jours', min: 91, max: null },
+];
+
+export function buildBalanceAgee(
+  factures: { montant: number; dateEcheance: Date | string; statut: 'impayee' | 'payee' }[],
+  now: Date = new Date(),
+): TrancheAge[] {
+  const acc = new Map<TrancheAge['cle'], { montant: number; nombre: number }>();
+  for (const t of TRANCHES_AGE) acc.set(t.cle, { montant: 0, nombre: 0 });
+  for (const f of factures) {
+    if (f.statut !== 'impayee') continue;
+    const retard = Math.floor((now.getTime() - new Date(f.dateEcheance).getTime()) / 86_400_000);
+    const tranche =
+      retard <= 0 ? 'a_echoir' : retard <= 30 ? 'j0_30' : retard <= 60 ? 'j31_60' : retard <= 90 ? 'j61_90' : 'j90_plus';
+    const bucket = acc.get(tranche)!;
+    bucket.montant += f.montant;
+    bucket.nombre += 1;
+  }
+  return TRANCHES_AGE.map((t) => ({ cle: t.cle, label: t.label, ...acc.get(t.cle)! }));
+}
+
+// ── Conversion des relances par palier ───────────────────────────────────────
+// Pour chaque relance (palier ≥ 1) de la période, on regarde si un paiement du
+// client est survenu dans les FENETRE_CONVERSION_JOURS suivants. Le taux de
+// conversion par palier = part des relances suivies d'un paiement. C'est une
+// corrélation (le paiement peut avoir d'autres causes), jamais une preuve — les
+// libellés côté UI doivent rester honnêtes là-dessus.
+export const FENETRE_CONVERSION_JOURS = 15;
+
+export interface ConversionActionEntry {
+  palier: number;
+  date: Date | string;
+  datesPaiementClient: (Date | string | null)[];
+}
+
+export interface ConversionPalier {
+  palier: number;
+  label: string;
+  relances: number;
+  converties: number;
+  taux: number | null; // null si aucune relance à ce palier
+}
+
+export function buildConversionParPalier(
+  actions: ConversionActionEntry[],
+  fenetreJours: number = FENETRE_CONVERSION_JOURS,
+): ConversionPalier[] {
+  const parPalier = new Map<number, { relances: number; converties: number }>();
+  for (const a of actions) {
+    if (a.palier < 1) continue;
+    let stat = parPalier.get(a.palier);
+    if (!stat) {
+      stat = { relances: 0, converties: 0 };
+      parPalier.set(a.palier, stat);
+    }
+    stat.relances += 1;
+    const t0 = new Date(a.date).getTime();
+    const limite = t0 + fenetreJours * 86_400_000;
+    const converti = a.datesPaiementClient.some((d) => {
+      if (d == null) return false;
+      const t = new Date(d).getTime();
+      return t >= t0 && t <= limite;
+    });
+    if (converti) stat.converties += 1;
+  }
+  return PALIERS.filter((p) => p.id >= 1).map((p) => {
+    const s = parPalier.get(p.id);
+    return {
+      palier: p.id,
+      label: p.label,
+      relances: s?.relances ?? 0,
+      converties: s?.converties ?? 0,
+      taux: s && s.relances > 0 ? Math.round((s.converties / s.relances) * 1000) / 10 : null,
+    };
+  });
+}
+
 export interface AgentActionEntry {
   utilisateurId: string;
   utilisateurNom: string;
