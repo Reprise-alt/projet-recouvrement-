@@ -27,7 +27,7 @@ import {
 import { api, ApiError, downloadFile } from '../api/client';
 import { useResource } from '../hooks/useResource';
 import { useToast } from '../hooks/useToast';
-import { fmtDate, fmtFCFA } from '../lib/constants';
+import { fmtDate, fmtFCFA, PALIERS } from '../lib/constants';
 import { IS_SAAS } from '../auth/mode';
 import {
   ActeContentieux,
@@ -420,6 +420,37 @@ export function ContentieuxDrawer({
                   </div>
                 ))}
               </div>
+            )}
+
+            {/* ---------- Relances effectuées (preuve des tentatives amiables) ---------- */}
+            {dossier.relances && dossier.relances.length > 0 && (
+              <>
+                <div className="section-title">Relances effectuées ({dossier.relances.length})</div>
+                <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', margin: '-4px 0 8px' }}>
+                  Historique amiable du client — preuve des tentatives avant le contentieux.
+                </div>
+                <div style={{ marginBottom: 16, border: '1px solid var(--line)', borderRadius: 8, overflow: 'hidden' }}>
+                  {dossier.relances.map((r, i) => (
+                    <div
+                      key={r.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'baseline',
+                        gap: 10,
+                        padding: '7px 10px',
+                        fontSize: 12.5,
+                        borderTop: i === 0 ? 'none' : '1px solid var(--line)',
+                      }}
+                    >
+                      <span className="mono" style={{ whiteSpace: 'nowrap', color: 'var(--ink-soft)' }}>{fmtDate(r.date)}</span>
+                      <span className="badge" data-tone={PALIERS[r.palier]?.tone ?? 'amber'} style={{ flex: 'none' }}>
+                        {PALIERS[r.palier]?.label ?? r.label ?? `Palier ${r.palier}`}
+                      </span>
+                      <span style={{ color: 'var(--ink-soft)' }}>{r.note ?? '—'}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
             )}
 
             {/* ---------- Pièces du dossier ---------- */}

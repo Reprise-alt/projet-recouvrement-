@@ -246,11 +246,19 @@ contentieuxRouter.get('/dossiers/:id', async (req, res, next) => {
         joursDepuisEcheance,
         nbFactures: dossier.factures.length,
       });
+      // Historique des relances amiables du client (preuve des tentatives de
+      // bonne foi avant contentieux — utile juridiquement en zone OHADA).
+      const relances = await prisma.actionRecouvrement.findMany({
+        where: { clientId: dossier.clientId },
+        orderBy: { date: 'desc' },
+        select: { id: true, date: true, palier: true, label: true, note: true },
+      });
       enrichi = {
         ...dossier,
         actes: dossier.actes.map((a) => ({ ...a, aVersionSignee: Boolean(a.mimeTypeSigne) })),
         prescription,
         scoring,
+        relances,
       };
     }
     res.json(enrichi);

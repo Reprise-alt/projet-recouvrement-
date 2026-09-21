@@ -3,7 +3,7 @@ import { CheckCircle2, Download, Gavel, LogOut, Scale, Upload, X } from 'lucide-
 import { api, ApiError, downloadFile } from '../api/client';
 import { useResource } from '../hooks/useResource';
 import { useToast } from '../hooks/useToast';
-import { fmtDate, fmtFCFA } from '../lib/constants';
+import { fmtDate, fmtFCFA, PALIERS } from '../lib/constants';
 import { PartenaireDossierItem, StatutDossierContentieux } from '../api/types';
 
 // Console du cabinet partenaire (avocat/huissier plateforme) — Phase 2 : lecture.
@@ -132,6 +132,7 @@ interface DossierDetail {
   decompte: { id: string; poste: string; montant: number }[];
   pieces: { id: string; nomFichier: string; type: string }[];
   actes: { id: string; type: string; statut: string; mimeTypeSigne?: string | null }[];
+  relances?: { id: string; date: string; palier: number; label: string | null; note: string | null }[];
   analyse: { syntheseIa: string | null; competence: string | null; manquants: string[] } | null;
   propositions: { id: string; statut: string; createdAt: string }[];
 }
@@ -193,6 +194,26 @@ function PartenaireDossierDrawer({ dossierId, onClose }: { dossierId: string; on
                 </div>
               ))}
             </section>
+
+            {d.relances && d.relances.length > 0 && (
+              <section style={{ marginBottom: 16 }}>
+                <div className="section-title">Relances effectuées ({d.relances.length})</div>
+                <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', margin: '-2px 0 8px' }}>
+                  Historique amiable — preuve des tentatives avant le contentieux.
+                </div>
+                <div style={{ border: '1px solid var(--line)', borderRadius: 8, overflow: 'hidden' }}>
+                  {d.relances.map((r, i) => (
+                    <div key={r.id} style={{ display: 'flex', gap: 10, padding: '7px 10px', fontSize: 12.5, borderTop: i === 0 ? 'none' : '1px solid var(--line)' }}>
+                      <span className="mono" style={{ whiteSpace: 'nowrap', color: 'var(--ink-soft)' }}>{fmtDate(r.date)}</span>
+                      <span className="badge" data-tone={PALIERS[r.palier]?.tone ?? 'amber'} style={{ flex: 'none' }}>
+                        {PALIERS[r.palier]?.label ?? r.label ?? `Palier ${r.palier}`}
+                      </span>
+                      <span style={{ color: 'var(--ink-soft)' }}>{r.note ?? '—'}</span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
 
             <section style={{ marginBottom: 16 }}>
               <div className="section-title">Pièces ({d.pieces.length})</div>
