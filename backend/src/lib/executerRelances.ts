@@ -10,6 +10,15 @@ import { PALIERS } from './paliers';
 import { ClientRelance, dansFenetreEnvoi, relancesDues } from './moteurRelances';
 import { construireRelanceMarque, OrgIdentite } from './modelesRelance';
 import { chargerMoyensPaiement } from './moyensPaiement';
+import { signerTokenCheque } from './authToken';
+
+// Lien PUBLIC « chèque disponible » pour la relance (bouton). Requiert FRONTEND_URL
+// (lien absolu dans l'email) et l'organisation ; sinon on n'affiche pas le bouton.
+function lienChequeDispo(clientId: string, orgId: string | null | undefined): string | null {
+  const front = process.env.FRONTEND_URL?.replace(/\/$/, '');
+  if (!front || !orgId) return null;
+  return `${front}/cheque/${signerTokenCheque(clientId, orgId)}`;
+}
 import { chargerModelesOrg } from '../services/modeleRelanceService';
 
 // Au-delà de ce palier, la relance n'est jamais envoyée automatiquement :
@@ -214,6 +223,7 @@ export async function executerRelancesTenant(opts: OptionsExecution = {}): Promi
         orgIdentite,
         d.palier,
         modelesOrg?.get(d.palier),
+        lienChequeDispo(c.id, orgId),
       );
       sujet = r.sujet;
       texte = r.texte;
@@ -316,6 +326,7 @@ export async function reconstruireEmailRelance(
       orgIdentite,
       palier,
       modelesOrg?.get(palier),
+      lienChequeDispo(clientId, orgId),
     );
     sujet = r.sujet;
     texte = r.texte;

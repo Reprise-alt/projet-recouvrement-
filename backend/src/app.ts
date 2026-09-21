@@ -12,6 +12,7 @@ import { usersRouter } from './routes/users';
 import { clientsRouter } from './routes/clients';
 import { facturesRouter } from './routes/factures';
 import { paiementsImportRouter } from './routes/paiementsImport';
+import { chequesRouter, chequePublicRouter } from './routes/cheques';
 import { contractsRouter } from './routes/contracts';
 import { configRouter } from './routes/config';
 import { importRouter } from './routes/importRoutes';
@@ -73,6 +74,9 @@ export function createApp() {
   app.use('/api/clients', clientsRouter);
   app.use('/api/factures', facturesRouter);
   app.use('/api/paiements', paiementsImportRouter);
+  app.use('/api/cheques', chequesRouter);
+  // Déclaration publique « chèque disponible » (sans auth, jeton signé).
+  app.use('/api/cheque-public', chequePublicRouter);
   app.use('/api/contracts', contractsRouter);
   app.use('/api/config', configRouter);
   app.use('/api/import', importRouter);

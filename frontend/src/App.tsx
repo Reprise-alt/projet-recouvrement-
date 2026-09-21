@@ -14,6 +14,7 @@ import { OperationsView } from './components/OperationsView';
 import { CoursierPublicView } from './components/CoursierPublicView';
 import { SalleCoursierView } from './components/SalleCoursierView';
 import { PortailDebiteurView } from './components/PortailDebiteurView';
+import { DeclarationChequeView } from './components/DeclarationChequeView';
 import { PresentationView } from './components/PresentationView';
 import { ArticlePage, BlogIndex } from './components/BlogView';
 import { WelcomeSplash } from './components/WelcomeSplash';
@@ -28,6 +29,7 @@ import { SuperAdminPanel } from './components/SuperAdminPanel';
 import { ParrainagePanel } from './components/ParrainagePanel';
 import { DeliverabilityPanel } from './components/DeliverabilityPanel';
 import { ImportRelevePanel } from './components/ImportRelevePanel';
+import { ChequesDeclaresPanel } from './components/ChequesDeclaresPanel';
 import { OffresAbonnement } from './components/OffresAbonnement';
 import { EntityLogo } from './components/EntityLogo';
 import { Entite, Entreprise } from './api/types';
@@ -76,6 +78,11 @@ export function App() {
     const token = window.location.pathname.slice('/portail/'.length);
     return <PortailDebiteurView token={token} />;
   }
+  // Déclaration publique « chèque disponible » (lien à token dans une relance).
+  if (window.location.pathname.startsWith('/cheque/')) {
+    const token = window.location.pathname.slice('/cheque/'.length);
+    return <DeclarationChequeView token={token} />;
+  }
   // Page vitrine publique (présentation + tarifs), sans session.
   if (window.location.pathname.startsWith('/presentation')) {
     return <PresentationView />;
@@ -108,6 +115,7 @@ export function App() {
   const [parrainageOpen, setParrainageOpen] = useState(false);
   const [deliverabilityOpen, setDeliverabilityOpen] = useState(false);
   const [importReleveOpen, setImportReleveOpen] = useState(false);
+  const [chequesOpen, setChequesOpen] = useState(false);
   const [dataVersion, setDataVersion] = useState(0);
   // Démarrage guidé SaaS : les comptes d'organisation (roleOrg) atterrissent sur
   // la checklist tant qu'ils ne sont pas entrés dans la console.
@@ -139,6 +147,13 @@ export function App() {
     dataVersion,
   );
   const nbAlertesContentieux = alertesContentieux?.propositionsEnAttente ?? 0;
+
+  // Chèques signalés disponibles par les débiteurs (badge + panneau).
+  const { data: chequesAlertes } = useResource<{ nbNouvelles: number }>(
+    user && IS_SAAS && CONSOLE === 'recouvrement' && user.accesRecouvrement ? '/api/cheques/alertes' : null,
+    dataVersion,
+  );
+  const nbChequesDeclares = chequesAlertes?.nbNouvelles ?? 0;
 
   // Périmètre du sélecteur d'entités selon la console. Pour le groupe
   // (recouvrement, coursier) : toutes les entités hors "COMMUN" (pseudo-groupe
@@ -432,6 +447,16 @@ export function App() {
               <button onClick={() => setModelesOpen(true)}>Modèles de relance</button>
               <button onClick={() => setImportOpen(true)}>Importer un fichier</button>
               {IS_SAAS && <button onClick={() => setImportReleveOpen(true)}>Importer un relevé Julaya</button>}
+              {IS_SAAS && (
+                <button onClick={() => setChequesOpen(true)} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <span>Chèques déclarés</span>
+                  {nbChequesDeclares > 0 && (
+                    <span style={{ minWidth: 18, height: 18, padding: '0 5px', borderRadius: 9, background: 'var(--danger)', color: '#fff', fontSize: 10.5, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {nbChequesDeclares}
+                    </span>
+                  )}
+                </button>
+              )}
               <button onClick={() => setUsersOpen(true)}>Utilisateurs</button>
               {/* Intégrations Gmail = envoi manuel côté groupe. En SaaS, l'envoi
                   (auto ET manuel) passe par le canal mutualisé au nom du client —
@@ -597,6 +622,7 @@ export function App() {
       {parrainageOpen && <ParrainagePanel onClose={() => setParrainageOpen(false)} />}
       {deliverabilityOpen && <DeliverabilityPanel onClose={() => setDeliverabilityOpen(false)} domaineInitial={user.email} />}
       {importReleveOpen && <ImportRelevePanel onClose={() => setImportReleveOpen(false)} onApplied={bumpDataVersion} />}
+      {chequesOpen && <ChequesDeclaresPanel onClose={() => setChequesOpen(false)} onChanged={bumpDataVersion} />}
       {offresOpen && (
         <div className="modal-overlay open" onClick={(e) => e.target === e.currentTarget && setOffresOpen(false)}>
           <div className="modal" style={{ width: 'min(760px, 96%)' }}>
