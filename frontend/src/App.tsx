@@ -98,6 +98,7 @@ export function App() {
   const [entreprisesOpen, setEntreprisesOpen] = useState(false);
   const [ficheOpen, setFicheOpen] = useState(false);
   const [superAdminOpen, setSuperAdminOpen] = useState(false);
+  const [espaceExploitantOuvert, setEspaceExploitantOuvert] = useState(false);
   const [offresOpen, setOffresOpen] = useState(false);
   const [dataVersion, setDataVersion] = useState(0);
   // Démarrage guidé SaaS : les comptes d'organisation (roleOrg) atterrissent sur
@@ -244,6 +245,13 @@ export function App() {
   // Comptes SaaS : écran de démarrage guidé tant qu'ils n'entrent pas dans la console.
   if (user.roleOrg && !enConsole) {
     return <OnboardingChecklist onEntrerConsole={() => setEnConsole(true)} />;
+  }
+
+  // Super-admin qui bascule vers l'espace exploitant plein écran depuis sa propre
+  // console (sans changer de compte) : même vue que la session opérateur autonome,
+  // avec un retour vers sa console au lieu d'une déconnexion.
+  if (user.superAdmin && espaceExploitantOuvert) {
+    return <OperateurConsole email={user.email} onLogout={logout} onClose={() => setEspaceExploitantOuvert(false)} />;
   }
 
   return (
@@ -421,6 +429,7 @@ export function App() {
             <div className="rail-section-label">Exploitant</div>
             <div className="rail-nav">
               <button onClick={() => setSuperAdminOpen(true)}>Organisations (activation)</button>
+              <button onClick={() => setEspaceExploitantOuvert(true)}>Ouvrir l’espace exploitant</button>
             </div>
           </div>
         )}

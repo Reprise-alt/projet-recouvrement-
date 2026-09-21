@@ -1,5 +1,5 @@
 import { useState, type CSSProperties, type ReactNode } from 'react';
-import { BadgeCheck, Building2, Clock, Inbox, LogOut } from 'lucide-react';
+import { ArrowLeft, BadgeCheck, Building2, Clock, Inbox, LogOut } from 'lucide-react';
 import { api, ApiError } from '../api/client';
 import { AbonnementInfo } from '../api/types';
 import { useResource } from '../hooks/useResource';
@@ -59,7 +59,10 @@ interface DemandesResponse {
   demandes: Demande[];
 }
 
-export function OperateurConsole({ email, onLogout }: { email: string; onLogout: () => void }) {
+// `onClose` : présent quand la console est ouverte DEPUIS une console société
+// (super-admin qui bascule sans changer de compte) → on propose « Retour à ma
+// console » plutôt que « Se déconnecter » (il reste connecté à sa société).
+export function OperateurConsole({ email, onLogout, onClose }: { email: string; onLogout: () => void; onClose?: () => void }) {
   const [tab, setTab] = useState<'demandes' | 'societes'>('demandes');
   const demandesRes = useResource<DemandesResponse>('/api/exploitant/demandes?statut=toutes');
   const orgsRes = useResource<OrgAdmin[]>('/api/exploitant/organisations');
@@ -94,7 +97,7 @@ export function OperateurConsole({ email, onLogout }: { email: string; onLogout:
           <div style={{ fontSize: 11.5, opacity: 0.7 }}>{email}</div>
         </div>
         <button
-          onClick={onLogout}
+          onClick={onClose ?? onLogout}
           style={{
             marginLeft: 'auto',
             display: 'inline-flex',
@@ -105,7 +108,7 @@ export function OperateurConsole({ email, onLogout }: { email: string; onLogout:
             color: '#fff',
           }}
         >
-          <LogOut size={14} /> Se déconnecter
+          {onClose ? <><ArrowLeft size={14} /> Retour à ma console</> : <><LogOut size={14} /> Se déconnecter</>}
         </button>
       </header>
 
