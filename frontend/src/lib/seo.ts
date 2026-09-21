@@ -41,7 +41,7 @@ export function setJsonLd(id: string, data: unknown) {
 const FEYMA_FAVICON =
   'data:image/svg+xml,' +
   encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="46" fill="#C6FB50"/><path d="M38 32 H66 M38 32 V68 M38 51 H60" fill="none" stroke="#0C120F" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="46" fill="#0E7C5A"/><path d="M38 32 H66 M38 32 V68 M38 51 H60" fill="none" stroke="#FFFFFF" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   );
 
 export function setFeymaFavicon() {

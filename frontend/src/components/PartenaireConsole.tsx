@@ -35,11 +35,11 @@ export function PartenaireConsole({ nom, onLogout }: { nom: string; onLogout: ()
           alignItems: 'center',
           gap: 12,
           padding: '14px 22px',
-          background: '#0C120F',
+          background: '#0E1D33',
           color: '#fff',
         }}
       >
-        <Scale size={20} style={{ color: '#C6FB50' }} />
+        <Scale size={20} style={{ color: '#4BD0A0' }} />
         <div style={{ lineHeight: 1.15 }}>
           <div style={{ fontWeight: 800, fontSize: 15 }}>{nom}</div>
           <div style={{ fontSize: 11.5, opacity: 0.7 }}>Espace partenaire · Feyma</div>
