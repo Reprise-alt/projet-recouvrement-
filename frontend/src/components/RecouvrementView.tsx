@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { AlertTriangle, Gavel, Mail, TrendingUp, Users, Wallet } from 'lucide-react';
 import { buildQuery } from '../api/client';
 import { useResource } from '../hooks/useResource';
@@ -45,20 +45,40 @@ export function RecouvrementView({ entityFilter, role, reloadKey, onImport, canR
   const [bulkRelance, setBulkRelance] = useState(false);
   const [showReporting, setShowReporting] = useState(false);
 
-  const kpisPath = `/api/clients/kpis${buildQuery({ entite: entityFilter })}`;
-  const listPath = `/api/clients${buildQuery({
-    entite: entityFilter,
-    palier: palierFilter ?? undefined,
-    sort: sortKey,
-    dir: sortDir === 1 ? 'asc' : 'desc',
-  })}`;
+  // Console = 1 seule requête (KPIs + liste). Avant, deux appels (`/kpis` et
+  // `/clients`) rechargeaient chacun tous les clients + factures : travail fait
+  // deux fois. Ici on charge une fois, et le tri + le filtre par palier sont
+  // appliqués côté client sur la liste déjà en mémoire — re-trier ou changer de
+  // palier devient instantané, sans aller-retour réseau ni clignotement des KPIs.
+  const consolePath = `/api/clients/console${buildQuery({ entite: entityFilter })}`;
+  const consoleRes = useResource<{ kpis: RecouvrementKpis; list: ClientListItem[] }>(consolePath, reloadKey);
 
-  const kpis = useResource<RecouvrementKpis>(kpisPath, reloadKey);
-  const list = useResource<ClientListItem[]>(listPath, reloadKey);
+  const kpis = { data: consoleRes.data?.kpis ?? null, loading: consoleRes.loading, error: consoleRes.error };
+  const listData = useMemo(() => {
+    const base = consoleRes.data?.list;
+    if (!base) return null;
+    const filtree = palierFilter !== null ? base.filter((c) => c.palier === palierFilter) : base;
+    return [...filtree].sort((a, b) => {
+      let va: number | string, vb: number | string;
+      if (sortKey === 'encours') {
+        va = a.encours;
+        vb = b.encours;
+      } else if (sortKey === 'nom') {
+        va = a.nom;
+        vb = b.nom;
+      } else {
+        va = a.joursRetard;
+        vb = b.joursRetard;
+      }
+      if (va < vb) return -1 * sortDir;
+      if (va > vb) return 1 * sortDir;
+      return 0;
+    });
+  }, [consoleRes.data, palierFilter, sortKey, sortDir]);
+  const list = { data: listData, loading: consoleRes.loading, error: consoleRes.error };
 
   function refetchAll() {
-    kpis.refetch();
-    list.refetch();
+    consoleRes.refetch();
   }
 
   function toggleSort(key: typeof sortKey) {
