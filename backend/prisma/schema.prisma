@@ -188,6 +188,9 @@ model Organisation {
   scenarioVu           Boolean            @default(false)
   relanceTestEnvoyee   Boolean            @default(false)
   relancesActivees     Boolean            @default(false)
+  // Envoi automatique du rapport mensuel : email destinataire (null = désactivé).
+  // Le cron mensuel génère le PDF du mois écoulé et l'envoie à cette adresse.
+  reportingEmail       String?
 
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt

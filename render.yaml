@@ -212,6 +212,27 @@ services:
           type: web
           envVarKey: RELANCES_CRON_SECRET
 
+  # ── SaaS : cron du rapport mensuel (envoi automatique par email) ──────────
+  # Le 1er de chaque mois à 06:00 UTC : génère le PDF du mois écoulé pour chaque
+  # organisation ayant renseigné une adresse de reporting et l'envoie en pièce
+  # jointe. Même secret que le cron des relances.
+  - type: cron
+    name: olu360-saas-reporting-cron
+    runtime: node
+    rootDir: backend
+    plan: starter
+    schedule: "0 6 1 * *"
+    buildCommand: echo "no build"
+    startCommand: 'curl -fsS --retry 5 --retry-all-errors --retry-connrefused --retry-delay 10 --max-time 300 -X POST "https://$SAAS_BACKEND_HOST/api/cron/reporting" -H "X-Cron-Secret: $CRON_SECRET"'
+    envVars:
+      - key: SAAS_BACKEND_HOST
+        value: olu360-saas-backend.onrender.com
+      - key: CRON_SECRET
+        fromService:
+          name: olu360-saas-backend
+          type: web
+          envVarKey: RELANCES_CRON_SECRET
+
   # ── Console Opérations ───────────────────────────────────────────────────
   - type: web
     name: operations-frontend

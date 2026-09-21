@@ -3,7 +3,8 @@ import PDFDocument from 'pdfkit';
 import ExcelJS from 'exceljs';
 import fs from 'fs';
 import path from 'path';
-import { prisma } from '../db';
+import { prisma, rlsActive, withTenant } from '../db';
+import { getEmailProvider } from '../lib/email/provider';
 import { requireAccesRecouvrement, requireAuth, requireRole } from '../middleware/auth';
 import { Entite, resolveEntiteScope } from '../lib/entites';
 import { fmtDate, fmtFCFA } from '../lib/dates';
@@ -52,6 +53,28 @@ function entiteWhere(entiteFilter: Entite | 'ALL') {
   if (entiteFilter === 'ALL') return {};
   return { OR: [{ entite: entiteFilter as any }, { entite: 'COMMUN' as any }] };
 }
+
+// Réglage de l'envoi automatique du rapport mensuel : adresse destinataire.
+reportingRouter.get('/reglages', async (req, res, next) => {
+  try {
+    const org = await prisma.organisation.findUnique({ where: { id: req.user!.organisationId }, select: { reportingEmail: true } });
+    res.json({ reportingEmail: org?.reportingEmail ?? null });
+  } catch (err) {
+    next(err);
+  }
+});
+
+reportingRouter.put('/reglages', requireRole('admin'), async (req, res, next) => {
+  try {
+    const raw = (req.body?.reportingEmail ?? '').toString().trim();
+    const email = raw || null; // vide = désactive l'envoi automatique
+    if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: 'Adresse email invalide' });
+    await prisma.organisation.update({ where: { id: req.user!.organisationId }, data: { reportingEmail: email } });
+    res.json({ reportingEmail: email });
+  } catch (err) {
+    next(err);
+  }
+});
 
 export interface Period {
   from: Date;
@@ -714,7 +737,7 @@ function pdfPageWidth(doc: PDFKit.PDFDocument): number {
 // Bandeau de couverture -- logo(s) sur puce blanche (les logos du groupe ne
 // se lisent pas posés directement sur un fond vert), titre et période en
 // clair. Dessiné une fois par export, avant tout contenu.
-function drawHeader(doc: PDFKit.PDFDocument, periodLabel: string, logos: string[]) {
+function drawHeader(doc: PDFKit.PDFDocument, periodLabel: string, logos: string[], marque = 'Olu 360') {
   const w = doc.page.width;
   doc.rect(0, 0, w, 96).fill(PDF_DARK);
 
@@ -740,7 +763,7 @@ function drawHeader(doc: PDFKit.PDFDocument, periodLabel: string, logos: string[
   const logosWidth = chips.reduce((s, c) => s + c.chipW, 0) + Math.max(0, chips.length - 1) * 8;
   const titleWidth = w - PAGE_MARGIN * 2 - (logosWidth > 0 ? logosWidth + 20 : 0);
 
-  doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(20).text('Olu 360', PAGE_MARGIN, 28, { width: titleWidth });
+  doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(20).text(pdfSafe(marque), PAGE_MARGIN, 28, { width: titleWidth });
   doc
     .fillColor('#B7D3C7')
     .font('Helvetica')
@@ -858,6 +881,124 @@ interface ExportBody {
   analyse?: AnalyseResult;
 }
 
+interface ReportingPdfData {
+  summary: ReportingSummary;
+  agents: (AgentStat & { utilisateurId: string })[];
+  snapshot: { clientsEnContentieux: { nombre: number; montant: number }; clientsRetardInhabituel: number };
+  analyse: AnalyseResult;
+}
+
+// Dessine tout le rapport dans le document PDF fourni (en-tête → pied de page).
+// Partagé par l'export à la demande (stream) et l'envoi automatique (buffer).
+function drawReportingDocument(doc: PDFKit.PDFDocument, period: Period, data: ReportingPdfData, logos: string[], marque = 'Olu 360') {
+  const { summary, agents, snapshot, analyse } = data;
+
+  drawHeader(doc, `Période du ${fmtDate(period.from)} au ${fmtDate(period.to)}`, logos, marque);
+
+  drawKpiRow(doc, [
+    { label: 'Factures payées', value: String(summary.facturesPayees.nombre) },
+    { label: 'Montant encaissé', value: fmtFCFA(summary.facturesPayees.montantTotal) },
+    {
+      label: "Délai moyen d'encaissement",
+      value: summary.delaiEncaissement.global !== null ? `${Math.round(summary.delaiEncaissement.global)} j` : 'N/A',
+    },
+    {
+      label: 'Contentieux (encours)',
+      value: fmtFCFA(snapshot.clientsEnContentieux.montant),
+      tone: snapshot.clientsEnContentieux.nombre > 0 ? 'danger' : 'success',
+    },
+  ]);
+
+  drawSectionTitle(doc, 'Analyse de la période');
+  drawAnalyseBlock(doc, 'pointsForts', analyse.pointsForts);
+  drawAnalyseBlock(doc, 'actionsPositives', analyse.actionsPositives);
+  drawAnalyseBlock(doc, 'pointsVigilance', analyse.pointsVigilance);
+  drawAnalyseBlock(doc, 'axesAmelioration', analyse.axesAmelioration);
+  drawAnalyseBlock(doc, 'recommandations', analyse.recommandations);
+
+  // « Par entité » : héritage groupe, seulement si plusieurs entités (jamais en SaaS mono-société).
+  if (summary.delaiEncaissement.parEntite.length > 1) {
+    drawSectionTitle(doc, "Délai d'encaissement par entité");
+    const w = pdfPageWidth(doc);
+    drawTable(
+      doc,
+      ['Entité', 'Délai moyen pondéré', 'Montant encaissé', 'Factures'],
+      summary.delaiEncaissement.parEntite.map((r) => [
+        r.entite,
+        r.delaiJours !== null ? `${Math.round(r.delaiJours)} j` : 'N/A',
+        fmtFCFA(r.montantTotal),
+        r.nombre,
+      ]),
+      [w * 0.22, w * 0.28, w * 0.3, w * 0.2],
+    );
+  }
+
+  drawSectionTitle(doc, 'Relances effectuées par palier');
+  {
+    const w = pdfPageWidth(doc);
+    drawTable(doc, ['Palier', 'Nombre de relances'], summary.relances.map((r) => [r.label, r.nombre]), [w * 0.6, w * 0.4]);
+  }
+
+  if (agents.length > 0) {
+    drawSectionTitle(doc, 'Performance par agent');
+    const w = pdfPageWidth(doc);
+    drawTable(
+      doc,
+      ['Agent', 'Relances', 'Délai après intervention', 'Montant recouvré'],
+      agents.map((a) => [
+        a.nom,
+        a.actions,
+        a.delaiMoyenApresIntervention !== null ? `${a.delaiMoyenApresIntervention} j (sur ${a.nombreDelaisMesures})` : 'N/A',
+        a.montantRecouvre > 0 ? fmtFCFA(a.montantRecouvre) : '—',
+      ]),
+      [w * 0.28, w * 0.16, w * 0.3, w * 0.26],
+    );
+  }
+
+  drawSectionTitle(doc, `Évolution du délai d'encaissement (${EVOLUTION_MONTHS} derniers mois)`);
+  {
+    const w = pdfPageWidth(doc);
+    drawTable(
+      doc,
+      ['Mois', 'Délai moyen pondéré', 'Montant encaissé', 'Factures'],
+      summary.evolutionMensuelle.map((r) => [
+        r.mois,
+        r.delaiJours !== null ? `${Math.round(r.delaiJours)} j` : 'N/A',
+        fmtFCFA(r.montantTotal),
+        r.nombre,
+      ]),
+      [w * 0.22, w * 0.28, w * 0.3, w * 0.2],
+    );
+  }
+
+  // Pied de page numéroté (voir note pdfkit sur la marge basse plus bas).
+  const range = doc.bufferedPageRange();
+  const bottomMargin = doc.page.margins.bottom;
+  for (let i = range.start; i < range.start + range.count; i++) {
+    doc.switchToPage(i);
+    doc.page.margins.bottom = 0;
+    doc
+      .font('Courier')
+      .fontSize(8)
+      .fillColor(PDF_INK_SOFT)
+      .text(`${pdfSafe(marque)}  ·  ${i + 1}/${range.count}`, PAGE_MARGIN, doc.page.height - 30, { width: pdfPageWidth(doc), align: 'right' });
+    doc.page.margins.bottom = bottomMargin;
+  }
+}
+
+// Génère le rapport en Buffer (pour l'envoi par email). Même rendu que l'export.
+export function genererReportingPdfBuffer(period: Period, data: ReportingPdfData, logos: string[], marque = 'Olu 360'): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ margin: PAGE_MARGIN, size: 'A4', bufferPages: true });
+    const chunks: Buffer[] = [];
+    doc.on('data', (c: Buffer) => chunks.push(c));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+    drawReportingDocument(doc, period, data, logos, marque);
+    doc.end();
+  });
+}
+
 reportingRouter.post('/export.pdf', async (req, res, next) => {
   try {
     const body = (req.body ?? {}) as ExportBody;
@@ -887,108 +1028,85 @@ reportingRouter.post('/export.pdf', async (req, res, next) => {
 
     const doc = new PDFDocument({ margin: PAGE_MARGIN, size: 'A4', bufferPages: true });
     doc.pipe(res);
-
-    drawHeader(doc, `Période du ${fmtDate(period.from)} au ${fmtDate(period.to)}`, logosForScope(entiteFilter));
-
-    drawKpiRow(doc, [
-      { label: 'Factures payées', value: String(summary.facturesPayees.nombre) },
-      { label: 'Montant encaissé', value: fmtFCFA(summary.facturesPayees.montantTotal) },
-      {
-        label: "Délai moyen d'encaissement",
-        value: summary.delaiEncaissement.global !== null ? `${Math.round(summary.delaiEncaissement.global)} j` : 'N/A',
-      },
-      {
-        label: 'Contentieux (encours)',
-        value: fmtFCFA(snapshot.clientsEnContentieux.montant),
-        tone: snapshot.clientsEnContentieux.nombre > 0 ? 'danger' : 'success',
-      },
-    ]);
-
-    drawSectionTitle(doc, 'Analyse de la période');
-    drawAnalyseBlock(doc, 'pointsForts', analyse.pointsForts);
-    drawAnalyseBlock(doc, 'actionsPositives', analyse.actionsPositives);
-    drawAnalyseBlock(doc, 'pointsVigilance', analyse.pointsVigilance);
-    drawAnalyseBlock(doc, 'axesAmelioration', analyse.axesAmelioration);
-    drawAnalyseBlock(doc, 'recommandations', analyse.recommandations);
-
-    if (summary.delaiEncaissement.parEntite.length > 1) {
-      drawSectionTitle(doc, "Délai d'encaissement par entité");
-      const w = pdfPageWidth(doc);
-      drawTable(
-        doc,
-        ['Entité', 'Délai moyen pondéré', 'Montant encaissé', 'Factures'],
-        summary.delaiEncaissement.parEntite.map((r) => [
-          r.entite,
-          r.delaiJours !== null ? `${Math.round(r.delaiJours)} j` : 'N/A',
-          fmtFCFA(r.montantTotal),
-          r.nombre,
-        ]),
-        [w * 0.22, w * 0.28, w * 0.3, w * 0.2],
-      );
-    }
-
-    drawSectionTitle(doc, 'Relances effectuées par palier');
-    {
-      const w = pdfPageWidth(doc);
-      drawTable(
-        doc,
-        ['Palier', 'Nombre de relances'],
-        summary.relances.map((r) => [r.label, r.nombre]),
-        [w * 0.6, w * 0.4],
-      );
-    }
-
-    if (agents.length > 0) {
-      drawSectionTitle(doc, 'Performance par agent');
-      const w = pdfPageWidth(doc);
-      drawTable(
-        doc,
-        ['Agent', 'Relances', 'Délai après intervention', 'Montant recouvré'],
-        agents.map((a) => [
-          a.nom,
-          a.actions,
-          a.delaiMoyenApresIntervention !== null ? `${a.delaiMoyenApresIntervention} j (sur ${a.nombreDelaisMesures})` : 'N/A',
-          a.montantRecouvre > 0 ? fmtFCFA(a.montantRecouvre) : '—',
-        ]),
-        [w * 0.28, w * 0.16, w * 0.3, w * 0.26],
-      );
-    }
-
-    drawSectionTitle(doc, `Évolution du délai d'encaissement (${EVOLUTION_MONTHS} derniers mois)`);
-    {
-      const w = pdfPageWidth(doc);
-      drawTable(
-        doc,
-        ['Mois', 'Délai moyen pondéré', 'Montant encaissé', 'Factures'],
-        summary.evolutionMensuelle.map((r) => [
-          r.mois,
-          r.delaiJours !== null ? `${Math.round(r.delaiJours)} j` : 'N/A',
-          fmtFCFA(r.montantTotal),
-          r.nombre,
-        ]),
-        [w * 0.22, w * 0.28, w * 0.3, w * 0.2],
-      );
-    }
-
-    // Pied de page numéroté sur chaque page, ajouté à la fin une fois le
-    // nombre total de pages connu (bufferPages: true plus haut). Le texte
-    // est écrit dans la marge basse -- sans désactiver temporairement cette
-    // marge, pdfkit considère qu'il déborde et ajoute une page blanche
-    // supplémentaire à chaque itération (constaté en QA visuelle).
-    const range = doc.bufferedPageRange();
-    const bottomMargin = doc.page.margins.bottom;
-    for (let i = range.start; i < range.start + range.count; i++) {
-      doc.switchToPage(i);
-      doc.page.margins.bottom = 0;
-      doc
-        .font('Courier')
-        .fontSize(8)
-        .fillColor(PDF_INK_SOFT)
-        .text(`OLU 360  ·  ${i + 1}/${range.count}`, PAGE_MARGIN, doc.page.height - 30, { width: pdfPageWidth(doc), align: 'right' });
-      doc.page.margins.bottom = bottomMargin;
-    }
-
+    // En SaaS, pas de logos du groupe (SORAM/IRIS/SIS) ni de marque « Olu 360 ».
+    const logos = rlsActive() ? [] : logosForScope(entiteFilter);
+    const marque = rlsActive() ? 'Feyma' : 'Olu 360';
+    drawReportingDocument(doc, period, { summary, agents, snapshot, analyse }, logos, marque);
     doc.end();
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── Envoi automatique du rapport mensuel par email ───────────────────────────
+// Cron externe (Render) → génère le PDF du mois civil écoulé pour chaque org
+// ayant renseigné une adresse de reporting, et l'envoie en pièce jointe. Même
+// authentification que le cron des relances (secret partagé). Exige la RLS.
+export const reportingCronRouter = Router();
+
+function moisPrecedent(now: Date = new Date()): Period {
+  const y = now.getUTCFullYear();
+  const m = now.getUTCMonth();
+  const from = new Date(Date.UTC(y, m - 1, 1, 0, 0, 0, 0));
+  const to = new Date(Date.UTC(y, m, 0, 23, 59, 59, 999)); // dernier jour du mois précédent
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  return { from, to, fromStr: iso(from), toStr: iso(to) };
+}
+
+reportingCronRouter.post('/', async (req, res, next) => {
+  try {
+    const secret = process.env.RELANCES_CRON_SECRET;
+    if (!secret) return res.status(503).json({ error: 'Déclencheur cron désactivé (RELANCES_CRON_SECRET non défini)' });
+    if (req.header('x-cron-secret') !== secret) return res.status(401).json({ error: 'Secret cron invalide' });
+    if (!rlsActive()) return res.status(503).json({ error: 'RLS requis pour l’envoi multi-tenant (RLS_ENABLED != true)' });
+
+    const period = moisPrecedent();
+    // Hors contexte tenant : l'échappatoire RLS autorise la lecture des orgs éligibles.
+    const orgs = await prisma.organisation.findMany({
+      where: { reportingEmail: { not: null }, statut: { in: ['essai', 'actif'] } },
+      select: { id: true, reportingEmail: true, raisonSociale: true, emailReponse: true },
+    });
+
+    const resultats: { organisationId: string; envoye?: boolean; erreur?: string }[] = [];
+    for (const org of orgs) {
+      try {
+        await withTenant(org.id, async () => {
+          const where = {}; // tout le tenant (scopé par RLS)
+          const [summary, agents, snapshot] = await Promise.all([
+            computeSummaryForPeriod(period, where),
+            computeAgentStats(period, where),
+            computeSnapshotKpis(where),
+          ]);
+          const analyse = buildAnalyse({
+            periodeLabel: `${fmtDate(period.from)} au ${fmtDate(period.to)}`,
+            actuel: summary,
+            precedent: await computeSummaryForPeriod(previousPeriod(period), where),
+            clientsEnContentieux: snapshot.clientsEnContentieux,
+            clientsRetardInhabituel: snapshot.clientsRetardInhabituel,
+            agents,
+          });
+          const marque = org.raisonSociale ?? 'Feyma';
+          const pdf = await genererReportingPdfBuffer(period, { summary, agents, snapshot, analyse }, [], marque);
+          await getEmailProvider().send({
+            to: org.reportingEmail!,
+            subject: `Rapport de recouvrement — ${fmtDate(period.from)} au ${fmtDate(period.to)}`,
+            text:
+              `Bonjour,\n\nVeuillez trouver ci-joint le rapport de recouvrement du mois écoulé ` +
+              `(${fmtDate(period.from)} au ${fmtDate(period.to)}).\n\n— ${marque}, via Feyma`,
+            fromName: marque,
+            replyTo: org.emailReponse ?? undefined,
+            attachments: [
+              { filename: `rapport_${period.fromStr}_${period.toStr}.pdf`, content: pdf, contentType: 'application/pdf' },
+            ],
+          });
+        });
+        resultats.push({ organisationId: org.id, envoye: true });
+      } catch (e) {
+        resultats.push({ organisationId: org.id, erreur: e instanceof Error ? e.message : 'erreur' });
+      }
+    }
+
+    res.json({ periode: { from: period.fromStr, to: period.toStr }, organisations: orgs.length, resultats });
   } catch (err) {
     next(err);
   }
