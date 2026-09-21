@@ -62,6 +62,87 @@ clientsRouter.get('/kpis', async (req, res, next) => {
   }
 });
 
+// Console Recouvrement : KPIs + liste des clients en UNE seule requête.
+// Les deux écrans partageaient le même `findMany` (tous les clients + factures)
+// exécuté deux fois (un appel `/kpis`, un appel `/`). On fusionne : une passe
+// en base, les deux résultats calculés depuis le même tableau en mémoire. Le
+// tri et le filtre par palier sont laissés au client (liste déjà chargée), donc
+// re-trier n'impose plus d'aller-retour réseau ni de recharger les KPIs.
+clientsRouter.get('/console', async (req, res, next) => {
+  try {
+    const entiteFilter = resolveEntiteScope(req.user!, req.query.entite);
+    const config = await getConfig();
+    const clients = await prisma.client.findMany({
+      where: entiteWhere(entiteFilter),
+      include: { factures: true, actions: { orderBy: { date: 'desc' }, take: 1 }, contacts: { orderBy: { createdAt: 'asc' } } },
+    });
+
+    // ── KPIs (identiques à /kpis, calculés sur l'ensemble des clients) ──
+    const totalEncours = clients.reduce((s, c) => s + clientEncours(c), 0);
+    const enRetard = clients.filter((c) => clientPalier(c, config) >= 1).length;
+    const contentieux = clients.filter((c) => clientPalier(c, config) >= 7).reduce((s, c) => s + clientEncours(c), 0);
+    const lettresAEnvoyer = clients.filter((c) => clientPalier(c, config) >= 5).length;
+    const retardsInhabituels = clients.filter((c) => clientRetardInhabituel(c)).length;
+    const ladder: Record<number, number> = {};
+    PALIERS.forEach((p) => (ladder[p.id] = 0));
+    let dansLesClous = 0;
+    let arretService = 0;
+    let litige = 0;
+    let totalActifs = 0;
+    clients.forEach((c) => {
+      if (clientEncours(c) > 0) {
+        totalActifs++;
+        const p = clientPalier(c, config);
+        ladder[p]++;
+        if (p <= 4) dansLesClous++;
+        else if (p === 5) arretService++;
+        else litige++;
+      }
+    });
+    const kpis = {
+      totalEncours,
+      enRetard,
+      contentieux,
+      lettresAEnvoyer,
+      retardsInhabituels,
+      ladder,
+      repartition: { total: totalActifs, dansLesClous, arretService, litige },
+      config,
+    };
+
+    // ── Liste (identique à /, sans encours nul, non triée : tri côté client) ──
+    const list = clients
+      .map((c) => {
+        const encours = clientEncours(c);
+        const oldest = clientOldestEcheance(c);
+        const derniere = c.actions[0];
+        return {
+          id: c.id,
+          nom: c.nom,
+          entite: c.entite,
+          contact: c.contact,
+          email: c.email,
+          tel: c.tel,
+          note: c.note,
+          prochaineRelance: c.prochaineRelance,
+          frequenceFacturation: c.frequenceFacturation,
+          contacts: c.contacts.map((ct) => ({ id: ct.id, nom: ct.nom, fonction: ct.fonction, email: ct.email, tel: ct.tel })),
+          encours,
+          joursRetard: clientJoursRetard(c),
+          palier: clientPalier(c, config),
+          retardInhabituel: clientRetardInhabituel(c),
+          echeanceLaPlusAncienne: oldest?.dateEcheance ?? null,
+          derniereAction: derniere ? { label: derniere.label, date: derniere.date, palier: derniere.palier } : null,
+        };
+      })
+      .filter((c) => c.encours > 0);
+
+    res.json({ kpis, list });
+  } catch (err) {
+    next(err);
+  }
+});
+
 clientsRouter.get('/', async (req, res, next) => {
   try {
     const entiteFilter = resolveEntiteScope(req.user!, req.query.entite);

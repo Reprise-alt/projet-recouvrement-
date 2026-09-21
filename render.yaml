@@ -89,9 +89,11 @@ services:
     name: olu360-saas-backend
     runtime: node
     rootDir: backend
-    # `free` dort après inactivité (démarrage à froid ~30 s). Passer à `starter`
-    # pour un back-end toujours actif en production.
-    plan: free
+    # `starter` : back-end toujours actif (plus de mise en veille). Le plan
+    # `free` s'éteignait après 15 min d'inactivité → ~30-60 s de réveil à froid
+    # à la 1re ouverture de la console (matin, après pause…). En production
+    # payante, on ne peut pas infliger cette attente aux clients.
+    plan: starter
     buildCommand: npm install --include=dev && npm run build
     # Le serveur ouvre le port PUIS applique les migrations (voir src/server.ts) :
     # évite que la 1re application de migrations dépasse le délai de détection de
