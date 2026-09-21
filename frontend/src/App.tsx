@@ -34,6 +34,7 @@ import { ContentieuxUpsell } from './components/ContentieuxUpsell';
 import { PartenaireConsole } from './components/PartenaireConsole';
 import { CONSOLE, CONSOLE_META, ECOSYSTEME } from './console';
 import { AUTH_MODE, IS_SAAS, redirigerVersHub } from './auth/mode';
+import { setFeymaFavicon } from './lib/seo';
 
 type EntityFilter = Entite | 'ALL';
 type RecouvrementTab = 'recouvrement' | 'relances' | 'contrats' | 'contentieux';
@@ -115,7 +116,9 @@ export function App() {
   const meta = CONSOLE_META[CONSOLE];
 
   useEffect(() => {
-    document.title = `OLU 360 — ${meta.titre}`;
+    // En SaaS, l'appli est « Feyma » (jamais « OLU 360 ») — titre + favicon.
+    document.title = IS_SAAS ? `Feyma — ${meta.titre}` : `OLU 360 — ${meta.titre}`;
+    if (IS_SAAS) setFeymaFavicon();
   }, [meta.titre]);
 
   const { data: entreprises, refetch: refetchEntreprises } = useResource<Entreprise[]>(user ? '/api/entreprises' : null);
