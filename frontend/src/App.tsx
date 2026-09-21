@@ -27,6 +27,7 @@ import { AbonnementBloque } from './components/AbonnementBloque';
 import { SuperAdminPanel } from './components/SuperAdminPanel';
 import { ParrainagePanel } from './components/ParrainagePanel';
 import { DeliverabilityPanel } from './components/DeliverabilityPanel';
+import { ImportRelevePanel } from './components/ImportRelevePanel';
 import { OffresAbonnement } from './components/OffresAbonnement';
 import { EntityLogo } from './components/EntityLogo';
 import { Entite, Entreprise } from './api/types';
@@ -106,6 +107,7 @@ export function App() {
   const [offresOpen, setOffresOpen] = useState(false);
   const [parrainageOpen, setParrainageOpen] = useState(false);
   const [deliverabilityOpen, setDeliverabilityOpen] = useState(false);
+  const [importReleveOpen, setImportReleveOpen] = useState(false);
   const [dataVersion, setDataVersion] = useState(0);
   // Démarrage guidé SaaS : les comptes d'organisation (roleOrg) atterrissent sur
   // la checklist tant qu'ils ne sont pas entrés dans la console.
@@ -429,6 +431,7 @@ export function App() {
               <button onClick={() => setSettingsOpen(true)}>Paramètres des paliers</button>
               <button onClick={() => setModelesOpen(true)}>Modèles de relance</button>
               <button onClick={() => setImportOpen(true)}>Importer un fichier</button>
+              {IS_SAAS && <button onClick={() => setImportReleveOpen(true)}>Importer un relevé Julaya</button>}
               <button onClick={() => setUsersOpen(true)}>Utilisateurs</button>
               {/* Intégrations Gmail = envoi manuel côté groupe. En SaaS, l'envoi
                   (auto ET manuel) passe par le canal mutualisé au nom du client —
@@ -593,6 +596,7 @@ export function App() {
       {superAdminOpen && <SuperAdminPanel onClose={() => setSuperAdminOpen(false)} />}
       {parrainageOpen && <ParrainagePanel onClose={() => setParrainageOpen(false)} />}
       {deliverabilityOpen && <DeliverabilityPanel onClose={() => setDeliverabilityOpen(false)} domaineInitial={user.email} />}
+      {importReleveOpen && <ImportRelevePanel onClose={() => setImportReleveOpen(false)} onApplied={bumpDataVersion} />}
       {offresOpen && (
         <div className="modal-overlay open" onClick={(e) => e.target === e.currentTarget && setOffresOpen(false)}>
           <div className="modal" style={{ width: 'min(760px, 96%)' }}>

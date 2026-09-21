@@ -11,6 +11,7 @@ import { adminOrganisationsRouter } from './routes/adminOrganisations';
 import { usersRouter } from './routes/users';
 import { clientsRouter } from './routes/clients';
 import { facturesRouter } from './routes/factures';
+import { paiementsImportRouter } from './routes/paiementsImport';
 import { contractsRouter } from './routes/contracts';
 import { configRouter } from './routes/config';
 import { importRouter } from './routes/importRoutes';
@@ -71,6 +72,7 @@ export function createApp() {
   app.use('/api/users', usersRouter);
   app.use('/api/clients', clientsRouter);
   app.use('/api/factures', facturesRouter);
+  app.use('/api/paiements', paiementsImportRouter);
   app.use('/api/contracts', contractsRouter);
   app.use('/api/config', configRouter);
   app.use('/api/import', importRouter);
