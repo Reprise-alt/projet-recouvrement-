@@ -238,6 +238,13 @@ export async function executerRelancesTenant(opts: OptionsExecution = {}): Promi
           palier: d.palier,
           label: PALIERS[d.palier].label,
           note: `Relance automatique par email à ${dest.to}${dest.cc.length ? ` (+${dest.cc.length} en copie)` : ''}`,
+          // Archive du message exact envoyé (relecture par l'agent + preuve
+          // amiable pour le contentieux).
+          emailSujet: sujet,
+          emailTo: dest.to,
+          emailCc: dest.cc.length ? dest.cc.join(', ') : null,
+          emailHtml: html ?? null,
+          emailTexte: texte,
         },
       });
     }
