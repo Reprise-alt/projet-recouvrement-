@@ -168,6 +168,7 @@ export function emailRelanceHtml(
   corpsRendu: string,
   instructionsPaiement?: string | null,
   paiementCtx?: { montant?: number | null; reference?: string | null },
+  lienChequeDispo?: string | null,
 ): string {
   const nom = escapeHtml(org.raisonSociale);
   const logo = org.logoUrl
@@ -183,6 +184,14 @@ export function emailRelanceHtml(
     ? `<div style="margin-top:14px;padding:14px 16px;background:#f4f6f5;border-radius:10px">
          <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#5b6469;margin-bottom:6px">Autres modalités de paiement</div>
          <div style="font-size:14px;line-height:1.5;color:#22262a">${escapeHtml(instructionsPaiement.trim()).replace(/\n/g, '<br/>')}</div>
+       </div>`
+    : '';
+  // Bouton « chèque disponible » : le débiteur signale qu'un chèque est prêt
+  // (déclaration publique via jeton). Discret, sous les modalités de paiement.
+  const blocCheque = lienChequeDispo
+    ? `<div style="margin-top:14px;padding:12px 16px;background:#f4f6f5;border-radius:10px;font-size:13px;color:#22262a">
+         Vous réglez par chèque ?
+         <a href="${escapeHtml(lienChequeDispo)}" style="color:#0e7c5a;font-weight:700;text-decoration:underline">Signalez qu'il est disponible →</a>
        </div>`
     : '';
   // Mention légale « <forme> au capital de <montant> » (OHADA) — assemblée des
@@ -207,7 +216,7 @@ export function emailRelanceHtml(
   <div style="max-width:560px;margin:0 auto;padding:24px 16px">
     <div style="background:#fff;border:1px solid #e4e7e3;border-radius:14px;overflow:hidden">
       <div style="padding:22px 26px;border-bottom:1px solid #eef0eb">${logo}</div>
-      <div style="padding:24px 26px">${corpsHtml}${blocMobile}${paiement}</div>
+      <div style="padding:24px 26px">${corpsHtml}${blocMobile}${paiement}${blocCheque}</div>
     </div>
     <div style="padding:16px 26px;font-size:11.5px;line-height:1.5;color:#8a9298;text-align:center">
       ${piedInfos ? `<div>${piedInfos}</div>` : ''}
@@ -223,15 +232,19 @@ export function construireRelanceMarque(
   org: OrgIdentite,
   palier: number,
   modele?: ModeleRelance,
+  lienChequeDispo?: string | null,
 ): { sujet: string; texte: string; html: string } {
   const tpl = modele ?? MODELES_DEFAUT[palier] ?? MODELES_DEFAUT[2];
   const vars = variablesRelance(client, org);
   const sujet = rendreVariables(tpl.sujet, vars);
   const texte = rendreVariables(tpl.corps, vars);
   const oldest = clientOldestEcheance(client);
-  const html = emailRelanceHtml(org, texte, org.instructionsPaiement, {
-    montant: clientEncours(client),
-    reference: oldest?.numero ?? null,
-  });
+  const html = emailRelanceHtml(
+    org,
+    texte,
+    org.instructionsPaiement,
+    { montant: clientEncours(client), reference: oldest?.numero ?? null },
+    lienChequeDispo,
+  );
   return { sujet, texte, html };
 }

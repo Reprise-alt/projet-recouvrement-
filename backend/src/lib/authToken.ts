@@ -67,3 +67,20 @@ export function verifierSessionOperateur(token: string): { email: string } | nul
     return null;
   }
 }
+
+// Jeton PUBLIC « chèque disponible » : encodé dans le bouton d'une relance pour
+// que le débiteur signale un chèque prêt, sans authentification. Porte le client
+// et l'organisation ; validité longue (le débiteur peut cliquer des jours après).
+export function signerTokenCheque(clientId: string, organisationId: string): string {
+  return jwt.sign({ chq: true, org: organisationId }, secret(), { subject: clientId, expiresIn: '120d' });
+}
+
+export function verifierTokenCheque(token: string): { clientId: string; org: string } | null {
+  try {
+    const p = jwt.verify(token, secret()) as jwt.JwtPayload;
+    if (p.chq === true && p.sub && typeof p.org === 'string') return { clientId: String(p.sub), org: p.org };
+    return null;
+  } catch {
+    return null;
+  }
+}

@@ -225,6 +225,25 @@ model Organisation {
   paliers        PalierOrg[]
   demandes       DemandeAbonnement[]
   moyensPaiement MoyenPaiement[]
+  alertesCheque  AlerteCheque[]
+}
+
+// Alerte « chèque disponible » : le débiteur clique dans la relance pour signaler
+// qu'un chèque est prêt à être récupéré. Crée une alerte que l'agent traite
+// (aller collecter le chèque, puis le scanner dans le module rapprochement).
+model AlerteCheque {
+  id             String       @id @default(cuid())
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  organisationId String
+  client         Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId       String
+  montantEstime  Int? // montant annoncé par le débiteur (optionnel)
+  message        String?
+  statut         String       @default("nouvelle") // nouvelle | traitee
+  createdAt      DateTime     @default(now())
+  traiteeLe      DateTime?
+
+  @@index([organisationId, statut])
 }
 
 // Moyen de paiement affiché au débiteur (relances + portail). Liste ordonnée par
@@ -344,6 +363,7 @@ model Client {
   tachesCoursierModeles TacheCoursierModele[]
   operations            ClientOperations?
   dossiersContentieux   DossierContentieux[]
+  alertesCheque         AlerteCheque[]
 
   // Clé de rapprochement à l'import (Excel manuel aujourd'hui, sync ARTIS/MAPON demain) :
   // un même client ne doit jamais être dupliqué d'un import à l'autre. Unicité
