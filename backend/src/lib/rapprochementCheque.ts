@@ -21,6 +21,33 @@ export function normNom(s: string | null | undefined): string {
 // Score de correspondance de noms [0..1] : égalité > inclusion > recouvrement
 // de mots (Jaccard). Suffisant pour rapprocher « AFRICAN INTERNATIONAL SCHOOL »
 // d'« African International School (Pôle Urbain) ».
+// Distance d'édition (Levenshtein) bornée — pour tolérer une faute / lettre en
+// plus ou en moins (ex. « assurance » ↔ « assurances », OCR « societé »).
+function distance(a: string, b: string): number {
+  const m = a.length;
+  const n = b.length;
+  if (Math.abs(m - n) > 2) return 3;
+  const d = Array.from({ length: m + 1 }, (_, i) => [i, ...new Array(n).fill(0)]);
+  for (let j = 0; j <= n; j++) d[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const c = a[i - 1] === b[j - 1] ? 0 : 1;
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + c);
+    }
+  }
+  return d[m][n];
+}
+
+// Deux mots « collent » : identiques, l'un préfixe de l'autre (pluriel /
+// troncature), ou à une lettre près (faute / OCR).
+function motsProches(a: string, b: string): boolean {
+  if (a === b) return true;
+  const [court, long] = a.length <= b.length ? [a, b] : [b, a];
+  if (court.length >= 4 && long.startsWith(court)) return true;
+  if (court.length >= 5 && distance(a, b) <= 1) return true;
+  return false;
+}
+
 export function scoreNom(a: string, b: string): number {
   const na = normNom(a);
   const nb = normNom(b);
@@ -28,23 +55,27 @@ export function scoreNom(a: string, b: string): number {
   if (na === nb) return 1;
   const ta = na.split(' ').filter((t) => t.length > 2);
   const tb = nb.split(' ').filter((t) => t.length > 2);
-  // Inclusion : uniquement si le nom le plus court a AU MOINS 2 mots significatifs
-  // (évite qu'un simple mot générique comme « assurance » suffise à matcher).
-  const [court, long, tokensCourt] = na.length <= nb.length ? [na, nb, ta] : [nb, na, tb];
-  if (tokensCourt.length >= 2 && long.includes(court)) return 0.85;
-  const sa = new Set(ta);
-  const sb = new Set(tb);
-  if (!sa.size || !sb.size) return 0;
-  let inter = 0;
-  for (const t of sa) if (sb.has(t)) inter++;
-  const union = new Set([...ta, ...tb]).size;
-  return inter / union;
+  if (!ta.length || !tb.length) return 0;
+  // Appariement flou des mots significatifs : chaque mot de l'un cherche un mot
+  // « proche » dans l'autre. Le score = mots appariés / plus grand des deux noms.
+  const pris = new Set<number>();
+  let apparies = 0;
+  for (const x of ta) {
+    for (let j = 0; j < tb.length; j++) {
+      if (!pris.has(j) && motsProches(x, tb[j])) {
+        pris.add(j);
+        apparies++;
+        break;
+      }
+    }
+  }
+  return apparies / Math.max(ta.length, tb.length);
 }
 
 // Meilleur client pour un tireur donné. Renvoie null si aucun n'atteint le seuil.
 // Seuil prudent : mieux vaut « client non identifié » (l'agent choisit) qu'un
 // mauvais rapprochement (qui pointerait vers la mauvaise facture).
-export function matcherClient(tireur: string | null, clients: ClientLite[], seuil = 0.55): { client: ClientLite; score: number } | null {
+export function matcherClient(tireur: string | null, clients: ClientLite[], seuil = 0.5): { client: ClientLite; score: number } | null {
   if (!tireur) return null;
   let best: { client: ClientLite; score: number } | null = null;
   for (const c of clients) {
