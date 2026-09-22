@@ -5,7 +5,11 @@ import Anthropic from '@anthropic-ai/sdk';
 // chèque par page : on extrait alors TOUS les chèques du fichier d'un coup.
 // Optionnelle : si aucune clé API n'est configurée, l'agent saisit à la main.
 
-const MODELE = process.env.ANTHROPIC_MODEL_SCAN || 'claude-haiku-4-5-20251001';
+// Modèle par défaut, connu-bon. Un modèle surchargé (ANTHROPIC_MODEL_SCAN) peut
+// être invalide pour la clé API : dans ce cas on RETOMBE sur le défaut plutôt
+// que de tout casser (un ID inconnu faisait échouer chaque extraction).
+const MODELE_DEFAUT = 'claude-haiku-4-5-20251001';
+const MODELE = process.env.ANTHROPIC_MODEL_SCAN || MODELE_DEFAUT;
 
 let clientIa: Anthropic | null = null;
 function anthropic(): Anthropic {
@@ -54,16 +58,24 @@ export async function extraireCheques(base64: string, mime: string, beneficiaire
   const bloc = estPdf(mime)
     ? { type: 'document' as const, source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: base64 } }
     : { type: 'image' as const, source: { type: 'base64' as const, media_type: (IMAGE_OK.has(mime) ? mime : 'image/jpeg') as 'image/jpeg', data: base64 } };
-  const res = await anthropic().messages.create({
-    model: MODELE,
-    max_tokens: 1500,
-    messages: [{ role: 'user', content: [bloc, { type: 'text', text: instruction(beneficiaire) }] }],
-  });
-  const texte = res.content
-    .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-    .map((b) => b.text)
-    .join('')
-    .trim();
+  const contenu = [bloc, { type: 'text' as const, text: instruction(beneficiaire) }];
+  const appel = async (model: string) => {
+    const res = await anthropic().messages.create({ model, max_tokens: 1500, messages: [{ role: 'user', content: contenu }] });
+    return res.content.filter((b): b is Anthropic.TextBlock => b.type === 'text').map((b) => b.text).join('').trim();
+  };
+
+  let texte: string;
+  try {
+    texte = await appel(MODELE);
+  } catch (e) {
+    // Modèle surchargé invalide/indisponible → repli sur le défaut connu-bon.
+    if (MODELE !== MODELE_DEFAUT) {
+      console.error(`[scan] modèle « ${MODELE} » a échoué (${(e as Error).message}). Repli sur ${MODELE_DEFAUT}.`);
+      texte = await appel(MODELE_DEFAUT);
+    } else {
+      throw e;
+    }
+  }
   return parseChamps(texte);
 }
 
