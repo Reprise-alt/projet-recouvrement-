@@ -462,9 +462,6 @@ export function App() {
               <button onClick={() => setParametresOpen(true)}>Paramètres entreprise</button>
               <button onClick={() => setImportOpen(true)}>Importer un fichier</button>
               {IS_SAAS && <button onClick={() => { setRapprochementOnglet(undefined); setRapprochementOpen(true); }}>Rapprochement des paiements</button>}
-              {/* Accès direct au scan de chèques par lot (évite de passer par les
-                  onglets du module Rapprochement) — l'usage quotidien de l'agent. */}
-              {IS_SAAS && <button onClick={() => { setRapprochementOnglet('cheque'); setRapprochementOpen(true); }}>📸 Scanner des chèques</button>}
               {IS_SAAS && (
                 <button onClick={() => setChequesOpen(true)} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                   <span>Chèques déclarés</span>
