@@ -6,7 +6,7 @@ import { requireAbonnementActif } from '../middleware/abonnement';
 import { tenantScope } from '../middleware/tenant';
 import { verifierTokenCheque } from '../lib/authToken';
 import { mentionsLegales } from '../lib/actes/mentionsLegales';
-import { scanDisponible, extraireCheque, extraireCheques, estPdf, ChampsCheque } from '../lib/scanCheque';
+import { scanDisponible, extraireCheque, extraireCheques, estPdf, diagnostiquerModele, ChampsCheque } from '../lib/scanCheque';
 import { ClientLite, matcherClient, proposerFactures, mapConcurrent } from '../lib/rapprochementCheque';
 
 // ── Public : déclaration « chèque disponible » par le débiteur ──────────────
@@ -117,6 +117,15 @@ const uploadCheque = multer({ storage: multer.memoryStorage(), limits: { fileSiz
 
 // Indique si l'extraction auto par photo est disponible (clé API configurée).
 chequesRouter.get('/scan/disponible', (_req, res) => res.json({ disponible: scanDisponible() }));
+
+// Diagnostic du modèle d'extraction configuré (renvoie l'erreur exacte si KO).
+chequesRouter.get('/scan/diagnostic', async (_req, res, next) => {
+  try {
+    res.json(await diagnostiquerModele());
+  } catch (err) {
+    next(err);
+  }
+});
 
 // Extraction des champs depuis la photo (ne stocke rien) — l'agent relit/corrige.
 chequesRouter.post('/scan', uploadCheque.single('file'), async (req, res, next) => {

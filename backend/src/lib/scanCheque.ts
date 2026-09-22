@@ -17,6 +17,19 @@ function anthropic(): Anthropic {
   return clientIa;
 }
 
+// Diagnostic : teste le modèle CONFIGURÉ (ANTHROPIC_MODEL_SCAN) par un appel
+// minimal et renvoie l'erreur exacte si le modèle est refusé/indisponible.
+// Sert à comprendre pourquoi un modèle surchargé (ex. Sonnet) ne s'utilise pas.
+export async function diagnostiquerModele(): Promise<{ model: string; ok: boolean; error?: string }> {
+  if (!scanDisponible()) return { model: MODELE, ok: false, error: 'Clé API non configurée (ANTHROPIC_API_KEY)' };
+  try {
+    await anthropic().messages.create({ model: MODELE, max_tokens: 8, messages: [{ role: 'user', content: 'ping' }] });
+    return { model: MODELE, ok: true };
+  } catch (e) {
+    return { model: MODELE, ok: false, error: (e as Error).message };
+  }
+}
+
 export function scanDisponible(): boolean {
   return Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN);
 }

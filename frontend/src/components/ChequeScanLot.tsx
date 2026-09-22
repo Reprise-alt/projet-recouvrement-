@@ -59,6 +59,20 @@ export function ChequeScanLot({ onEnregistre }: { onEnregistre?: () => void }) {
   const [lignes, setLignes] = useState<Ligne[]>([]);
   const [clients, setClients] = useState<ClientLite[]>([]);
   const [recherche, setRecherche] = useState<Record<number, string>>({});
+  const [diag, setDiag] = useState<{ model: string; ok: boolean; error?: string } | null>(null);
+  const [diagEnCours, setDiagEnCours] = useState(false);
+
+  async function verifierModele() {
+    setDiagEnCours(true);
+    setDiag(null);
+    try {
+      setDiag(await api.get<{ model: string; ok: boolean; error?: string }>('/api/cheques/scan/diagnostic'));
+    } catch (err) {
+      setDiag({ model: '?', ok: false, error: err instanceof ApiError ? err.message : 'Erreur' });
+    } finally {
+      setDiagEnCours(false);
+    }
+  }
 
   useEffect(() => {
     api.get<ClientLite[]>('/api/clients?all=true').then((l) => setClients(l.map((c) => ({ id: c.id, nom: c.nom })))).catch(() => {});
@@ -160,6 +174,23 @@ export function ChequeScanLot({ onEnregistre }: { onEnregistre?: () => void }) {
           ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp,application/pdf" multiple style={{ display: 'none' }}
           onChange={(e) => { const fs = Array.from(e.target.files ?? []); if (fs.length) analyserLot(fs); e.target.value = ''; }}
         />
+      </div>
+
+      {/* Diagnostic du modèle : révèle l'erreur exacte si un modèle surchargé
+          (ex. Sonnet) ne fonctionne pas et que l'extraction retombe sur Haiku. */}
+      <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
+        <button type="button" onClick={verifierModele} disabled={diagEnCours} style={{ fontSize: 12, padding: '4px 10px' }}>
+          {diagEnCours ? 'Vérification…' : 'Vérifier le modèle d’extraction'}
+        </button>
+        {diag && (
+          <span style={{ marginLeft: 10 }}>
+            {diag.ok ? (
+              <span style={{ color: 'var(--success)' }}>✓ Modèle actif : <b>{diag.model}</b></span>
+            ) : (
+              <span style={{ color: 'var(--danger)' }}>✗ <b>{diag.model}</b> KO — {diag.error}</span>
+            )}
+          </span>
+        )}
       </div>
 
       {analyse && (
