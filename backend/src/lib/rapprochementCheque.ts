@@ -26,18 +26,25 @@ export function scoreNom(a: string, b: string): number {
   const nb = normNom(b);
   if (!na || !nb) return 0;
   if (na === nb) return 1;
-  if (na.includes(nb) || nb.includes(na)) return 0.85;
-  const ta = new Set(na.split(' ').filter((t) => t.length > 2));
-  const tb = new Set(nb.split(' ').filter((t) => t.length > 2));
-  if (!ta.size || !tb.size) return 0;
+  const ta = na.split(' ').filter((t) => t.length > 2);
+  const tb = nb.split(' ').filter((t) => t.length > 2);
+  // Inclusion : uniquement si le nom le plus court a AU MOINS 2 mots significatifs
+  // (évite qu'un simple mot générique comme « assurance » suffise à matcher).
+  const [court, long, tokensCourt] = na.length <= nb.length ? [na, nb, ta] : [nb, na, tb];
+  if (tokensCourt.length >= 2 && long.includes(court)) return 0.85;
+  const sa = new Set(ta);
+  const sb = new Set(tb);
+  if (!sa.size || !sb.size) return 0;
   let inter = 0;
-  for (const t of ta) if (tb.has(t)) inter++;
+  for (const t of sa) if (sb.has(t)) inter++;
   const union = new Set([...ta, ...tb]).size;
   return inter / union;
 }
 
 // Meilleur client pour un tireur donné. Renvoie null si aucun n'atteint le seuil.
-export function matcherClient(tireur: string | null, clients: ClientLite[], seuil = 0.5): { client: ClientLite; score: number } | null {
+// Seuil prudent : mieux vaut « client non identifié » (l'agent choisit) qu'un
+// mauvais rapprochement (qui pointerait vers la mauvaise facture).
+export function matcherClient(tireur: string | null, clients: ClientLite[], seuil = 0.55): { client: ClientLite; score: number } | null {
   if (!tireur) return null;
   let best: { client: ClientLite; score: number } | null = null;
   for (const c of clients) {
