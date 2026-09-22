@@ -15,8 +15,8 @@ const ONGLETS: { id: Onglet; label: string; icon: React.ReactNode }[] = [
   { id: 'virement', label: 'Preuve de virement', icon: <Landmark size={15} /> },
 ];
 
-export function RapprochementPanel({ onClose, onChanged }: { onClose: () => void; onChanged?: () => void }) {
-  const [onglet, setOnglet] = useState<Onglet>('integrateurs');
+export function RapprochementPanel({ onClose, onChanged, ongletInitial }: { onClose: () => void; onChanged?: () => void; ongletInitial?: Onglet }) {
+  const [onglet, setOnglet] = useState<Onglet>(ongletInitial ?? 'integrateurs');
   const [julayaOpen, setJulayaOpen] = useState(false);
 
   return (
