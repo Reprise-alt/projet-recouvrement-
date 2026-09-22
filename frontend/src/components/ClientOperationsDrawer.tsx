@@ -22,7 +22,7 @@ export function ClientOperationsDrawer({ id, user, initialSection, onClose, onCh
   const { data: co, loading, error, refetch } = useResource<ClientOperationsDetail>(`/api/operations/clients/${id}`);
   // Signal recouvrement -> opérations (cahier §8) : un booléen, jamais un
   // montant -- déclenché à 7 factures consécutives impayées.
-  const { data: signalRecouvrement } = useResource<{ enLitige: boolean }>(`/api/operations/clients/${id}/signal-recouvrement`);
+  const { data: signalRecouvrement } = useResource<{ enLitige: boolean; source?: 'feyma' | 'local' }>(`/api/operations/clients/${id}/signal-recouvrement`);
 
   const [editingIdentite, setEditingIdentite] = useState(false);
   const [addingProbleme, setAddingProbleme] = useState(false);
@@ -261,6 +261,11 @@ export function ClientOperationsDrawer({ id, user, initialSection, onClose, onCh
                 <AlertTriangle size={17} />
                 <div>
                   Signal recouvrement : 7 factures consécutives impayées — ce n'est plus un sujet de trésorerie, à qualifier ici.
+                  {signalRecouvrement?.source === 'feyma' && (
+                    <span style={{ display: 'block', marginTop: 4, fontSize: 11, opacity: 0.75, fontStyle: 'italic' }}>
+                      Données en direct depuis Feyma.
+                    </span>
+                  )}
                 </div>
               </div>
             )}

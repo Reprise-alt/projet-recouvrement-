@@ -28,6 +28,7 @@ import { relancesCronRouter } from './routes/relancesCron';
 import { contactRouter } from './routes/contact';
 import { tachesRouter } from './routes/taches';
 import { operationsRouter } from './routes/operations';
+import { integrationRouter } from './routes/integration';
 import { parcImpressionRouter } from './routes/parcImpression';
 import { coursierPublicRouter } from './routes/coursierPublic';
 import { sallePublicRouter } from './routes/sallePublic';
@@ -93,6 +94,8 @@ export function createApp() {
   app.use('/api/contact', contactRouter);
   app.use('/api/taches', tachesRouter);
   app.use('/api/operations', operationsRouter);
+  // Pont inter-systèmes (SaaS → Opérations groupe), lecture seule, secret partagé.
+  app.use('/api/integration', integrationRouter);
   app.use('/api/parc', parcImpressionRouter);
   app.use('/api/coursier-public', coursierPublicRouter);
   app.use('/api/salle-public', sallePublicRouter);
