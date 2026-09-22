@@ -6,7 +6,7 @@ import { requireAbonnementActif } from '../middleware/abonnement';
 import { tenantScope } from '../middleware/tenant';
 import { verifierTokenCheque } from '../lib/authToken';
 import { mentionsLegales } from '../lib/actes/mentionsLegales';
-import { scanDisponible, extraireCheque, ChampsCheque } from '../lib/scanCheque';
+import { scanDisponible, extraireCheque, extraireCheques, estPdf, ChampsCheque } from '../lib/scanCheque';
 import { ClientLite, matcherClient, proposerFactures, mapConcurrent } from '../lib/rapprochementCheque';
 
 // ── Public : déclaration « chèque disponible » par le débiteur ──────────────
@@ -112,7 +112,8 @@ chequesRouter.post('/alertes/:id/traiter', requireRole('admin', 'manager_entite'
 });
 
 // ── Scan de chèque (extraction assistée par photo) + enregistrement ─────────
-const uploadCheque = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
+// 25 Mo : un PDF scanné multi-pages (une pile de chèques) pèse plus qu'une photo.
+const uploadCheque = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 
 // Indique si l'extraction auto par photo est disponible (clé API configurée).
 chequesRouter.get('/scan/disponible', (_req, res) => res.json({ disponible: scanDisponible() }));
@@ -153,33 +154,45 @@ chequesRouter.post('/scan-lot', uploadCheque.array('files', 40), async (req, res
         .filter(Boolean),
     );
 
-    const propositions = await mapConcurrent(files, 3, async (f, index) => {
-      let champs: ChampsCheque = { montant: null, banque: null, numeroCheque: null, dateCheque: null, tireur: null };
-      if (dispo) {
-        try {
-          champs = await extraireCheque(f.buffer.toString('base64'), f.mimetype);
-        } catch {
-          /* extraction impossible : l'agent complétera à la main */
-        }
+    // Extraction par fichier : une image = 1 chèque ; un PDF = 1 chèque par page
+    // (une pile scannée). On aplatit ensuite en une proposition par chèque.
+    const vide: ChampsCheque = { montant: null, banque: null, numeroCheque: null, dateCheque: null, tireur: null };
+    const parFichier = await mapConcurrent(files, 3, async (f) => {
+      if (!dispo) return [vide];
+      try {
+        const liste = await extraireCheques(f.buffer.toString('base64'), f.mimetype);
+        return liste.length ? liste : [vide];
+      } catch {
+        return [vide]; // extraction impossible : l'agent complétera à la main
       }
-      const match = matcherClient(champs.tireur, clients);
-      const client = match?.client ?? null;
-      const prop = client && champs.montant
-        ? proposerFactures(champs.montant, client.factures)
-        : { proposees: [], raison: client ? 'Montant illisible — à confirmer' : 'Client non identifié' };
-      return {
-        index,
-        montant: champs.montant,
-        banque: champs.banque,
-        numeroCheque: champs.numeroCheque,
-        dateCheque: champs.dateCheque,
-        tireur: champs.tireur,
-        dejaEnregistre: champs.numeroCheque ? dejaNums.has(champs.numeroCheque.trim()) : false,
-        client: client ? { id: client.id, nom: client.nom, score: Math.round((match!.score) * 100) } : null,
-        facturesClient: client ? client.factures.map((x) => ({ id: x.id, numero: x.numero, montant: Math.round(x.montant) })) : [],
-        facturesProposees: prop.proposees,
-        raison: prop.raison,
-      };
+    });
+
+    const propositions: unknown[] = [];
+    parFichier.forEach((champsList, fileIndex) => {
+      const pdf = estPdf(files[fileIndex].mimetype);
+      champsList.forEach((champs, page) => {
+        const match = matcherClient(champs.tireur, clients);
+        const client = match?.client ?? null;
+        const prop = client && champs.montant
+          ? proposerFactures(champs.montant, client.factures)
+          : { proposees: [], raison: client ? 'Montant illisible — à confirmer' : 'Client non identifié' };
+        propositions.push({
+          fileIndex,
+          page,
+          pages: champsList.length,
+          pdf,
+          montant: champs.montant,
+          banque: champs.banque,
+          numeroCheque: champs.numeroCheque,
+          dateCheque: champs.dateCheque,
+          tireur: champs.tireur,
+          dejaEnregistre: champs.numeroCheque ? dejaNums.has(champs.numeroCheque.trim()) : false,
+          client: client ? { id: client.id, nom: client.nom, score: Math.round((match!.score) * 100) } : null,
+          facturesClient: client ? client.factures.map((x) => ({ id: x.id, numero: x.numero, montant: Math.round(x.montant) })) : [],
+          facturesProposees: prop.proposees,
+          raison: prop.raison,
+        });
+      });
     });
 
     res.json({ disponible: dispo, propositions });
