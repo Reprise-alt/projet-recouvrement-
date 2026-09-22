@@ -48,13 +48,21 @@ function motsProches(a: string, b: string): boolean {
   return false;
 }
 
+// Formes juridiques / mots génériques : à ignorer dans la comparaison, sinon
+// « NETEXIO SARL » matche « INDICE D SARL » juste sur « SARL ». (« sa », « sn »
+// sont déjà écartés par la longueur > 2.)
+const MOTS_VIDES = new Set(['sarl', 'sarlu', 'suarl', 'sas', 'sasu', 'sci', 'snc', 'gie', 'ste', 'societe', 'eurl', 'sprl', 'scp', 'sccv', 'group', 'groupe', 'holding', 'entreprise', 'ets', 'ets', 'sarls']);
+function motsSignificatifs(nom: string): string[] {
+  return nom.split(' ').filter((t) => t.length > 2 && !MOTS_VIDES.has(t));
+}
+
 export function scoreNom(a: string, b: string): number {
   const na = normNom(a);
   const nb = normNom(b);
   if (!na || !nb) return 0;
   if (na === nb) return 1;
-  const ta = na.split(' ').filter((t) => t.length > 2);
-  const tb = nb.split(' ').filter((t) => t.length > 2);
+  const ta = motsSignificatifs(na);
+  const tb = motsSignificatifs(nb);
   if (!ta.length || !tb.length) return 0;
   // Appariement flou des mots significatifs : chaque mot de l'un cherche un mot
   // « proche » dans l'autre. Le score = mots appariés / plus grand des deux noms.
@@ -115,9 +123,14 @@ function combinaisonSomme(items: { id: string; m: number }[], cible: number, max
 // fait le montant (2, 3, 4…), sinon rien (l'agent choisit à la main).
 export function proposerFactures(montant: number, factures: { id: string; numero: string; montant: number }[]): PropositionFactures {
   const arr = factures.map((f) => ({ id: f.id, m: Math.round(f.montant) }));
-  const exact = arr.filter((f) => f.m === montant);
-  if (exact.length === 1) return { proposees: [exact[0].id], raison: 'Facture du montant exact' };
-  if (exact.length > 1) return { proposees: [], raison: 'Plusieurs factures de ce montant — à choisir' };
+  // Petite tolérance : l'OCR d'un montant manuscrit peut être à quelques francs
+  // près (ex. 57 957 lu pour une facture de 57 956). Plafonnée à 50 FCFA.
+  const tol = Math.min(50, Math.max(2, Math.round(montant * 0.001)));
+  const proches = arr.filter((f) => Math.abs(f.m - montant) <= tol);
+  if (proches.length === 1) {
+    return { proposees: [proches[0].id], raison: proches[0].m === montant ? 'Facture du montant exact' : 'Facture au montant du chèque' };
+  }
+  if (proches.length > 1) return { proposees: [], raison: 'Plusieurs factures de ce montant — à choisir' };
   // Combinaison de plusieurs factures (borné à 40 factures pour rester rapide).
   if (arr.length <= 40) {
     const combo = combinaisonSomme(arr, montant);
