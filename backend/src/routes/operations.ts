@@ -4,6 +4,7 @@ import * as XLSX from 'xlsx';
 import { prisma } from '../db';
 import { Entite } from '../lib/entites';
 import { enLitigeSignal } from '../lib/paliers';
+import { signalFeymaPourCompte } from '../lib/operationsBridge';
 import { parseOperationsImportWorkbook } from '../lib/parsers/operationsImport';
 import { getKnownEntitesForImport } from '../services/entrepriseService';
 import { ETAPES_DEMARRAGE_DEFAUT } from '../lib/operationsDefaults';
@@ -418,11 +419,24 @@ operationsRouter.get('/clients/:id/signal-recouvrement', async (req, res, next) 
     if (scoped.error) return res.status(scoped.error).json(scoped.body);
     const co = scoped.co!;
 
+    // Pont Feyma : si ce compte gère désormais son recouvrement dans le SaaS
+    // (entité configurée, ex. SORAM), le signal doit venir des VRAIES données
+    // Feyma, pas de la base groupe figée. On récupère le nom + l'entité du
+    // compte pour la correspondance, et on retombe sur le calcul local si le
+    // pont est inactif, indisponible, ou si aucun équivalent Feyma n'est trouvé.
+    const client = await prisma.client.findUnique({ where: { id: co.clientId }, select: { nom: true, entite: true } });
+    if (client) {
+      const feyma = await signalFeymaPourCompte(client.nom, client.entite as string);
+      if (feyma) {
+        return res.json({ enLitige: feyma.enLitige, source: 'feyma' });
+      }
+    }
+
     const factures = await prisma.facture.findMany({
       where: { clientId: co.clientId },
       select: { statut: true, dateEcheance: true },
     });
-    res.json({ enLitige: enLitigeSignal(factures) });
+    res.json({ enLitige: enLitigeSignal(factures), source: 'local' });
   } catch (err) {
     next(err);
   }
