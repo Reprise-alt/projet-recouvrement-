@@ -41,14 +41,14 @@ function instruction(beneficiaire?: string | null): string {
   const exclusion = beneficiaire
     ? `IMPORTANT : « ${beneficiaire} » (ou un nom très proche) est le BÉNÉFICIAIRE / créancier — ne l'utilise JAMAIS comme "tireur".`
     : `IMPORTANT : n'utilise JAMAIS comme "tireur" le nom écrit après « à l'ordre de » ou « Payez contre ce chèque à » : c'est le bénéficiaire (créancier), pas l'émetteur.`;
-  return `Ce document contient un ou plusieurs chèques bancaires (zone UEMOA, Sénégal, montants en FCFA), généralement un chèque par page (parfois accompagné d'un bordereau de remise à ignorer).
+  return `Ce document (image ou PDF) contient PLUSIEURS chèques bancaires (zone UEMOA, Sénégal, montants en FCFA). Il peut y avoir plusieurs chèques par page. Repère-les TOUS et n'en oublie aucun (ignore les bordereaux de remise).
 Pour CHAQUE chèque, extrais :
-- "montant" : le montant en FCFA (entier, sans espaces ni symbole). Lis d'abord le montant EN CHIFFRES dans la case à droite ; s'il est illisible, convertis le montant écrit EN TOUTES LETTRES. Fournis toujours un montant au mieux si un chèque est présent.
-- "tireur" : le TITULAIRE DU COMPTE qui ÉMET le chèque (le débiteur qui paie), dont le nom est généralement PRÉ-IMPRIMÉ près du numéro de compte (« Compte N° »). ${exclusion}
+- "montant" : le montant du chèque en FCFA (entier, sans espaces ni symbole). C'est le nombre inscrit dans la CASE ENCADRÉE du montant (souvent à droite, précédé/suivi de « FCFA » ou « Francs »), OU écrit en toutes lettres sur la ligne « Payez contre ce chèque la somme de … ». ATTENTION : ne confonds PAS le montant avec le NUMÉRO DU CHÈQUE (souvent en haut, précédé de « # » ou « N° »), le NUMÉRO DE COMPTE, ni une DATE. En cas de doute, privilégie le montant écrit en toutes lettres.
+- "tireur" : le TITULAIRE DU COMPTE qui ÉMET le chèque (le débiteur qui paie), nom généralement PRÉ-IMPRIMÉ près du numéro de compte (« Compte N° »). ${exclusion}
 - "banque" : nom de la banque. "numeroCheque" : numéro du chèque. "dateCheque" : "AAAA-MM-JJ".
-Réponds UNIQUEMENT par un tableau JSON strict, sans texte autour :
+Réponds UNIQUEMENT par un tableau JSON strict, sans texte autour, UN OBJET PAR CHÈQUE :
 [{"montant": <entier ou null>, "banque": <string ou null>, "numeroCheque": <string ou null>, "dateCheque": <"AAAA-MM-JJ" ou null>, "tireur": <string ou null>}]
-Un objet par chèque, dans l'ordre des pages. N'invente rien : mets null si tu n'es pas sûr (sauf le montant, à estimer au mieux).`;
+N'invente rien : mets null si tu n'es pas sûr (sauf le montant, à estimer au mieux).`;
 }
 
 // Extrait TOUS les chèques d'un fichier (image ou PDF). Renvoie un tableau
@@ -60,7 +60,7 @@ export async function extraireCheques(base64: string, mime: string, beneficiaire
     : { type: 'image' as const, source: { type: 'base64' as const, media_type: (IMAGE_OK.has(mime) ? mime : 'image/jpeg') as 'image/jpeg', data: base64 } };
   const contenu = [bloc, { type: 'text' as const, text: instruction(beneficiaire) }];
   const appel = async (model: string) => {
-    const res = await anthropic().messages.create({ model, max_tokens: 1500, messages: [{ role: 'user', content: contenu }] });
+    const res = await anthropic().messages.create({ model, max_tokens: 3000, messages: [{ role: 'user', content: contenu }] });
     return res.content.filter((b): b is Anthropic.TextBlock => b.type === 'text').map((b) => b.text).join('').trim();
   };
 
