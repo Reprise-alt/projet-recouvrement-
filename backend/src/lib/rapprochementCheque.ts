@@ -90,21 +90,38 @@ export interface PropositionFactures {
   raison: string;
 }
 
+// Cherche une COMBINAISON de factures dont la somme fait exactement `cible`
+// (backtracking élagué, borné en taille et en nombre de nœuds). Renvoie les ids
+// de la première combinaison trouvée, sinon null.
+function combinaisonSomme(items: { id: string; m: number }[], cible: number, maxTaille = 6): string[] | null {
+  const tri = items.filter((f) => f.m > 0 && f.m <= cible).sort((a, b) => b.m - a.m);
+  let budget = 200000; // garde-fou anti-explosion
+  const choix: string[] = [];
+  const bt = (i: number, reste: number, taille: number): boolean => {
+    if (reste === 0) return taille > 0;
+    if (reste < 0 || i >= tri.length || taille >= maxTaille || budget-- <= 0) return false;
+    // Inclure tri[i]
+    choix.push(tri[i].id);
+    if (bt(i + 1, reste - tri[i].m, taille + 1)) return true;
+    choix.pop();
+    // Exclure tri[i]
+    return bt(i + 1, reste, taille);
+  };
+  return bt(0, cible, 0) ? [...choix] : null;
+}
+
 // Propose la/les facture(s) impayée(s) qui collent au montant du chèque :
-// 1) une facture du montant exact, 2) une somme de deux factures, sinon rien
-// (l'agent choisit à la main dans la liste des impayées du client).
+// 1) une facture du montant exact, 2) une COMBINAISON de factures dont la somme
+// fait le montant (2, 3, 4…), sinon rien (l'agent choisit à la main).
 export function proposerFactures(montant: number, factures: { id: string; numero: string; montant: number }[]): PropositionFactures {
-  const arr = factures.map((f) => ({ ...f, m: Math.round(f.montant) }));
+  const arr = factures.map((f) => ({ id: f.id, m: Math.round(f.montant) }));
   const exact = arr.filter((f) => f.m === montant);
   if (exact.length === 1) return { proposees: [exact[0].id], raison: 'Facture du montant exact' };
   if (exact.length > 1) return { proposees: [], raison: 'Plusieurs factures de ce montant — à choisir' };
-  // Somme de deux factures (borné pour rester peu coûteux).
+  // Combinaison de plusieurs factures (borné à 40 factures pour rester rapide).
   if (arr.length <= 40) {
-    for (let i = 0; i < arr.length; i++) {
-      for (let j = i + 1; j < arr.length; j++) {
-        if (arr[i].m + arr[j].m === montant) return { proposees: [arr[i].id, arr[j].id], raison: 'Somme de deux factures' };
-      }
-    }
+    const combo = combinaisonSomme(arr, montant);
+    if (combo && combo.length > 1) return { proposees: combo, raison: `Somme de ${combo.length} factures` };
   }
   return { proposees: [], raison: 'Aucune facture au montant du chèque' };
 }
