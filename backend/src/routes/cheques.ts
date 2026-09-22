@@ -6,7 +6,8 @@ import { requireAbonnementActif } from '../middleware/abonnement';
 import { tenantScope } from '../middleware/tenant';
 import { verifierTokenCheque } from '../lib/authToken';
 import { mentionsLegales } from '../lib/actes/mentionsLegales';
-import { scanDisponible, extraireCheque } from '../lib/scanCheque';
+import { scanDisponible, extraireCheque, ChampsCheque } from '../lib/scanCheque';
+import { ClientLite, matcherClient, proposerFactures, mapConcurrent } from '../lib/rapprochementCheque';
 
 // ── Public : déclaration « chèque disponible » par le débiteur ──────────────
 // Accès par un jeton signé, sans authentification. Le débiteur signale qu'un
@@ -123,6 +124,65 @@ chequesRouter.post('/scan', uploadCheque.single('file'), async (req, res, next) 
     if (!scanDisponible()) return res.json({ disponible: false });
     const champs = await extraireCheque(req.file.buffer.toString('base64'), req.file.mimetype);
     res.json({ disponible: true, ...champs });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Scan d'un LOT de chèques : extraction + rapprochement automatique. Pour
+// chaque photo on lit montant + tireur, on identifie le client (par nom) et on
+// propose la/les facture(s) correspondante(s). L'agent n'a plus qu'à valider.
+// Ne stocke rien : renvoie des propositions, l'enregistrement passe par POST /.
+chequesRouter.post('/scan-lot', uploadCheque.array('files', 40), async (req, res, next) => {
+  try {
+    const files = (req.files as Express.Multer.File[]) || [];
+    if (!files.length) return res.status(400).json({ error: 'Aucune image reçue' });
+    const dispo = scanDisponible();
+
+    // Clients du tenant + leurs factures impayées (une seule requête).
+    const clientsRaw = await prisma.client.findMany({
+      where: { organisationId: req.user!.organisationId },
+      select: { id: true, nom: true, factures: { where: { statut: 'impayee' }, select: { id: true, numero: true, montant: true } } },
+    });
+    const clients: ClientLite[] = clientsRaw.map((c) => ({ id: c.id, nom: c.nom, factures: c.factures }));
+
+    // Anti-doublon : numéros de chèques déjà enregistrés pour l'organisation.
+    const dejaNums = new Set(
+      (await prisma.cheque.findMany({ where: { organisationId: req.user!.organisationId, numeroCheque: { not: null } }, select: { numeroCheque: true } }))
+        .map((c) => (c.numeroCheque || '').trim())
+        .filter(Boolean),
+    );
+
+    const propositions = await mapConcurrent(files, 3, async (f, index) => {
+      let champs: ChampsCheque = { montant: null, banque: null, numeroCheque: null, dateCheque: null, tireur: null };
+      if (dispo) {
+        try {
+          champs = await extraireCheque(f.buffer.toString('base64'), f.mimetype);
+        } catch {
+          /* extraction impossible : l'agent complétera à la main */
+        }
+      }
+      const match = matcherClient(champs.tireur, clients);
+      const client = match?.client ?? null;
+      const prop = client && champs.montant
+        ? proposerFactures(champs.montant, client.factures)
+        : { proposees: [], raison: client ? 'Montant illisible — à confirmer' : 'Client non identifié' };
+      return {
+        index,
+        montant: champs.montant,
+        banque: champs.banque,
+        numeroCheque: champs.numeroCheque,
+        dateCheque: champs.dateCheque,
+        tireur: champs.tireur,
+        dejaEnregistre: champs.numeroCheque ? dejaNums.has(champs.numeroCheque.trim()) : false,
+        client: client ? { id: client.id, nom: client.nom, score: Math.round((match!.score) * 100) } : null,
+        facturesClient: client ? client.factures.map((x) => ({ id: x.id, numero: x.numero, montant: Math.round(x.montant) })) : [],
+        facturesProposees: prop.proposees,
+        raison: prop.raison,
+      };
+    });
+
+    res.json({ disponible: dispo, propositions });
   } catch (err) {
     next(err);
   }

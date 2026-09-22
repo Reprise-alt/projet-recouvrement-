@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Banknote, FileSpreadsheet, Landmark, ScanLine, Wallet } from 'lucide-react';
 import { ImportRelevePanel } from './ImportRelevePanel';
-import { ChequeScanForm } from './ChequeScanForm';
+import { ChequeScanLot } from './ChequeScanLot';
 
 // Module « Rapprochement » : regroupe les sources d'encaissement à rapprocher des
 // factures. Sous-modules : intégrateurs de paiement (Julaya…), portefeuilles
@@ -61,9 +61,9 @@ export function RapprochementPanel({ onClose, onChanged }: { onClose: () => void
         {onglet === 'cheque' && (
           <div>
             <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginBottom: 14 }}>
-              Photographiez le chèque : les champs se pré-remplissent, vous rapprochez au client et validez.
+              Scannez la pile de chèques du jour : la plateforme lit le montant et l'émetteur, identifie le client et propose la facture à régler. Vous n'avez qu'à valider.
             </div>
-            <ChequeScanForm onEnregistre={onChanged} />
+            <ChequeScanLot onEnregistre={onChanged} />
           </div>
         )}
 
