@@ -106,6 +106,7 @@ export function App() {
   const [offresOpen, setOffresOpen] = useState(false);
   const [parrainageOpen, setParrainageOpen] = useState(false);
   const [rapprochementOpen, setRapprochementOpen] = useState(false);
+  const [rapprochementOnglet, setRapprochementOnglet] = useState<'integrateurs' | 'cheque' | undefined>(undefined);
   const [chequesOpen, setChequesOpen] = useState(false);
   const [dataVersion, setDataVersion] = useState(0);
   // Démarrage guidé SaaS : les comptes d'organisation (roleOrg) atterrissent sur
@@ -460,7 +461,10 @@ export function App() {
                   derrière une seule entrée du rail. */}
               <button onClick={() => setParametresOpen(true)}>Paramètres entreprise</button>
               <button onClick={() => setImportOpen(true)}>Importer un fichier</button>
-              {IS_SAAS && <button onClick={() => setRapprochementOpen(true)}>Rapprochement des paiements</button>}
+              {IS_SAAS && <button onClick={() => { setRapprochementOnglet(undefined); setRapprochementOpen(true); }}>Rapprochement des paiements</button>}
+              {/* Accès direct au scan de chèques par lot (évite de passer par les
+                  onglets du module Rapprochement) — l'usage quotidien de l'agent. */}
+              {IS_SAAS && <button onClick={() => { setRapprochementOnglet('cheque'); setRapprochementOpen(true); }}>📸 Scanner des chèques</button>}
               {IS_SAAS && (
                 <button onClick={() => setChequesOpen(true)} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                   <span>Chèques déclarés</span>
@@ -650,7 +654,7 @@ export function App() {
       {integrationsOpen && <IntegrationsPanel onClose={() => setIntegrationsOpen(false)} />}
       {superAdminOpen && <SuperAdminPanel onClose={() => setSuperAdminOpen(false)} />}
       {parrainageOpen && <ParrainagePanel onClose={() => setParrainageOpen(false)} />}
-      {rapprochementOpen && <RapprochementPanel onClose={() => setRapprochementOpen(false)} onChanged={bumpDataVersion} />}
+      {rapprochementOpen && <RapprochementPanel onClose={() => setRapprochementOpen(false)} onChanged={bumpDataVersion} ongletInitial={rapprochementOnglet} />}
       {chequesOpen && <ChequesDeclaresPanel onClose={() => setChequesOpen(false)} onChanged={bumpDataVersion} />}
       {offresOpen && (
         <div className="modal-overlay open" onClick={(e) => e.target === e.currentTarget && setOffresOpen(false)}>
