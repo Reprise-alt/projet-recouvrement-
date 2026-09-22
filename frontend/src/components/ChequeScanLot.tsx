@@ -12,7 +12,10 @@ interface FactureLite { id: string; numero: string; montant: number }
 interface ClientLite { id: string; nom: string }
 
 interface Proposition {
-  index: number;
+  fileIndex: number;
+  page: number;
+  pages: number;
+  pdf: boolean;
   montant: number | null;
   banque: string | null;
   numeroCheque: string | null;
@@ -27,7 +30,10 @@ interface Proposition {
 
 interface Ligne {
   file: File;
-  apercu: string;
+  apercu: string | null; // aperçu image ; null pour un PDF
+  pdf: boolean;
+  page: number;
+  pages: number;
   montant: string;
   banque: string | null;
   numeroCheque: string | null;
@@ -64,32 +70,29 @@ export function ChequeScanLot({ onEnregistre }: { onEnregistre?: () => void }) {
 
   async function analyserLot(files: File[]) {
     if (!files.length) return;
-    const base: Ligne[] = files.map((f) => ({
-      file: f, apercu: URL.createObjectURL(f), montant: '', banque: null, numeroCheque: null, dateCheque: null,
-      tireur: null, clientId: null, clientNom: null, score: null, facturesClient: [], choisies: new Set(),
-      raison: '', dejaEnregistre: false, statut: 'attente', reglees: 0, rechercheOuverte: false,
-    }));
-    setLignes(base);
+    // Aperçu image par fichier (les PDF n'ont pas de miniature <img>).
+    const urls = files.map((f) => (f.type === 'application/pdf' ? null : URL.createObjectURL(f)));
+    setLignes([]);
     setAnalyse(true);
     try {
       const fd = new FormData();
       files.forEach((f) => fd.append('files', f));
       const r = await api.upload<{ disponible: boolean; propositions: Proposition[] }>('/api/cheques/scan-lot', fd);
       setDispo(r.disponible);
-      setLignes((ls) =>
-        ls.map((l, i) => {
-          const p = r.propositions.find((x) => x.index === i);
-          if (!p) return l;
-          return {
-            ...l,
-            montant: p.montant ? String(p.montant) : '',
-            banque: p.banque, numeroCheque: p.numeroCheque, dateCheque: p.dateCheque, tireur: p.tireur,
-            clientId: p.client?.id ?? null, clientNom: p.client?.nom ?? null, score: p.client?.score ?? null,
-            facturesClient: p.facturesClient, choisies: new Set(p.facturesProposees),
-            raison: p.raison, dejaEnregistre: p.dejaEnregistre,
-          };
-        }),
-      );
+      // Une proposition = un chèque (un PDF multi-pages en produit plusieurs).
+      const ls: Ligne[] = r.propositions.map((p) => ({
+        file: files[p.fileIndex],
+        apercu: urls[p.fileIndex],
+        pdf: p.pdf,
+        page: p.page,
+        pages: p.pages,
+        montant: p.montant ? String(p.montant) : '',
+        banque: p.banque, numeroCheque: p.numeroCheque, dateCheque: p.dateCheque, tireur: p.tireur,
+        clientId: p.client?.id ?? null, clientNom: p.client?.nom ?? null, score: p.client?.score ?? null,
+        facturesClient: p.facturesClient, choisies: new Set(p.facturesProposees),
+        raison: p.raison, dejaEnregistre: p.dejaEnregistre, statut: 'attente', reglees: 0, rechercheOuverte: false,
+      }));
+      setLignes(ls);
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : "Échec de l'analyse du lot");
     } finally {
@@ -152,9 +155,9 @@ export function ChequeScanLot({ onEnregistre }: { onEnregistre?: () => void }) {
       >
         <Camera size={24} style={{ color: 'var(--accent)' }} />
         <div style={{ fontWeight: 600, marginTop: 8 }}>Déposez la pile de chèques du jour</div>
-        <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginTop: 3 }}>Sélectionnez plusieurs photos d'un coup — la plateforme lit et rapproche automatiquement.</div>
+        <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginTop: 3 }}>Photos ou <b>PDF scannés</b> (un PDF multi-pages = plusieurs chèques). La plateforme lit et rapproche automatiquement.</div>
         <input
-          ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" multiple capture="environment" style={{ display: 'none' }}
+          ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp,application/pdf" multiple style={{ display: 'none' }}
           onChange={(e) => { const fs = Array.from(e.target.files ?? []); if (fs.length) analyserLot(fs); e.target.value = ''; }}
         />
       </div>
@@ -184,7 +187,14 @@ export function ChequeScanLot({ onEnregistre }: { onEnregistre?: () => void }) {
             : [];
           return (
             <div key={i} style={{ display: 'flex', gap: 14, padding: 14, border: '1px solid var(--line)', borderRadius: 12, background: l.statut === 'ok' ? 'var(--accent-soft)' : 'var(--surface, #fff)', opacity: l.statut === 'ok' ? 0.85 : 1 }}>
-              <img src={l.apercu} alt="chèque" style={{ width: 108, height: 66, objectFit: 'cover', borderRadius: 8, flex: 'none', border: '1px solid var(--line)' }} />
+              {l.apercu ? (
+                <img src={l.apercu} alt="chèque" style={{ width: 108, height: 66, objectFit: 'cover', borderRadius: 8, flex: 'none', border: '1px solid var(--line)' }} />
+              ) : (
+                <div style={{ width: 108, height: 66, borderRadius: 8, flex: 'none', border: '1px solid var(--line)', background: 'var(--paper-2, #f1f3ef)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, color: 'var(--ink-soft)' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, fontFamily: 'var(--font-mono, monospace)' }}>PDF</span>
+                  {l.pages > 1 && <span style={{ fontSize: 10 }}>page {l.page + 1}/{l.pages}</span>}
+                </div>
+              )}
               <div style={{ flex: 1, minWidth: 0, display: 'grid', gap: 8 }}>
                 {/* Ligne 1 : montant + tireur + statut */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
