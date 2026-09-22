@@ -269,6 +269,14 @@ export function ClientOperationsDrawer({ id, user, initialSection, onClose, onCh
                 </div>
               </div>
             )}
+            {/* Confirmation visible du pont, même hors litige : rassure sur le
+                fait que le recouvrement de ce compte est bien lu depuis Feyma. */}
+            {signalRecouvrement?.source === 'feyma' && !signalRecouvrement?.enLitige && (
+              <div style={{ margin: '8px 0 4px', fontSize: 11.5, color: 'var(--accent-dark)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--accent)' }} />
+                Recouvrement synchronisé avec Feyma
+              </div>
+            )}
 
             {!co.resilie && (
               <label className={`toggle-card danger${showResiliation ? ' open' : ''}`}>
