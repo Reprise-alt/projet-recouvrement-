@@ -242,13 +242,23 @@ export function ChequeScanLot({ onEnregistre }: { onEnregistre?: () => void }) {
 
                     {/* Ligne 3 : factures à régler */}
                     {l.facturesClient.length > 0 && (
+                      <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: -2 }}>Cochez la facture réglée — le montant se remplit tout seul.</div>
+                    )}
+                    {l.facturesClient.length > 0 && (
                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                         {l.facturesClient.map((f) => {
                           const on = l.choisies.has(f.id);
                           return (
                             <button
                               key={f.id} type="button"
-                              onClick={() => maj(i, { choisies: (() => { const n = new Set(l.choisies); on ? n.delete(f.id) : n.add(f.id); return n; })() })}
+                              onClick={() => {
+                                const n = new Set(l.choisies);
+                                on ? n.delete(f.id) : n.add(f.id);
+                                // Remplit le montant du chèque avec la somme des factures cochées
+                                // (le montant système fait foi ; l'agent peut corriger pour un règlement partiel).
+                                const somme = l.facturesClient.filter((x) => n.has(x.id)).reduce((s, x) => s + x.montant, 0);
+                                maj(i, { choisies: n, ...(n.size ? { montant: String(somme) } : {}) });
+                              }}
                               style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 8, fontSize: 12, border: on ? '1px solid var(--accent)' : '1px solid var(--line)', background: on ? 'var(--accent-soft)' : 'transparent', color: on ? 'var(--accent-dark)' : 'var(--ink)' }}
                             >
                               {on && <Check size={12} />} <span className="mono">{f.numero}</span> · {fmtFCFA(f.montant)}
