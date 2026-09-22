@@ -146,6 +146,31 @@ export function App() {
   );
   const nbChequesDeclares = chequesAlertes?.nbNouvelles ?? 0;
 
+  // Pastille « nouveaux essais » (exploitant) : nombre d'organisations inscrites
+  // depuis la dernière ouverture du back-office. Un e-mail de notification peut
+  // filer en spam ou échouer ; cette pastille, elle, ne rate jamais un inscrit.
+  const [exploitantVu, setExploitantVu] = useState<number>(() => {
+    try {
+      return Number(localStorage.getItem('feyma_exploitant_vu')) || 0;
+    } catch {
+      return 0;
+    }
+  });
+  const { data: adminOrgs } = useResource<{ createdAt: string }[]>(
+    user?.superAdmin ? '/api/admin/organisations' : null,
+    dataVersion,
+  );
+  const nbNouveauxEssais = adminOrgs ? adminOrgs.filter((o) => new Date(o.createdAt).getTime() > exploitantVu).length : 0;
+  const marquerExploitantVu = () => {
+    const now = Date.now();
+    setExploitantVu(now);
+    try {
+      localStorage.setItem('feyma_exploitant_vu', String(now));
+    } catch {
+      /* stockage indisponible — pas grave */
+    }
+  };
+
   // Périmètre du sélecteur d'entités selon la console. Pour le groupe
   // (recouvrement, coursier) : toutes les entités hors "COMMUN" (pseudo-groupe
   // partagé, jamais un onglet sélectionnable). Pour les opérations : SORAM et
@@ -461,7 +486,20 @@ export function App() {
           <div className="rail-section">
             <div className="rail-section-label">Exploitant</div>
             <div className="rail-nav">
-              <button onClick={() => setSuperAdminOpen(true)}>Organisations (activation)</button>
+              <button
+                onClick={() => { setSuperAdminOpen(true); marquerExploitantVu(); }}
+                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}
+              >
+                <span>Organisations (activation)</span>
+                {nbNouveauxEssais > 0 && (
+                  <span
+                    title={`${nbNouveauxEssais} nouvel${nbNouveauxEssais > 1 ? 's essais' : ' essai'} depuis votre dernière visite`}
+                    style={{ minWidth: 18, height: 18, padding: '0 5px', borderRadius: 9, background: 'var(--danger)', color: '#fff', fontSize: 10.5, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    {nbNouveauxEssais}
+                  </span>
+                )}
+              </button>
               <button onClick={() => setEspaceExploitantOuvert(true)}>Ouvrir l’espace exploitant</button>
             </div>
           </div>
