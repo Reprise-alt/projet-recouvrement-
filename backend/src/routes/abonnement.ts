@@ -53,7 +53,7 @@ abonnementRouter.post('/demande', async (req, res, next) => {
     });
 
     await getEmailProvider().send({
-      to: dest.join(', '),
+      to: dest,
       subject: `Demande d’abonnement Feyma — ${org?.raisonSociale ?? ''} (${FORMULE_LABEL[formule]}, ${annuel ? 'annuel' : 'mensuel'})`,
       text: corps,
       replyTo: req.user!.email,

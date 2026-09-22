@@ -144,7 +144,7 @@ authOtpRouter.post('/verify', async (req, res, next) => {
           .filter(Boolean)
           .join('\n');
         getEmailProvider()
-          .send({ to: dest.join(', '), subject: `Nouvel essai Feyma — ${raisonSociale}`, text: corps })
+          .send({ to: dest, subject: `Nouvel essai Feyma — ${raisonSociale}`, text: corps })
           .catch((e) => console.error('[inscription] notification exploitant échouée:', e));
       }
     }

@@ -117,7 +117,7 @@ organisationRouter.post('/option-contentieux', requireOrgRole('proprietaire', 'a
       if (dest.length) {
         getEmailProvider()
           .send({
-            to: dest.join(', '),
+            to: dest,
             subject: `Option Contentieux activée — ${org.raisonSociale ?? org.id}`,
             text:
               `L'organisation « ${org.raisonSociale ?? org.id} » (formule Petite structure) vient d'activer ` +

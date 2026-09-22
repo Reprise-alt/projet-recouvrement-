@@ -10,7 +10,10 @@ import nodemailer, { Transporter } from 'nodemailer';
 //   - 'smtp'            -> SmtpEmailProvider (production ; requiert SMTP_HOST…)
 //   - absent / autre    -> StubEmailProvider (dev/test : journalise, n'envoie rien)
 export interface EmailMessage {
-  to: string;
+  // Un destinataire, ou plusieurs. IMPORTANT : pour plusieurs destinataires,
+  // passer un TABLEAU — pas une chaîne « a@x, b@y » : l'API Resend rejette une
+  // adresse contenant une virgule (422 « Invalid `to` field »).
+  to: string | string[];
   subject: string;
   text: string;
   html?: string;
