@@ -154,13 +154,18 @@ chequesRouter.post('/scan-lot', uploadCheque.array('files', 40), async (req, res
         .filter(Boolean),
     );
 
+    // Bénéficiaire (créancier) = notre raison sociale : sert d'indice au modèle
+    // pour ne pas confondre le bénéficiaire avec le tireur (débiteur).
+    const org = await prisma.organisation.findUnique({ where: { id: req.user!.organisationId }, select: { raisonSociale: true } });
+    const beneficiaire = org?.raisonSociale ?? null;
+
     // Extraction par fichier : une image = 1 chèque ; un PDF = 1 chèque par page
     // (une pile scannée). On aplatit ensuite en une proposition par chèque.
     const vide: ChampsCheque = { montant: null, banque: null, numeroCheque: null, dateCheque: null, tireur: null };
     const parFichier = await mapConcurrent(files, 3, async (f) => {
       if (!dispo) return [vide];
       try {
-        const liste = await extraireCheques(f.buffer.toString('base64'), f.mimetype);
+        const liste = await extraireCheques(f.buffer.toString('base64'), f.mimetype, beneficiaire);
         return liste.length ? liste : [vide];
       } catch {
         return [vide]; // extraction impossible : l'agent complétera à la main

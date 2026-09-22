@@ -33,21 +33,31 @@ export function mediaSupporte(mime: string): boolean {
   return IMAGE_OK.has(mime) || estPdf(mime);
 }
 
-const INSTRUCTION = `Ce document contient un ou plusieurs chèques bancaires (zone UEMOA, souvent Sénégal, montants en FCFA), généralement un chèque par page.
-Extrais CHAQUE chèque trouvé et réponds UNIQUEMENT par un tableau JSON strict, sans texte autour, au format :
-[{"montant": <entier en FCFA sans espaces ni symbole, ou null>, "banque": <nom de la banque ou null>, "numeroCheque": <numéro du chèque en chaîne, ou null>, "dateCheque": <"AAAA-MM-JJ" ou null>, "tireur": <nom du titulaire du compte / émetteur, ou null>}]
-Un objet par chèque, dans l'ordre des pages. Le montant en chiffres prime ; s'il est illisible, déduis-le du montant en lettres. N'invente aucune valeur : mets null si tu n'es pas sûr.`;
+function instruction(beneficiaire?: string | null): string {
+  const exclusion = beneficiaire
+    ? `IMPORTANT : « ${beneficiaire} » (ou un nom très proche) est le BÉNÉFICIAIRE / créancier — ne l'utilise JAMAIS comme "tireur".`
+    : `IMPORTANT : n'utilise JAMAIS comme "tireur" le nom écrit après « à l'ordre de » ou « Payez contre ce chèque à » : c'est le bénéficiaire (créancier), pas l'émetteur.`;
+  return `Ce document contient un ou plusieurs chèques bancaires (zone UEMOA, Sénégal, montants en FCFA), généralement un chèque par page (parfois accompagné d'un bordereau de remise à ignorer).
+Pour CHAQUE chèque, extrais :
+- "montant" : le montant en FCFA (entier, sans espaces ni symbole). Lis d'abord le montant EN CHIFFRES dans la case à droite ; s'il est illisible, convertis le montant écrit EN TOUTES LETTRES. Fournis toujours un montant au mieux si un chèque est présent.
+- "tireur" : le TITULAIRE DU COMPTE qui ÉMET le chèque (le débiteur qui paie), dont le nom est généralement PRÉ-IMPRIMÉ près du numéro de compte (« Compte N° »). ${exclusion}
+- "banque" : nom de la banque. "numeroCheque" : numéro du chèque. "dateCheque" : "AAAA-MM-JJ".
+Réponds UNIQUEMENT par un tableau JSON strict, sans texte autour :
+[{"montant": <entier ou null>, "banque": <string ou null>, "numeroCheque": <string ou null>, "dateCheque": <"AAAA-MM-JJ" ou null>, "tireur": <string ou null>}]
+Un objet par chèque, dans l'ordre des pages. N'invente rien : mets null si tu n'es pas sûr (sauf le montant, à estimer au mieux).`;
+}
 
 // Extrait TOUS les chèques d'un fichier (image ou PDF). Renvoie un tableau
-// (une entrée par chèque détecté), éventuellement vide.
-export async function extraireCheques(base64: string, mime: string): Promise<ChampsCheque[]> {
+// (une entrée par chèque détecté), éventuellement vide. `beneficiaire` (raison
+// sociale du créancier) aide à ne pas confondre bénéficiaire et tireur.
+export async function extraireCheques(base64: string, mime: string, beneficiaire?: string | null): Promise<ChampsCheque[]> {
   const bloc = estPdf(mime)
     ? { type: 'document' as const, source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: base64 } }
     : { type: 'image' as const, source: { type: 'base64' as const, media_type: (IMAGE_OK.has(mime) ? mime : 'image/jpeg') as 'image/jpeg', data: base64 } };
   const res = await anthropic().messages.create({
     model: MODELE,
     max_tokens: 1500,
-    messages: [{ role: 'user', content: [bloc, { type: 'text', text: INSTRUCTION }] }],
+    messages: [{ role: 'user', content: [bloc, { type: 'text', text: instruction(beneficiaire) }] }],
   });
   const texte = res.content
     .filter((b): b is Anthropic.TextBlock => b.type === 'text')
