@@ -158,12 +158,26 @@ clientsRouter.get('/journee', async (req, res, next) => {
       prisma.actionRecouvrement.count({ where: { palier: { gte: 1 }, date: { gte: debutJour }, client: where } }),
       prisma.facture.findMany({
         where: { statut: 'payee', datePaiement: { gte: debutJour, lte: now }, client: where },
-        select: { montant: true, clientId: true },
+        select: { montant: true, clientId: true, numero: true, datePaiement: true, client: { select: { nom: true } } },
       }),
     ]);
 
     const encaisse = Math.round(facturesPayees.reduce((s, f) => s + f.montant, 0));
     const facturesReglees = facturesPayees.length;
+
+    // Détail des paiements du jour (le plus récent d'abord) — pour que l'agent
+    // puisse « sortir » la liste depuis le fantôme et repérer d'un coup d'œil
+    // d'où vient le total (ex. distinguer les vrais encaissements des tests).
+    // Dakar = UTC+0 : l'heure ISO (HH:MM) est bien l'heure locale.
+    const paiements = facturesPayees
+      .slice()
+      .sort((a, b) => (b.datePaiement?.getTime() ?? 0) - (a.datePaiement?.getTime() ?? 0))
+      .map((f) => ({
+        client: f.client?.nom ?? '—',
+        numero: f.numero,
+        montant: Math.round(f.montant),
+        heure: f.datePaiement ? f.datePaiement.toISOString().slice(11, 16) : null,
+      }));
 
     // Clients repassés « à jour » : parmi ceux qui ont réglé une facture
     // aujourd'hui, ceux dont l'encours est désormais nul (solde total). Ensemble
@@ -175,7 +189,7 @@ clientsRouter.get('/journee', async (req, res, next) => {
       clientsAJour = clientsPayeurs.filter((c) => clientEncours(c) === 0).length;
     }
 
-    res.json({ relances, encaisse, facturesReglees, clientsAJour, date: now.toISOString().slice(0, 10) });
+    res.json({ relances, encaisse, facturesReglees, clientsAJour, paiements, date: now.toISOString().slice(0, 10) });
   } catch (err) {
     next(err);
   }

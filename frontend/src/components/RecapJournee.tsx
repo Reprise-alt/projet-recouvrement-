@@ -8,11 +8,19 @@ import { fmtFCFA } from '../lib/constants';
 // le petit shot de satisfaction de fin de journée. Ton sobre et pro : un
 // fantôme discret, pas de confettis. Respecte prefers-reduced-motion.
 
+interface PaiementJour {
+  client: string;
+  numero: string;
+  montant: number;
+  heure: string | null;
+}
+
 interface RecapData {
   relances: number;
   encaisse: number;
   facturesReglees: number;
   clientsAJour: number;
+  paiements?: PaiementJour[];
   date: string;
 }
 
@@ -61,7 +69,7 @@ function Fantome({ size = 22 }: { size?: number }) {
   );
 }
 
-const METRIQUES: { cle: keyof Omit<RecapData, 'date'>; label: string; emoji: string; devise?: boolean }[] = [
+const METRIQUES: { cle: 'encaisse' | 'relances' | 'facturesReglees' | 'clientsAJour'; label: string; emoji: string; devise?: boolean }[] = [
   { cle: 'encaisse', label: 'Encaissé aujourd’hui', emoji: '💰', devise: true },
   { cle: 'relances', label: 'Relances envoyées', emoji: '📨' },
   { cle: 'facturesReglees', label: 'Factures réglées', emoji: '✅' },
@@ -74,6 +82,7 @@ export function RecapJournee() {
   const [loading, setLoading] = useState(false);
   const [erreur, setErreur] = useState(false);
   const [anim, setAnim] = useState(0); // incrémenté pour rejouer le count-up
+  const [detail, setDetail] = useState(false); // liste des paiements dépliée
   const chargeUneFois = useRef(false);
 
   function charger() {
@@ -188,6 +197,60 @@ export function RecapJournee() {
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {!loading && !erreur && data && !!data.paiements?.length && (
+            <div style={{ marginTop: 12, borderTop: '1px solid var(--line)', paddingTop: 10 }}>
+              <button
+                onClick={() => setDetail((d) => !d)}
+                style={{
+                  border: 'none',
+                  background: 'none',
+                  color: 'var(--accent-dark)',
+                  cursor: 'pointer',
+                  padding: 0,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                <span style={{ transition: 'transform .2s', transform: detail ? 'rotate(90deg)' : 'none' }}>▸</span>
+                {detail ? 'Masquer le détail' : `Voir le détail des paiements (${data.paiements.length})`}
+              </button>
+
+              {detail && (
+                <div style={{ marginTop: 8, maxHeight: 210, overflowY: 'auto', display: 'grid', gap: 4 }}>
+                  {data.paiements.map((p, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'baseline',
+                        gap: 8,
+                        padding: '6px 8px',
+                        borderRadius: 8,
+                        background: 'var(--accent-soft)',
+                      }}
+                    >
+                      <span style={{ minWidth: 0, flex: 1 }}>
+                        <span style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {p.client}
+                        </span>
+                        <span style={{ display: 'block', fontSize: 10.5, color: 'var(--ink-soft)', fontVariantNumeric: 'tabular-nums' }}>
+                          {p.numero}
+                          {p.heure ? ` · ${p.heure}` : ''}
+                        </span>
+                      </span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-dark)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                        {fmtFCFA(p.montant)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
