@@ -96,8 +96,25 @@ async function main() {
   const analyses = await source.analyseContentieux.findMany({ where: { dossierId: { in: dossierIds } } });
   const propositions = await source.propositionPaiement.findMany({ where: { dossierId: { in: dossierIds } } });
 
+  // Utilisateurs à migrer pour préserver l'attribution (« qui a fait quoi ») :
+  // tout le roster de l'entité + tous ceux référencés par les données migrées
+  // (auteurs de relances, créateurs / avocats de dossiers, valideurs d'actes).
+  // Sans eux, ces liens retomberaient à null.
+  const refUserIds = new Set<string>();
+  for (const a of actions) if (a.utilisateurId) refUserIds.add(a.utilisateurId);
+  for (const d of dossiers) {
+    if (d.createurId) refUserIds.add(d.createurId);
+    if (d.avocatId) refUserIds.add(d.avocatId);
+    if (d.clotureParId) refUserIds.add(d.clotureParId);
+  }
+  for (const a of actes) if (a.valideParId) refUserIds.add(a.valideParId);
+  const users = await source.utilisateur.findMany({
+    where: { OR: [{ id: { in: [...refUserIds] } }, { entite: ENTITE }] },
+  });
+
   const encoursBinaires = pieces.reduce((s, p) => s + p.taille, 0);
   console.log('À migrer :');
+  console.log(`  Utilisateurs .......... ${n(users)}`);
   console.log(`  Clients ............... ${n(clients)}`);
   console.log(`  Contacts .............. ${n(contacts)}`);
   console.log(`  Factures .............. ${n(factures)}`);
@@ -130,6 +147,46 @@ async function main() {
     console.log(`\n⚠️  ${refClash.size} référence(s) de dossier en collision → renommées avec le suffixe -${org.slug.toUpperCase()}.`);
   }
 
+  // 3c. Appariement des utilisateurs par email (identité naturelle, UNIQUE
+  //     GLOBAL). Pour chaque utilisateur source : s'il existe déjà dans la cible
+  //     et DANS l'org IRIS → on réutilise son id (pas de doublon). S'il existe
+  //     dans une AUTRE org → on ne peut ni le recréer (email unique) ni l'y
+  //     rattacher (cross-tenant) : ce lien précis retombe à null, et on le
+  //     signale. Sinon → on le crée dans l'org IRIS en conservant son id.
+  const cibleUsers = await target.utilisateur.findMany({
+    where: { email: { in: users.map((u) => u.email) } },
+    select: { id: true, email: true, organisationId: true },
+  });
+  const mapUser = new Map<string, string | null>();
+  const usersACreer: typeof users = [];
+  const conflitsOrg: string[] = [];
+  for (const u of users) {
+    const ex = cibleUsers.find((c) => c.email === u.email);
+    if (ex) {
+      if (ex.organisationId === org.id) {
+        mapUser.set(u.id, ex.id); // déjà présent dans IRIS → réutilisé
+      } else {
+        mapUser.set(u.id, null); // email pris dans une autre org → lien non rattachable
+        conflitsOrg.push(u.email);
+      }
+    } else {
+      mapUser.set(u.id, u.id); // à créer, id conservé
+      usersACreer.push(u);
+    }
+  }
+  const reutilises = n(users) - usersACreer.length - conflitsOrg.length;
+  console.log(
+    `  └─ dont ${usersACreer.length} créé(s), ${reutilises} réutilisé(s) (email déjà sur Feyma)` +
+      (conflitsOrg.length ? `, ${conflitsOrg.length} non rattaché(s)` : ''),
+  );
+  if (conflitsOrg.length) {
+    console.log(
+      `\n⚠️  ${conflitsOrg.length} utilisateur(s) ont un email déjà pris dans une AUTRE organisation Feyma :\n     ${conflitsOrg.join(', ')}\n     → leurs actions/dossiers passés resteront « non attribués » (le reste est préservé).`,
+    );
+  }
+  // Remappe un id d'utilisateur source vers la cible (null si non rattachable).
+  const mu = (id: string | null | undefined): string | null => (id ? mapUser.get(id) ?? null : null);
+
   if (!APPLY) {
     console.log('\n🔎 DRY-RUN terminé — rien n’a été écrit. Relancez avec --apply pour migrer réellement.\n');
     return;
@@ -139,20 +196,25 @@ async function main() {
   //    Les FK vers Utilisateur (source) n'existent pas dans la cible → null.
   //    portailToken remis à null (à ré-activer côté Feyma, évite toute collision).
   await target.$transaction(async (tx) => {
+    // Utilisateurs d'abord : les FK utilisateurId / createurId / avocatId /
+    // valideParId pointent vers eux. Rattachés à l'org IRIS ; roleOrg conservé
+    // tel quel (les comptes SSO historiques gardent leur logique, les logins
+    // actifs se règlent normalement côté Feyma, appariés par email).
+    await tx.utilisateur.createMany({ data: usersACreer.map((u) => ({ ...u, organisationId: org.id })) });
     await tx.client.createMany({ data: clients.map((c) => ({ ...c, organisationId: org.id })) });
     await tx.contact.createMany({ data: contacts });
     await tx.echeancierPaiement.createMany({ data: echeanciers });
     await tx.tranchePaiement.createMany({ data: tranches });
     await tx.contrat.createMany({ data: contrats });
     await tx.envoiContrat.createMany({ data: envois });
-    await tx.actionRecouvrement.createMany({ data: actions.map((a) => ({ ...a, utilisateurId: null })) });
+    await tx.actionRecouvrement.createMany({ data: actions.map((a) => ({ ...a, utilisateurId: mu(a.utilisateurId) })) });
     await tx.dossierContentieux.createMany({
       data: dossiers.map((d) => ({
         ...d,
         reference: renomme(d.reference),
-        createurId: null,
-        avocatId: null,
-        clotureParId: null,
+        createurId: mu(d.createurId),
+        avocatId: mu(d.avocatId),
+        clotureParId: mu(d.clotureParId),
         portailToken: null,
         confieAuPartenaire: false,
         confieLe: null,
@@ -177,11 +239,16 @@ async function main() {
   const apresClients = await target.client.count({ where: { organisationId: org.id } });
   const apresActions = await target.actionRecouvrement.count({ where: { clientId: { in: clientIds } } });
   const apresDossiers = await target.dossierContentieux.count({ where: { clientId: { in: clientIds } } });
+  const apresUsers = await target.utilisateur.count({ where: { organisationId: org.id } });
+  const actionsAttribuees = actions.filter((a) => mu(a.utilisateurId)).length;
+  const apresAttribuees = await target.actionRecouvrement.count({ where: { clientId: { in: clientIds }, utilisateurId: { not: null } } });
   console.log('\n✅ Migration terminée. Contrôle cible :');
   console.log(`  Clients : ${apresClients} (attendu ${n(clients)})`);
   console.log(`  Relances : ${apresActions} (attendu ${n(actions)})`);
+  console.log(`    ├─ attribuées à un agent : ${apresAttribuees} (attendu ${actionsAttribuees})`);
   console.log(`  Dossiers : ${apresDossiers} (attendu ${n(dossiers)})`);
-  const ok = apresClients === n(clients) && apresActions === n(actions) && apresDossiers === n(dossiers);
+  console.log(`  Utilisateurs (org) : ${apresUsers} (créés cette migration : ${usersACreer.length})`);
+  const ok = apresClients === n(clients) && apresActions === n(actions) && apresDossiers === n(dossiers) && apresAttribuees === actionsAttribuees;
   console.log(ok ? '\n🎉 Totaux conformes.\n' : '\n⚠️  Écart de totaux — à vérifier.\n');
 }
 
