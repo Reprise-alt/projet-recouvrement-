@@ -9,6 +9,7 @@ import { generateLetter, LetterClient } from './letters';
 import { PALIERS } from './paliers';
 import { ClientRelance, dansFenetreEnvoi, relancesDues } from './moteurRelances';
 import { construireRelanceMarque, OrgIdentite } from './modelesRelance';
+import { obtenirOuCreerCode } from './parrainage';
 import { chargerMoyensPaiement } from './moyensPaiement';
 import { signerTokenCheque } from './authToken';
 
@@ -166,6 +167,8 @@ export async function executerRelancesTenant(opts: OptionsExecution = {}): Promi
           capitalSocial: true,
           contactRecouvrement: true,
           pays: true,
+          promoFeymaRelances: true,
+          codeParrainage: true,
         },
       })
     : null;
@@ -174,6 +177,10 @@ export async function executerRelancesTenant(opts: OptionsExecution = {}): Promi
   const fromName = org?.raisonSociale ?? undefined;
   const replyTo = org?.emailReponse ?? undefined;
   const moyensPaiement = orgId ? await chargerMoyensPaiement(orgId) : [];
+  // Code de parrainage à afficher dans le pied « recommandé par Feyma » : créé à
+  // la volée si l'org l'a activé (défaut) mais n'en a pas encore.
+  let codeParrainage = org?.codeParrainage ?? null;
+  if (org?.promoFeymaRelances && !codeParrainage && orgId) codeParrainage = await obtenirOuCreerCode(orgId);
   // Identité de marque pour l'email (logo + coordonnées) — §5.3.
   const orgIdentite: OrgIdentite | null = org
     ? {
@@ -188,6 +195,8 @@ export async function executerRelancesTenant(opts: OptionsExecution = {}): Promi
         instructionsPaiement: org.instructionsPaiement,
         moyensPaiement,
         pays: org.pays,
+        promoFeymaRelances: org.promoFeymaRelances,
+        codeParrainage,
       }
     : null;
 
@@ -303,6 +312,7 @@ export async function reconstruireEmailRelance(
           raisonSociale: true, emailReponse: true, logoUrl: true,
           adresse: true, identifiantFiscal: true, rccm: true, formeJuridique: true,
           capitalSocial: true, contactRecouvrement: true, pays: true,
+          promoFeymaRelances: true, codeParrainage: true,
         },
       })
     : null;
@@ -313,6 +323,7 @@ export async function reconstruireEmailRelance(
         identifiantFiscal: org.identifiantFiscal, rccm: org.rccm, formeJuridique: org.formeJuridique,
         capitalSocial: org.capitalSocial, contactRecouvrement: org.contactRecouvrement,
         instructionsPaiement: org.instructionsPaiement, moyensPaiement, pays: org.pays,
+        promoFeymaRelances: org.promoFeymaRelances, codeParrainage: org.codeParrainage,
       }
     : null;
   const modelesOrg = orgIdentite ? await chargerModelesOrg() : null;

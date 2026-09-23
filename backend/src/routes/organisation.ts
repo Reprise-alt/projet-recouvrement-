@@ -37,6 +37,7 @@ const CHAMPS = [
   'orangeMoneyNumero',
   'contactRecouvrement',
   'emailReponse',
+  'promoFeymaRelances',
 ] as const;
 
 // Vérificateur de délivrabilité e-mail : diagnostic DNS (SPF/DKIM/DMARC/MX) du

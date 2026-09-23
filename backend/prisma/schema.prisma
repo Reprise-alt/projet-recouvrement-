@@ -211,6 +211,12 @@ model Organisation {
   scenarioVu           Boolean            @default(false)
   relanceTestEnvoyee   Boolean            @default(false)
   relancesActivees     Boolean            @default(false)
+  // Recommandation Feyma en pied des relances AMIABLES (levier de croissance /
+  // parrainage) : un encart discret invite le destinataire (souvent un service
+  // ADV, cible idéale) à tester Feyma avec le code de parrainage de l'émetteur —
+  // ce qui fait gagner un mois à ce dernier si le filleul s'active. Jamais sur
+  // les paliers fermes/juridiques. Activé par défaut ; désactivable par l'org.
+  promoFeymaRelances   Boolean            @default(true)
   // Envoi automatique du rapport mensuel : email destinataire (null = désactivé).
   // Le cron mensuel génère le PDF du mois écoulé et l'envoie à cette adresse.
   reportingEmail       String?
