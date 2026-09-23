@@ -80,10 +80,14 @@ async function main() {
   if (RESET) {
     // Ce qui sera EFFACÉ de l'org cible avant l'import. Le comptage des clients
     // suffit à jauger ; le reste part en cascade (FK onDelete) + tables org.
-    const dejaUsers = await target.utilisateur.count({ where: { organisationId: org.id } });
+    // Le(s) compte(s) PROPRIÉTAIRE(S) sont TOUJOURS préservés : c'est l'accès de
+    // l'exploitant à la console, sans lien avec les données de test importées.
+    const dejaUsers = await target.utilisateur.count({ where: { organisationId: org.id, roleOrg: { not: 'proprietaire' } } });
+    const proprios = await target.utilisateur.count({ where: { organisationId: org.id, roleOrg: 'proprietaire' } });
     const dejaCheques = await target.cheque.count({ where: { organisationId: org.id } });
     console.log(
-      `\n🗑️  --reset-cible : l'org « ${org.slug} » sera VIDÉE avant import — ${dejaClients} client(s), ${dejaUsers} utilisateur(s), ${dejaCheques} chèque(s) et toutes leurs données rattachées seront supprimés.`,
+      `\n🗑️  --reset-cible : l'org « ${org.slug} » sera VIDÉE avant import — ${dejaClients} client(s), ${dejaUsers} utilisateur(s), ${dejaCheques} chèque(s) et toutes leurs données rattachées seront supprimés.` +
+        (proprios ? ` (${proprios} compte(s) propriétaire préservé(s).)` : ''),
     );
     if (dejaClients === 0 && dejaUsers === 0 && dejaCheques === 0) console.log('   (rien à purger — la cible est déjà vide.)');
   }
@@ -235,7 +239,9 @@ async function main() {
       await tx.cheque.deleteMany({ where: orgWhere });
       await tx.alerteCheque.deleteMany({ where: orgWhere });
       await tx.client.deleteMany({ where: orgWhere }); // cascade tout l'arbre recouvrement
-      await tx.utilisateur.deleteMany({ where: orgWhere });
+      // On épargne le(s) propriétaire(s) : sinon l'exploitant perd l'accès à la
+      // console de l'org (son compte n'est pas parmi les utilisateurs importés).
+      await tx.utilisateur.deleteMany({ where: { ...orgWhere, roleOrg: { not: 'proprietaire' } } });
       await tx.moyenPaiement.deleteMany({ where: orgWhere });
       await tx.palierOrg.deleteMany({ where: orgWhere });
       await tx.modeleRelanceOrg.deleteMany({ where: orgWhere });
