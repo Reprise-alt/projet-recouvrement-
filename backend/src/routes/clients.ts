@@ -157,7 +157,7 @@ clientsRouter.get('/journee', async (req, res, next) => {
     const [relances, facturesPayees] = await Promise.all([
       prisma.actionRecouvrement.count({ where: { palier: { gte: 1 }, date: { gte: debutJour }, client: where } }),
       prisma.facture.findMany({
-        where: { statut: 'payee', datePaiement: { gte: debutJour }, client: where },
+        where: { statut: 'payee', datePaiement: { gte: debutJour, lte: now }, client: where },
         select: { montant: true, clientId: true },
       }),
     ]);
