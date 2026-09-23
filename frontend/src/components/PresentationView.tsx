@@ -149,6 +149,28 @@ const BENEFICES = [
   { t: 'Du rappel au contentieux', d: 'Générez un commandement de payer et préparez le dossier — sur la même plateforme.' },
 ];
 
+// Fonctionnalités détaillées — le cœur du produit, décrit en clair. Contenu
+// textuel riche : sert autant à convaincre qu'à faire comprendre l'outil aux
+// moteurs (SEO, catégorisation des filtres web).
+const FONCTIONNALITES = [
+  { t: 'Relances automatiques multi-paliers', d: 'Chaque créance suit une séquence de relance qui s’enclenche toute seule dès l’échéance : avis d’échéance courtois, premier rappel, relance ferme, dernier rappel, puis bascule vers le contentieux. Vous ne saisissez plus rien — la plateforme envoie la bonne relance, au bon moment, au bon client.' },
+  { t: 'Paliers entièrement personnalisables', d: 'Vous définissez vos propres délais (J+1, J+7, J+15…), le ton et le contenu de chaque message, palier par palier. Chaque entreprise pilote sa cadence de recouvrement selon son secteur et sa relation client.' },
+  { t: 'Email de marque, à votre nom', d: 'Vos relances partent à votre identité — logo, raison sociale, adresse de réponse. Le débiteur répond directement chez vous ; Feyma reste invisible. Un compte à rebours vous indique quand part la prochaine salve.' },
+  { t: 'Portail débiteur & règlement à l’amiable', d: 'Un lien sécurisé permet à votre client de consulter sa dette, de payer en un clic (Wave, Orange Money) ou de proposer un échéancier que vous acceptez d’un clic. L’amiable se règle sans coup de fil.' },
+  { t: 'Rapprochement des paiements & scan de chèques', d: 'Scannez un lot de chèques (image ou PDF) : la plateforme lit le montant et l’émetteur, rapproche automatiquement la facture correspondante — même la somme de plusieurs factures — et la marque « payée ». Votre agent n’a plus qu’à valider.' },
+  { t: 'Module contentieux OHADA', d: 'Quand l’amiable ne suffit plus, Feyma prépare le dossier dans le cadre OHADA : mise en demeure, commandement de payer, requête en injonction de payer, décompte de créance et bordereau de pièces. Une console dédiée permet à votre avocat ou huissier de suivre les dossiers qu’on lui confie.' },
+  { t: 'Reporting & pilotage', d: 'Tableau de bord des encaissements, taux de recouvrement, délai moyen d’encaissement (DSO), balance âgée des créances. Un rapport mensuel peut être envoyé automatiquement par email pour suivre la performance sans y penser.' },
+  { t: 'Multi-sociétés, rôles et paiement mobile', d: 'Gérez plusieurs sociétés dans un même compte, avec des rôles (propriétaire, gestionnaire, lecture) et des accès par entité. Les moyens de paiement mobile (Wave, Orange Money, Julaya) s’affichent directement dans les relances et le portail.' },
+];
+
+// Pour qui — personas et secteurs. Ancre le positionnement et enrichit le texte.
+const POURQUI = [
+  { t: 'PME & grandes entreprises', d: 'De la petite structure au grand compte multi-sociétés : dès que vous facturez à crédit en B2B et que des impayés traînent, Feyma automatise vos relances et raccourcit vos délais d’encaissement.' },
+  { t: 'Services ADV & comptables', d: 'Les équipes administration des ventes et comptabilité clients gagnent des heures : plus de relances à la main, un portefeuille classé par palier, et le suivi de chaque envoi (envoyé, ouvert, réglé).' },
+  { t: 'Cabinets d’avocats & huissiers', d: 'Une console partenaire dédiée : recevez les dossiers qu’on vous confie, toutes sociétés clientes confondues, avec décomptes, pièces et projets d’actes prêts à valider dans le cadre OHADA.' },
+  { t: 'Tous les secteurs B2B', d: 'Distribution, services aux entreprises, BTP, santé, écoles et formation, industrie, logistique… Partout où le paiement se fait à échéance, souvent par chèque ou virement, Feyma s’adapte à votre cycle.' },
+];
+
 const FORMULES = [
   {
     nom: 'Petite structure', prix: '35 000', unite: 'FCFA HT / mois', tagline: 'Jusqu’à 50 débiteurs actifs',
@@ -196,6 +218,7 @@ export function PresentationView() {
       <header className="lp-nav">
         <Logo />
         <nav className="lp-nav-links">
+          <a href="#fonctionnalites">Fonctionnalités</a>
           <a href="#tarifs">Tarifs</a>
           <a href="#faq">FAQ</a>
           <a href="/blog">Actualités</a>
@@ -294,8 +317,42 @@ export function PresentationView() {
         </div>
       </section>
 
+      {/* FONCTIONNALITÉS DÉTAILLÉES */}
+      <section className="lp-section" id="fonctionnalites">
+        <h2>Le moteur de recouvrement, en détail.</h2>
+        <p className="lp-section-sub">
+          De l’avis d’échéance au contentieux OHADA, Feyma automatise chaque étape du recouvrement de vos créances B2B —
+          relances, encaissement, rapprochement et suivi, sur une seule plateforme pensée pour l’Afrique de l’Ouest.
+        </p>
+        <div className="lp-benefits">
+          {FONCTIONNALITES.map((f) => (
+            <div key={f.t} className="lp-benefit">
+              <div className="lp-benefit-t">{f.t}</div>
+              <div className="lp-benefit-d">{f.d}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* APERÇU DE LA PLATEFORME */}
       <PlateformeApercu />
+
+      {/* POUR QUI */}
+      <section className="lp-section" id="pour-qui">
+        <h2>Pour qui est fait Feyma ?</h2>
+        <p className="lp-section-sub">
+          Pour toute entreprise qui facture à crédit en B2B et veut être payée à temps, ainsi que pour les professionnels
+          du recouvrement qui l’accompagnent — au Sénégal et dans toute la zone UEMOA / OHADA.
+        </p>
+        <div className="lp-benefits">
+          {POURQUI.map((p) => (
+            <div key={p.t} className="lp-benefit">
+              <div className="lp-benefit-t">{p.t}</div>
+              <div className="lp-benefit-d">{p.d}</div>
+            </div>
+          ))}
+        </div>
+      </section>
 
       {/* TÉMOIGNAGES */}
       <section className="lp-section lp-section-soft" id="temoignages">
@@ -359,6 +416,40 @@ export function PresentationView() {
 
       {/* FAQ */}
       <FaqSection />
+
+      {/* À PROPOS */}
+      <section className="lp-section lp-section-soft" id="a-propos">
+        <h2>À propos de Feyma</h2>
+        <p className="lp-section-sub">
+          Feyma est un logiciel de recouvrement de créances édité par <b>OLU 360</b>, basé à Dakar, au Sénégal. Son nom
+          signifie « rends-moi mon argent » en wolof : c’est toute notre raison d’être.
+        </p>
+        <div className="lp-benefits">
+          <div className="lp-benefit">
+            <div className="lp-benefit-t">Pensé pour l’Afrique de l’Ouest francophone</div>
+            <div className="lp-benefit-d">
+              Feyma est conçu pour les réalités de la zone UEMOA et le cadre juridique OHADA : facturation en francs CFA,
+              paiement par chèque et Mobile Money (Wave, Orange Money), et procédures de recouvrement (mise en demeure,
+              injonction de payer) alignées sur le droit des affaires en vigueur au Sénégal et dans les pays membres.
+            </div>
+          </div>
+          <div className="lp-benefit">
+            <div className="lp-benefit-t">Un outil éprouvé sur le terrain</div>
+            <div className="lp-benefit-d">
+              La plateforme est née des besoins réels d’entreprises qui recouvrent au quotidien. Elle est déjà utilisée
+              par des sociétés comme SORAM et IRIS pour automatiser leurs relances, réduire leurs délais d’encaissement
+              et diminuer le volume de dossiers passant au contentieux.
+            </div>
+          </div>
+          <div className="lp-benefit">
+            <div className="lp-benefit-t">Vos données restent les vôtres</div>
+            <div className="lp-benefit-d">
+              Chaque entreprise dispose d’un espace strictement isolé, les échanges sont chiffrés, et vous pouvez exporter
+              vos données à tout moment. Feyma reste invisible pour vos débiteurs : c’est votre marque qui recouvre.
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* CTA FINAL */}
       <section className="lp-final">
