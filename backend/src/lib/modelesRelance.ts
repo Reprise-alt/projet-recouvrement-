@@ -180,7 +180,9 @@ function escapeHtml(s: string): string {
 function promoFeymaHtml(nomOrg: string, code: string): string {
   const nom = escapeHtml(nomOrg);
   const c = escapeHtml(code);
-  const lien = `https://feyma.olu360.com/?parrain=${encodeURIComponent(code)}`;
+  // Chemin canonique du parrainage : la page d'inscription lit ?parrain= et
+  // pré-remplit le code automatiquement (le filleul n'a rien à retaper).
+  const lien = `https://feyma.olu360.com/inscription?parrain=${encodeURIComponent(code)}`;
   return `<div style="max-width:560px;margin:8px auto 0;padding:14px 18px;background:#f0f6f3;border:1px solid #d9e7e0;border-radius:12px;font-family:Arial,Helvetica,sans-serif">
     <div style="font-size:12px;line-height:1.55;color:#5b6469">
       <span style="color:#0e7c5a;font-weight:700">${nom} gère ses relances avec Feyma</span>, la solution de recouvrement automatisé. Votre service comptable aussi&nbsp;? Testez-la <b>14 jours gratuitement</b> et profitez de l'avantage parrainage de votre partenaire — code <b style="color:#0e7c5a">${c}</b>.
