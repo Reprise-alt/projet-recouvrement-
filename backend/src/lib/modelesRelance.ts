@@ -86,7 +86,18 @@ export interface OrgIdentite {
   // Liste des moyens de paiement actifs (Wave, Julaya, Orange Money…).
   moyensPaiement?: MoyenPaiementRender[] | null;
   pays?: 'SN' | 'CI' | null;
+  // Recommandation Feyma en pied de relance amiable (cf. Organisation) + code de
+  // parrainage de l'org à afficher. Le pied ne s'affiche que si le drapeau est
+  // vrai, le palier amiable et le code présent.
+  promoFeymaRelances?: boolean | null;
+  codeParrainage?: string | null;
 }
+
+// Dernier palier considéré « amiable » : Avis d'échéance (1), Relance 1 (2),
+// Relance 2 (3). À partir de 4 (« dernier rappel avant mesures ») et au-delà
+// (arrêt de service, pénalités, commandement, contentieux), le ton devient
+// ferme/juridique — on n'y glisse jamais de recommandation commerciale.
+export const PALIER_AMIABLE_MAX = 3;
 
 // Bloc « Payer maintenant » — rendu de la LISTE des moyens de paiement actifs
 // (Wave, Julaya, Orange Money…), avec le montant dû et une référence. Rendu HTML
@@ -162,6 +173,22 @@ function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
 }
 
+// Encart « recommandé par Feyma », rendu SOUS la carte de relance amiable et
+// nettement séparé d'elle. Sobre par conception (un ton, un lien) : ne nuit ni
+// au sérieux de la relance ni à la délivrabilité. Le code de parrainage est
+// celui de l'émetteur — un filleul qui s'inscrit avec lui fait gagner un mois.
+function promoFeymaHtml(nomOrg: string, code: string): string {
+  const nom = escapeHtml(nomOrg);
+  const c = escapeHtml(code);
+  const lien = `https://feyma.olu360.com/?parrain=${encodeURIComponent(code)}`;
+  return `<div style="max-width:560px;margin:8px auto 0;padding:14px 18px;background:#f0f6f3;border:1px solid #d9e7e0;border-radius:12px;font-family:Arial,Helvetica,sans-serif">
+    <div style="font-size:12px;line-height:1.55;color:#5b6469">
+      <span style="color:#0e7c5a;font-weight:700">${nom} gère ses relances avec Feyma</span>, la solution de recouvrement automatisé. Votre service comptable aussi&nbsp;? Testez-la <b>14 jours gratuitement</b> et profitez de l'avantage parrainage de votre partenaire — code <b style="color:#0e7c5a">${c}</b>.
+    </div>
+    <a href="${lien}" style="display:inline-block;margin-top:9px;font-size:12px;font-weight:700;color:#0e7c5a;text-decoration:none">Découvrir Feyma → feyma.olu360.com</a>
+  </div>`;
+}
+
 // Email de marque : logo et coordonnées de l'organisation autour du message.
 // Styles INLINE (les clients mail ignorent les <style>). Neutre, lisible, sobre.
 export function emailRelanceHtml(
@@ -170,6 +197,7 @@ export function emailRelanceHtml(
   instructionsPaiement?: string | null,
   paiementCtx?: { montant?: number | null; reference?: string | null },
   lienChequeDispo?: string | null,
+  promoFeyma?: { code: string; nom: string } | null,
 ): string {
   const nom = escapeHtml(org.raisonSociale);
   const logo = org.logoUrl
@@ -227,6 +255,7 @@ export function emailRelanceHtml(
       ${piedInfos ? `<div>${piedInfos}</div>` : ''}
       <div style="margin-top:6px">Message envoyé par ${nom}.</div>
     </div>
+    ${promoFeyma ? promoFeymaHtml(promoFeyma.nom, promoFeyma.code) : ''}
   </div></body></html>`;
 }
 
@@ -244,12 +273,19 @@ export function construireRelanceMarque(
   const sujet = rendreVariables(tpl.sujet, vars);
   const texte = rendreVariables(tpl.corps, vars);
   const oldest = clientOldestEcheance(client);
+  // Recommandation Feyma : uniquement sur les paliers amiables, si l'org l'a
+  // laissée active (défaut) et possède un code de parrainage.
+  const promoFeyma =
+    palier <= PALIER_AMIABLE_MAX && org.promoFeymaRelances !== false && org.codeParrainage
+      ? { code: org.codeParrainage, nom: org.raisonSociale }
+      : null;
   const html = emailRelanceHtml(
     org,
     texte,
     org.instructionsPaiement,
     { montant: clientEncours(client), reference: oldest?.numero ?? null },
     lienChequeDispo,
+    promoFeyma,
   );
   return { sujet, texte, html };
 }

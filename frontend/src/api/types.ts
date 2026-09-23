@@ -34,6 +34,7 @@ export interface Organisation {
   orangeMoneyNumero: string | null;
   contactRecouvrement: string | null;
   emailReponse: string | null;
+  promoFeymaRelances?: boolean;
   formule: string;
   statut: string;
 }

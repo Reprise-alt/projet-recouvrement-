@@ -100,6 +100,7 @@ export function FicheEntreprise({
         instructionsPaiement: org.instructionsPaiement,
         contactRecouvrement: org.contactRecouvrement,
         emailReponse: org.emailReponse,
+        promoFeymaRelances: org.promoFeymaRelances,
       });
       onSaved();
       onClose();
@@ -193,6 +194,23 @@ export function FicheEntreprise({
               />
               <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 4 }}>
                 Vos relances partent à votre nom ; si un débiteur répond, sa réponse arrive à cette adresse.
+              </div>
+            </div>
+
+            <div className="field">
+              <label style={{ display: 'flex', alignItems: 'center', gap: 9, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={org.promoFeymaRelances ?? true}
+                  onChange={(e) => champ('promoFeymaRelances', e.target.checked)}
+                  style={{ width: 16, height: 16, flex: 'none' }}
+                />
+                <span>Recommander Feyma en bas des relances amiables</span>
+              </label>
+              <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 4 }}>
+                Un encart discret invite le destinataire (souvent un service comptable) à découvrir Feyma avec
+                votre code de parrainage. Uniquement sur les rappels amiables, jamais sur les relances fermes.
+                Chaque filleul qui s’abonne vous fait gagner un mois offert.
               </div>
             </div>
 
