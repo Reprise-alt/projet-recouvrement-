@@ -9,6 +9,9 @@
  * Sécurité :
  *   - DRY-RUN par défaut : n'écrit RIEN, affiche seulement ce qui serait migré.
  *     Ajouter `--apply` pour exécuter réellement.
+ *   - `--reset-cible` : VIDE entièrement l'org cible avant d'importer (repartir
+ *     d'un compte de test). Destructif mais atomique (purge + import dans la même
+ *     transaction). Le dry-run affiche d'abord ce qui serait supprimé.
  *   - Écriture en UNE transaction sur la cible (tout ou rien).
  *   - Pré-contrôles : la cible doit être vide pour ce tenant ; collisions d'ID
  *     ou de référence détectées avant toute écriture.
@@ -30,6 +33,10 @@ const ENTITE = process.env.ENTITE || 'SORAM';
 const TARGET_ORG = process.env.TARGET_ORG || '';
 const APPLY = process.argv.includes('--apply');
 const FORCE = process.argv.includes('--force');
+// Purge TOTALE de l'org cible avant migration (repartir d'un compte de test
+// vide). Destructif — mais atomique : la purge s'exécute dans la même
+// transaction que l'import, donc tout ou rien.
+const RESET = process.argv.includes('--reset-cible');
 
 function required(name: string, val?: string): string {
   if (!val) {
@@ -66,9 +73,19 @@ async function main() {
   }
   const dejaClients = await target.client.count({ where: { organisationId: org.id } });
   console.log(`Cible : ${org.raisonSociale} (${org.slug}) — ${dejaClients} client(s) déjà présent(s).`);
-  if (dejaClients > 0 && !FORCE) {
-    console.error('✖ La cible n’est pas vide pour ce tenant. Repartez d’un compte vide, ou passez --force en connaissance de cause.');
+  if (dejaClients > 0 && !FORCE && !RESET) {
+    console.error('✖ La cible n’est pas vide pour ce tenant. Repartez d’un compte vide, passez --reset-cible pour la VIDER d’abord (données de test), ou --force pour écrire par-dessus.');
     process.exit(1);
+  }
+  if (RESET) {
+    // Ce qui sera EFFACÉ de l'org cible avant l'import. Le comptage des clients
+    // suffit à jauger ; le reste part en cascade (FK onDelete) + tables org.
+    const dejaUsers = await target.utilisateur.count({ where: { organisationId: org.id } });
+    const dejaCheques = await target.cheque.count({ where: { organisationId: org.id } });
+    console.log(
+      `\n🗑️  --reset-cible : l'org « ${org.slug} » sera VIDÉE avant import — ${dejaClients} client(s), ${dejaUsers} utilisateur(s), ${dejaCheques} chèque(s) et toutes leurs données rattachées seront supprimés.`,
+    );
+    if (dejaClients === 0 && dejaUsers === 0 && dejaCheques === 0) console.log('   (rien à purger — la cible est déjà vide.)');
   }
 
   // 2) Lecture de l'arbre source -------------------------------------------
@@ -129,9 +146,14 @@ async function main() {
   console.log(`    └─ propositions ..... ${n(propositions)}`);
 
   // 3) Pré-contrôles de collision ------------------------------------------
+  //    Avec --reset-cible, les données actuelles de l'org sont purgées DANS la
+  //    transaction : on les exclut donc des contrôles (elles n'existeront plus
+  //    au moment de l'import), pour ne pas fausser collisions et appariements.
   // 3a. IDs déjà présents dans la cible (extrêmement improbable avec des cuid,
   //     mais on refuse d'écraser quoi que ce soit).
-  const idClash = await target.client.count({ where: { id: { in: clientIds } } });
+  const idClash = await target.client.count({
+    where: { id: { in: clientIds }, ...(RESET ? { organisationId: { not: org.id } } : {}) },
+  });
   if (idClash > 0) {
     console.error(`✖ ${idClash} identifiant(s) client déjà présents dans la cible — collision. Migration annulée.`);
     process.exit(1);
@@ -140,7 +162,12 @@ async function main() {
   //     collision avec un autre tenant de la cible.
   const refs = dossiers.map((d) => d.reference);
   const refClash = new Set(
-    (await target.dossierContentieux.findMany({ where: { reference: { in: refs } }, select: { reference: true } })).map((d) => d.reference),
+    (
+      await target.dossierContentieux.findMany({
+        where: { reference: { in: refs }, ...(RESET ? { client: { organisationId: { not: org.id } } } : {}) },
+        select: { reference: true },
+      })
+    ).map((d) => d.reference),
   );
   const renomme = (ref: string) => (refClash.has(ref) ? `${ref}-${org.slug.toUpperCase()}` : ref);
   if (refClash.size > 0) {
@@ -162,7 +189,9 @@ async function main() {
   const conflitsOrg: string[] = [];
   for (const u of users) {
     const ex = cibleUsers.find((c) => c.email === u.email);
-    if (ex) {
+    // Sous --reset-cible, un compte de l'org cible va être purgé : on l'ignore
+    // (on recréera l'utilisateur), sinon la FK pointerait vers un id supprimé.
+    if (ex && !(RESET && ex.organisationId === org.id)) {
       if (ex.organisationId === org.id) {
         mapUser.set(u.id, ex.id); // déjà présent dans IRIS → réutilisé
       } else {
@@ -196,6 +225,24 @@ async function main() {
   //    Les FK vers Utilisateur (source) n'existent pas dans la cible → null.
   //    portailToken remis à null (à ré-activer côté Feyma, évite toute collision).
   await target.$transaction(async (tx) => {
+    // Purge éventuelle de l'org cible (--reset-cible), AVANT tout import et dans
+    // la même transaction. Ordre sûr : d'abord les tables org-scopées qui ne
+    // partent pas en cascade du client (Cheque = clientId SetNull), puis les
+    // clients (cascade profonde : factures, contrats, actions, contentieux,
+    // opérations, alertes…), puis les utilisateurs et la config de l'org.
+    if (RESET) {
+      const orgWhere = { organisationId: org.id };
+      await tx.cheque.deleteMany({ where: orgWhere });
+      await tx.alerteCheque.deleteMany({ where: orgWhere });
+      await tx.client.deleteMany({ where: orgWhere }); // cascade tout l'arbre recouvrement
+      await tx.utilisateur.deleteMany({ where: orgWhere });
+      await tx.moyenPaiement.deleteMany({ where: orgWhere });
+      await tx.palierOrg.deleteMany({ where: orgWhere });
+      await tx.modeleRelanceOrg.deleteMany({ where: orgWhere });
+      await tx.demandeAbonnement.deleteMany({ where: orgWhere });
+      await tx.entreprise.deleteMany({ where: orgWhere });
+    }
+
     // Utilisateurs d'abord : les FK utilisateurId / createurId / avocatId /
     // valideParId pointent vers eux. Rattachés à l'org IRIS ; roleOrg conservé
     // tel quel (les comptes SSO historiques gardent leur logique, les logins
