@@ -3,6 +3,7 @@ import { requireAuth, requireRole } from '../middleware/auth';
 import { buildAuthUrl, exchangeCodeForTokens } from '../lib/gmail';
 import { createState, consumeState } from '../lib/oauthState';
 import { clearGmailCredential, listGmailCredentials, saveGmailCredential } from '../services/gmailCredentialService';
+import { saveConnexionAvisBancaires } from '../services/remisesBancairesService';
 
 export const integrationsRouter = Router();
 
@@ -62,7 +63,13 @@ integrationsRouter.get('/gmail/callback', async (req, res) => {
     if (!code) return finish('error', "Code d'autorisation manquant");
 
     const { refreshToken, email } = await exchangeCodeForTokens(code);
-    await saveGmailCredential(consumed.entite, refreshToken, email);
+    // Connexion « lecture des avis bancaires » d'une organisation SaaS, ou
+    // connexion d'envoi historique par entité (groupe).
+    if (consumed.usage === 'avis_bancaires' && consumed.organisationId) {
+      await saveConnexionAvisBancaires(consumed.organisationId, refreshToken, email);
+    } else {
+      await saveGmailCredential(consumed.entite, refreshToken, email);
+    }
     finish('connected');
   } catch (err) {
     finish('error', err instanceof Error ? err.message : 'Erreur inconnue');

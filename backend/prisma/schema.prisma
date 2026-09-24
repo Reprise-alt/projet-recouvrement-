@@ -256,7 +256,22 @@ model Cheque {
   statut          String        @default("enregistre")
   createdAt       DateTime      @default(now())
 
+  // Origine de l'encaissement : "scan" (chèque photographié) ou "banque" (avis
+  // bancaire lu automatiquement dans la boîte mail de l'organisation).
+  source          String        @default("scan")
+  // Nature de l'encaissement bancaire : "cheque" | "virement" | "espece".
+  type            String        @default("cheque")
+  // Agence de dépôt (avis bancaire) et date d'échéance de la remise.
+  agence          String?
+  echeance        DateTime?
+  // Identifiant du message Gmail dont provient l'avis — UNIQUE, garantit une
+  // ingestion idempotente (jamais deux fois le même avis).
+  emailMessageId  String?       @unique
+  // Pré-rapprochement automatique : ids de facture(s) proposé(s) par le montant.
+  facturesProposees String?
+
   @@index([organisationId])
+  @@index([organisationId, source, statut])
 }
 
 // Alerte « chèque disponible » : le débiteur clique dans la relance pour signaler
@@ -691,10 +706,20 @@ model IntegrationCredential {
   id           String             @id @default(cuid())
   service      ServiceIntegration
   entite       String?
+  // Rattachement à une organisation SaaS (isolation tenant). Les connexions
+  // historiques du groupe (envoi de relances par entité) restent en null ; les
+  // connexions Gmail « lecture des avis bancaires » d'un client SaaS portent son
+  // organisationId, ce qui garantit qu'un avis lu ne peut atterrir que chez lui.
+  organisationId String?
   statut       StatutIntegration  @default(inactif)
   derniereSync DateTime?
   compteEmail  String?
   refreshToken String?
+  // Portée de la connexion : "envoi" (relances) ou "avis_bancaires" (lecture
+  // seule des emails de banque). Une même boîte peut avoir les deux.
+  usage        String             @default("envoi")
+
+  @@index([organisationId, service, usage])
 }
 
 // Type de course terrain -- liste fermée + "autre" en secours pour ne

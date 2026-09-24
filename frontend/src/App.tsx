@@ -651,7 +651,7 @@ export function App() {
       {integrationsOpen && <IntegrationsPanel onClose={() => setIntegrationsOpen(false)} />}
       {superAdminOpen && <SuperAdminPanel onClose={() => setSuperAdminOpen(false)} />}
       {parrainageOpen && <ParrainagePanel onClose={() => setParrainageOpen(false)} />}
-      {rapprochementOpen && <RapprochementPanel onClose={() => setRapprochementOpen(false)} onChanged={bumpDataVersion} ongletInitial={rapprochementOnglet} />}
+      {rapprochementOpen && <RapprochementPanel onClose={() => setRapprochementOpen(false)} onChanged={bumpDataVersion} ongletInitial={rapprochementOnglet} roleOrg={user.roleOrg} />}
       {chequesOpen && <ChequesDeclaresPanel onClose={() => setChequesOpen(false)} onChanged={bumpDataVersion} />}
       {offresOpen && (
         <div className="modal-overlay open" onClick={(e) => e.target === e.currentTarget && setOffresOpen(false)}>

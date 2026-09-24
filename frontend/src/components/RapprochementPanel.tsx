@@ -2,21 +2,24 @@ import { useState } from 'react';
 import { Banknote, FileSpreadsheet, Landmark, ScanLine, Wallet } from 'lucide-react';
 import { ImportRelevePanel } from './ImportRelevePanel';
 import { ChequeScanLot } from './ChequeScanLot';
+import { RemisesBancairesTab } from './RemisesBancairesTab';
+import type { RoleOrg } from '../api/types';
 
 // Module « Rapprochement » : regroupe les sources d'encaissement à rapprocher des
-// factures. Sous-modules : intégrateurs de paiement (Julaya…), portefeuilles
-// virtuels (Wave / Orange Money), scan de chèque, et plus tard preuve de virement.
-type Onglet = 'integrateurs' | 'portefeuilles' | 'cheque' | 'virement';
+// factures. Sous-modules : avis bancaires lus automatiquement (remises), intégrateurs
+// de paiement (Julaya…), portefeuilles virtuels (Wave / Orange Money), scan de chèque.
+type Onglet = 'banque' | 'integrateurs' | 'portefeuilles' | 'cheque' | 'virement';
 
 const ONGLETS: { id: Onglet; label: string; icon: React.ReactNode }[] = [
+  { id: 'banque', label: 'Encaissements bancaires', icon: <Banknote size={15} /> },
   { id: 'integrateurs', label: 'Intégrateurs de paiement', icon: <FileSpreadsheet size={15} /> },
   { id: 'portefeuilles', label: 'Portefeuilles virtuels', icon: <Wallet size={15} /> },
   { id: 'cheque', label: 'Scan de chèque', icon: <ScanLine size={15} /> },
   { id: 'virement', label: 'Preuve de virement', icon: <Landmark size={15} /> },
 ];
 
-export function RapprochementPanel({ onClose, onChanged, ongletInitial }: { onClose: () => void; onChanged?: () => void; ongletInitial?: Onglet }) {
-  const [onglet, setOnglet] = useState<Onglet>(ongletInitial ?? 'integrateurs');
+export function RapprochementPanel({ onClose, onChanged, ongletInitial, roleOrg }: { onClose: () => void; onChanged?: () => void; ongletInitial?: Onglet; roleOrg?: RoleOrg | null }) {
+  const [onglet, setOnglet] = useState<Onglet>(ongletInitial ?? 'banque');
   const [julayaOpen, setJulayaOpen] = useState(false);
 
   return (
@@ -40,6 +43,8 @@ export function RapprochementPanel({ onClose, onChanged, ongletInitial }: { onCl
             </button>
           ))}
         </div>
+
+        {onglet === 'banque' && <RemisesBancairesTab roleOrg={roleOrg} onChanged={onChanged} />}
 
         {onglet === 'integrateurs' && (
           <SousModule
