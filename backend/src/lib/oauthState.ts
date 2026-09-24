@@ -13,21 +13,25 @@ import crypto from 'crypto';
 interface PendingState {
   expiry: number;
   entite: string;
+  // Connexion « lecture des avis bancaires » scopée à une organisation SaaS
+  // (usage = 'avis_bancaires'). Absents pour la connexion d'envoi par entité.
+  organisationId?: string | null;
+  usage?: string;
 }
 
 const pendingStates = new Map<string, PendingState>();
 const STATE_TTL_MS = 10 * 60 * 1000;
 
-export function createState(entite: string): string {
+export function createState(entite: string, opts?: { organisationId?: string | null; usage?: string }): string {
   const state = crypto.randomBytes(24).toString('hex');
-  pendingStates.set(state, { expiry: Date.now() + STATE_TTL_MS, entite });
+  pendingStates.set(state, { expiry: Date.now() + STATE_TTL_MS, entite, organisationId: opts?.organisationId ?? null, usage: opts?.usage });
   return state;
 }
 
-export function consumeState(state: string | undefined): { entite: string } | null {
+export function consumeState(state: string | undefined): { entite: string; organisationId?: string | null; usage?: string } | null {
   if (!state) return null;
   const entry = pendingStates.get(state);
   pendingStates.delete(state);
   if (!entry || entry.expiry <= Date.now()) return null;
-  return { entite: entry.entite };
+  return { entite: entry.entite, organisationId: entry.organisationId, usage: entry.usage };
 }

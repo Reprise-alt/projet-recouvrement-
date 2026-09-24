@@ -1,7 +1,14 @@
 import { google } from 'googleapis';
 import { randomBytes } from 'crypto';
 
-const SCOPES = ['https://www.googleapis.com/auth/gmail.send', 'https://www.googleapis.com/auth/userinfo.email'];
+const SCOPES = [
+  'https://www.googleapis.com/auth/gmail.send',
+  // Lecture seule : indispensable pour lire les avis bancaires (remises). Google
+  // fige les scopes sur le refresh token au consentement → il faut reconnecter
+  // la boîte pour que ce scope prenne effet.
+  'https://www.googleapis.com/auth/gmail.readonly',
+  'https://www.googleapis.com/auth/userinfo.email',
+];
 
 function requiredEnv(name: string): string {
   const v = process.env[name];
@@ -115,6 +122,59 @@ function buildRawMessage(to: string, subject: string, body: string, attachments:
   parts.push('', `--${boundary}--`);
 
   return encodeBase64Url(parts.join('\r\n'));
+}
+
+export interface EmailBancaireLu {
+  id: string;
+  from: string;
+  subject: string;
+  date: Date | null;
+  text: string;
+}
+
+// Décode récursivement le texte (text/plain, sinon text/html détaguée) d'un
+// message Gmail. Les corps sont en base64url.
+function extraireTexte(payload: any): string {
+  if (!payload) return '';
+  const dec = (data?: string) => (data ? Buffer.from(data.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf-8') : '');
+  const collecte = (part: any, mime: string): string => {
+    if (!part) return '';
+    if (part.mimeType === mime && part.body?.data) return dec(part.body.data);
+    if (Array.isArray(part.parts)) return part.parts.map((p: any) => collecte(p, mime)).join('\n');
+    return '';
+  };
+  const plain = collecte(payload, 'text/plain');
+  if (plain.trim()) return plain;
+  const html = collecte(payload, 'text/html');
+  return html.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/[ \t]+/g, ' ');
+}
+
+// Lit les emails bancaires (liste blanche d'expéditeurs) reçus après `apres`.
+// LECTURE STRICTE : la requête Gmail ne remonte QUE les messages de ces
+// expéditeurs — aucun autre email de la boîte n'est lu ni stocké.
+export async function lireEmailsBancaires(
+  refreshToken: string,
+  expediteurs: string[],
+  apres?: Date,
+  max = 30,
+): Promise<EmailBancaireLu[]> {
+  if (!expediteurs.length) return [];
+  const client = getOAuth2Client();
+  client.setCredentials({ refresh_token: refreshToken });
+  const gmail = google.gmail({ version: 'v1', auth: client });
+  const fromQuery = `from:(${expediteurs.join(' OR ')})`;
+  const dateQuery = apres ? ` after:${Math.floor(apres.getTime() / 1000)}` : ' newer_than:14d';
+  const list = await gmail.users.messages.list({ userId: 'me', q: fromQuery + dateQuery, maxResults: max });
+  const out: EmailBancaireLu[] = [];
+  for (const ref of list.data.messages ?? []) {
+    if (!ref.id) continue;
+    const msg = await gmail.users.messages.get({ userId: 'me', id: ref.id, format: 'full' });
+    const headers = msg.data.payload?.headers ?? [];
+    const h = (name: string) => headers.find((x) => (x.name ?? '').toLowerCase() === name)?.value ?? '';
+    const internal = msg.data.internalDate ? new Date(parseInt(msg.data.internalDate, 10)) : null;
+    out.push({ id: ref.id, from: h('from'), subject: h('subject'), date: internal, text: extraireTexte(msg.data.payload) });
+  }
+  return out;
 }
 
 // Envoie un email via l'API Gmail avec le refresh token stocké pour le

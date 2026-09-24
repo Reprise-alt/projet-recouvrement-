@@ -25,6 +25,8 @@ import { abonnementRouter } from './routes/abonnement';
 import { parrainageRouter } from './routes/parrainage';
 import { exploitantRouter } from './routes/exploitant';
 import { relancesCronRouter } from './routes/relancesCron';
+import { remisesRouter } from './routes/remises';
+import { remisesCronRouter } from './routes/remisesCron';
 import { contactRouter } from './routes/contact';
 import { tachesRouter } from './routes/taches';
 import { operationsRouter } from './routes/operations';
@@ -89,8 +91,11 @@ export function createApp() {
   app.use('/api/abonnement', abonnementRouter);
   app.use('/api/parrainage', parrainageRouter);
   app.use('/api/exploitant', exploitantRouter);
+  // Encaissements bancaires lus dans la boîte de l'organisation (remises).
+  app.use('/api/remises', remisesRouter);
   app.use('/api/cron/relances', relancesCronRouter);
   app.use('/api/cron/reporting', reportingCronRouter);
+  app.use('/api/cron/remises', remisesCronRouter);
   app.use('/api/contact', contactRouter);
   app.use('/api/taches', tachesRouter);
   app.use('/api/operations', operationsRouter);
