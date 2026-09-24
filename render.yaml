@@ -235,6 +235,28 @@ services:
           type: web
           envVarKey: RELANCES_CRON_SECRET
 
+  # ── SaaS : cron des avis bancaires (remises chèque / virement / espèce) ────
+  # Chaque matin à 06:00 UTC (= 06:00 Dakar) : pour chaque organisation ayant
+  # connecté sa boîte « avis bancaires », lit les nouveaux avis de sa banque et
+  # les pré-rapproche par montant. Idempotent (dédup par identifiant de message),
+  # donc sans risque de doublon si le passage rejoue. Même secret que les relances.
+  - type: cron
+    name: olu360-saas-remises-cron
+    runtime: node
+    rootDir: backend
+    plan: starter
+    schedule: "0 6 * * *"
+    buildCommand: echo "no build"
+    startCommand: 'curl -fsS --retry 5 --retry-all-errors --retry-connrefused --retry-delay 10 --max-time 300 -X POST "https://$SAAS_BACKEND_HOST/api/cron/remises" -H "X-Cron-Secret: $CRON_SECRET"'
+    envVars:
+      - key: SAAS_BACKEND_HOST
+        value: olu360-saas-backend.onrender.com
+      - key: CRON_SECRET
+        fromService:
+          name: olu360-saas-backend
+          type: web
+          envVarKey: RELANCES_CRON_SECRET
+
   # ── Console Opérations ───────────────────────────────────────────────────
   - type: web
     name: operations-frontend
