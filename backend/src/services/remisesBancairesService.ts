@@ -70,8 +70,11 @@ export async function ingererRemisesBancaires(organisationId: string): Promise<R
 
   // Factures impayées de l'org (RLS actif → uniquement ce tenant), pour le
   // pré-rapprochement par montant.
+  // ISOLATION : le pré-rapprochement ne doit JAMAIS matcher une facture d'un
+  // autre tenant. Filtrage explicite par organisation (la synchro manuelle
+  // n'ouvre pas de transaction tenant à cause de l'appel Gmail).
   const factures = await prisma.facture.findMany({
-    where: { statut: 'impayee' },
+    where: { statut: 'impayee', client: { organisationId } },
     select: { id: true, numero: true, montant: true, clientId: true },
   });
   const facturesPourMatch = factures.map((f) => ({ id: f.id, numero: f.numero, montant: f.montant }));
@@ -87,7 +90,7 @@ export async function ingererRemisesBancaires(organisationId: string): Promise<R
       continue;
     }
     // Idempotence : jamais deux fois le même message.
-    const existe = await prisma.cheque.findFirst({ where: { emailMessageId: email.id }, select: { id: true } });
+    const existe = await prisma.cheque.findFirst({ where: { emailMessageId: email.id, organisationId }, select: { id: true } });
     if (existe) continue;
 
     const prop = proposerFactures(avis.montant, facturesPourMatch);

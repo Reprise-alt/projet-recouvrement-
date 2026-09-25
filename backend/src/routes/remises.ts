@@ -53,10 +53,15 @@ remisesRouter.post('/sync', requireAuth, requireRole('admin', 'manager_entite', 
 });
 
 // Liste des encaissements bancaires (+ pré-rapprochement détaillé).
-remisesRouter.get('/', requireAuth, async (_req, res, next) => {
+remisesRouter.get('/', requireAuth, async (req, res, next) => {
   try {
+    // ISOLATION : filtrage EXPLICITE par organisation. Ce routeur n'est pas sous
+    // tenantScope (la synchro fait un appel Gmail long, incompatible avec une
+    // transaction tenant ouverte), donc on ne compte pas sur la RLS ici — chaque
+    // requête est bornée à l'organisation de l'utilisateur.
+    const orgId = req.user!.organisationId;
     const remises = await prisma.cheque.findMany({
-      where: { source: 'banque' },
+      where: { source: 'banque', organisationId: orgId },
       orderBy: { createdAt: 'desc' },
       include: { client: { select: { id: true, nom: true } } },
       take: 200,
@@ -66,7 +71,7 @@ remisesRouter.get('/', requireAuth, async (_req, res, next) => {
     ].filter(Boolean);
     const factures = idsProp.length
       ? await prisma.facture.findMany({
-          where: { id: { in: idsProp } },
+          where: { id: { in: idsProp }, client: { organisationId: orgId } },
           select: { id: true, numero: true, montant: true, statut: true, client: { select: { id: true, nom: true } } },
         })
       : [];
@@ -98,7 +103,9 @@ remisesRouter.get('/', requireAuth, async (_req, res, next) => {
 // Valide un encaissement bancaire : marque les factures choisies réglées.
 remisesRouter.post('/:id/valider', requireAuth, requireRole('admin', 'manager_entite', 'comptable'), async (req, res, next) => {
   try {
-    const remise = await prisma.cheque.findFirst({ where: { id: req.params.id, source: 'banque' } });
+    const orgId = req.user!.organisationId;
+    // ISOLATION : la remise DOIT appartenir à l'organisation de l'utilisateur.
+    const remise = await prisma.cheque.findFirst({ where: { id: req.params.id, source: 'banque', organisationId: orgId } });
     if (!remise) return res.status(404).json({ error: 'Encaissement introuvable' });
     const b = (req.body ?? {}) as Record<string, unknown>;
     const clientId = typeof b.clientId === 'string' && b.clientId.trim() ? b.clientId.trim() : null;
@@ -106,10 +113,12 @@ remisesRouter.post('/:id/valider', requireAuth, requireRole('admin', 'manager_en
 
     let numerosRegles: string[] = [];
     if (clientId && factureIds.length) {
-      const c = await prisma.client.findUnique({ where: { id: clientId }, select: { id: true } });
+      // Le client visé doit lui aussi appartenir à l'organisation (jamais régler
+      // une facture d'un autre tenant).
+      const c = await prisma.client.findFirst({ where: { id: clientId, organisationId: orgId }, select: { id: true } });
       if (!c) return res.status(400).json({ error: 'Client introuvable' });
       const factures = await prisma.facture.findMany({
-        where: { id: { in: factureIds }, clientId, statut: 'impayee' },
+        where: { id: { in: factureIds }, clientId, statut: 'impayee', client: { organisationId: orgId } },
         select: { id: true, numero: true },
       });
       numerosRegles = factures.map((f) => f.numero);
