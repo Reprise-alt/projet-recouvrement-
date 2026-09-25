@@ -126,7 +126,9 @@ export const FREQUENCE_LABELS: Record<string, string> = {
 export function fmtFCFA(n: number): string {
   // Espaces insécables partout (séparateurs de milliers ET avant « FCFA ») pour
   // que le montant tienne toujours sur une seule ligne, jamais coupé.
-  return n.toLocaleString('fr-FR').replace(/\s/g, ' ') + ' FCFA';
+  // Le franc CFA n'a pas de centimes : on arrondit au franc pour éviter les
+  // décimales parasites issues des sommes en virgule flottante.
+  return (Math.round(Number(n) || 0)).toLocaleString('fr-FR').replace(/\s/g, ' ') + ' FCFA';
 }
 
 // Montant compact (155 433 850 → « 155,4 M ») — pour les espaces contraints

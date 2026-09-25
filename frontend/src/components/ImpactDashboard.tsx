@@ -79,9 +79,9 @@ export function ImpactDashboard({ onVoirReporting }: { onVoirReporting?: () => v
         />
         <Tile
           icon={<Wallet size={15} />}
-          label="Encours en retard"
+          label="Encours échu (en retard)"
           value={`${fmtFCFAcompact(data.encoursRetard.montant)} FCFA`}
-          sub={`${data.encoursRetard.nombre} facture${data.encoursRetard.nombre > 1 ? 's' : ''} échue${data.encoursRetard.nombre > 1 ? 's' : ''}`}
+          sub={`${data.encoursRetard.nombre} facture${data.encoursRetard.nombre > 1 ? 's' : ''} déjà échue${data.encoursRetard.nombre > 1 ? 's' : ''} — hors « à échoir »`}
           tone={data.encoursRetard.montant > 0 ? 'amber' : 'success'}
         />
         <Tile
