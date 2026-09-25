@@ -75,6 +75,7 @@ clientsRouter.get('/console', async (req, res, next) => {
   try {
     const entiteFilter = resolveEntiteScope(req.user!, req.query.entite);
     const config = await getConfig();
+    const seuils = await getContentieuxSeuils();
     const where = entiteWhere(entiteFilter);
 
     // MISE À L'ÉCHELLE (portefeuilles à ~100k+ factures) : on n'ouvre JAMAIS
@@ -92,6 +93,7 @@ clientsRouter.get('/console', async (req, res, next) => {
         where: { statut: 'impayee', client: where },
         _sum: { montant: true },
         _min: { dateEcheance: true },
+        _count: { _all: true },
       }),
       prisma.facture.findMany({
         where: { statut: 'payee', datePaiement: { not: null }, client: where },
@@ -101,7 +103,7 @@ clientsRouter.get('/console', async (req, res, next) => {
         where,
         select: {
           id: true, nom: true, entite: true, contact: true, email: true, tel: true, note: true,
-          prochaineRelance: true, frequenceFacturation: true,
+          prochaineRelance: true, frequenceFacturation: true, resilie: true, contentieuxExclu: true,
           contacts: { orderBy: { createdAt: 'asc' }, select: { id: true, nom: true, fonction: true, email: true, tel: true } },
           actions: { orderBy: { date: 'desc' }, take: 1, select: { label: true, date: true, palier: true } },
         },
@@ -109,7 +111,7 @@ clientsRouter.get('/console', async (req, res, next) => {
     ]);
 
     const impayeParClient = new Map(
-      impayeRoll.map((r) => [r.clientId, { encours: r._sum.montant ?? 0, oldest: r._min.dateEcheance }]),
+      impayeRoll.map((r) => [r.clientId, { encours: r._sum.montant ?? 0, oldest: r._min.dateEcheance, nb: r._count._all }]),
     );
     const payesParClient = new Map<string, { dateEcheance: Date; datePaiement: Date }[]>();
     for (const p of payes) {
@@ -182,6 +184,20 @@ clientsRouter.get('/console', async (req, res, next) => {
       .map(({ c, cwf, encours, palier }) => {
         const oldest = clientOldestEcheance(cwf);
         const derniere = c.actions[0];
+        const joursRetard = clientJoursRetard(cwf);
+        // Éligibilité contentieux, version CONSERVATRICE compatible avec
+        // l'agrégat (on ne charge pas les factures détaillées ici) : on couvre
+        // les critères « ≥ 3 impayées » et « client résilié » + les garde-fous
+        // (âge/plancher). Le critère « ≥ 2 échéances CONSÉCUTIVES » exige
+        // l'ordre des factures : il est vérifié précisément sur la fiche client
+        // et au moment de la bascule. Ce drapeau ne fait donc JAMAIS de
+        // faux positif — au pire il manque le cas « 2 consécutives seules ».
+        const nbImpayees = impayeParClient.get(c.id)?.nb ?? 0;
+        const contentieuxEligible =
+          !c.contentieuxExclu &&
+          (nbImpayees >= 3 || !!c.resilie) &&
+          joursRetard >= seuils.ageMinJours &&
+          encours >= seuils.montantPlancher;
         return {
           id: c.id,
           nom: c.nom,
@@ -192,11 +208,14 @@ clientsRouter.get('/console', async (req, res, next) => {
           note: c.note,
           prochaineRelance: c.prochaineRelance,
           frequenceFacturation: c.frequenceFacturation,
+          resilie: c.resilie,
+          contentieuxExclu: c.contentieuxExclu,
           contacts: c.contacts.map((ct) => ({ id: ct.id, nom: ct.nom, fonction: ct.fonction, email: ct.email, tel: ct.tel })),
           encours,
-          joursRetard: clientJoursRetard(cwf),
+          joursRetard,
           palier,
           retardInhabituel: clientRetardInhabituel(cwf),
+          contentieuxEligible,
           echeanceLaPlusAncienne: oldest?.dateEcheance ?? null,
           derniereAction: derniere ? { label: derniere.label, date: derniere.date, palier: derniere.palier } : null,
         };

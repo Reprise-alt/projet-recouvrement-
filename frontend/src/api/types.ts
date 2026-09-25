@@ -141,10 +141,13 @@ export interface ClientListItem {
   prochaineRelance: string | null;
   frequenceFacturation: FrequenceFacturation;
   contacts: ContactSummary[];
+  resilie: boolean;
+  contentieuxExclu: boolean;
   encours: number;
   joursRetard: number;
   palier: number;
   retardInhabituel: boolean;
+  contentieuxEligible: boolean;
   echeanceLaPlusAncienne: string | null;
   derniereAction: DerniereAction | null;
 }
