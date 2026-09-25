@@ -9,7 +9,10 @@ import { requireAuth, requireRole } from '../middleware/auth';
 import { getCapacites } from '../middleware/capacite';
 
 export const importRouter = Router();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+// 100 Mo : un fichier de centaines de milliers de factures (CSV surtout) dépasse
+// facilement 20 Mo. Le fichier est tenu en mémoire le temps du parse — pour les
+// très gros imports, prévoir une instance backend plus dotée en RAM.
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
 
 // L'import de fichiers touche potentiellement les 3 entités et crée des
 // clients — traité comme une opération globale, réservée à l'admin (§4),
