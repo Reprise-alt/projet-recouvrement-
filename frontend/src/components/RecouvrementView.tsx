@@ -186,18 +186,22 @@ export function RecouvrementView({ entityFilter, role, reloadKey, onImport, canR
         <div className="kpi">
           <div className="kpi-label"><Wallet size={13} /> Encours total</div>
           <div className="kpi-value currency">{kpis.data ? fmtFCFA(kpis.data.totalEncours) : '—'}</div>
+          <div className="kpi-sub">Toutes les factures impayées — échu + à échoir</div>
         </div>
         <div className="kpi">
           <div className="kpi-label"><Users size={13} /> Clients en retard</div>
           <div className="kpi-value amber">{kpis.data?.enRetard ?? '—'}</div>
+          <div className="kpi-sub">Au moins une facture déjà échue</div>
         </div>
         <div className="kpi">
           <div className="kpi-label"><Gavel size={13} /> En litige (palier ≥ 6)</div>
           <div className="kpi-value danger currency">{kpis.data ? fmtFCFA(kpis.data.contentieux) : '—'}</div>
+          <div className="kpi-sub">Compris dans l'encours échu</div>
         </div>
         <div className="kpi">
           <div className="kpi-label"><Mail size={13} /> Courriers formels à traiter</div>
           <div className="kpi-value amber">{kpis.data?.lettresAEnvoyer ?? '—'}</div>
+          <div className="kpi-sub">Mise en demeure / commandement</div>
         </div>
       </div>
 

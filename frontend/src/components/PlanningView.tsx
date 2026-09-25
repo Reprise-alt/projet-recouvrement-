@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError, buildQuery } from '../api/client';
 import { useResource } from '../hooks/useResource';
 import { ClientListItem, Coursier, Entite, Entreprise, RoleUtilisateur, TachesJourResponse, TypeTacheCoursier } from '../api/types';
-import { MODE_PAIEMENT_LABELS, MOTIF_REPORT_LABELS, TACHE_TYPE_LABELS, tacheStatutAffiche, tachesDoublons } from '../lib/constants';
+import { MODE_PAIEMENT_LABELS, MOTIF_REPORT_LABELS, TACHE_TYPE_LABELS, fmtFCFA, tacheStatutAffiche, tachesDoublons } from '../lib/constants';
 import { CoursiersPanel } from './CoursiersPanel';
 import { TacheModelesPanel } from './TacheModelesPanel';
 import { EntityLogo } from './EntityLogo';
@@ -256,7 +256,7 @@ export function PlanningView({ entityFilter, role }: Props) {
                           {t.label && <div style={{ fontSize: 11.5, color: 'var(--ink-soft)' }}>{t.label}</div>}
                           {t.montant !== null && (
                             <div style={{ fontSize: 11.5, color: 'var(--ink-soft)' }} className="mono">
-                              {t.montant.toLocaleString('fr-FR')} FCFA
+                              {fmtFCFA(t.montant)}
                               {t.modePaiement ? ` · ${MODE_PAIEMENT_LABELS[t.modePaiement]}` : ''}
                             </div>
                           )}
