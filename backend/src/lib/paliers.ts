@@ -53,8 +53,8 @@ export const PALIERS: Palier[] = [
     desc: "Lettre annonçant la suspension du service (livraisons, interventions ou accès plateforme) jusqu'à régularisation",
   },
   { id: 6, label: 'Pénalités', tone: 'danger', key: 'j5', desc: 'Application des pénalités de retard contractuelles' },
-  { id: 7, label: 'Commandement (société)', tone: 'danger', key: 'j6', desc: 'Commandement de payer sur entête société (LRAR) — vaut mise en demeure et bascule le dossier en contentieux' },
-  { id: 8, label: 'Contentieux', tone: 'danger', key: 'j7', desc: 'Dossier passé en contentieux — voie huissier / injonction, suivi dans l’onglet Contentieux' },
+  { id: 7, label: 'Commandement (société)', tone: 'danger', key: 'j6', desc: 'Commandement de payer sur entête société (LRAR) — vaut mise en demeure et ouvre la voie au contentieux' },
+  { id: 8, label: 'Recouvrement judiciaire', tone: 'danger', key: 'j7', desc: 'Retard le plus profond de l’échelle — recouvrement judiciaire envisageable (voie huissier / injonction de payer). Le passage en dossier contentieux reste une décision manuelle, soumise à la règle d’éligibilité.' },
 ];
 
 // Paliers « modifiables » = ceux qui portent un seuil en jours (clé jX), soit
