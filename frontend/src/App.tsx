@@ -30,8 +30,7 @@ import { OffresAbonnement } from './components/OffresAbonnement';
 import { EntityLogo } from './components/EntityLogo';
 import { Entite, Entreprise } from './api/types';
 import { useResource } from './hooks/useResource';
-import { useTheme } from './hooks/useTheme';
-import { Lock, Moon, Sun } from 'lucide-react';
+import { Lock } from 'lucide-react';
 import { ContentieuxUpsell } from './components/ContentieuxUpsell';
 import { PartenaireConsole } from './components/PartenaireConsole';
 import { OperateurConsole } from './components/OperateurConsole';
@@ -121,7 +120,6 @@ export function App() {
     }
   });
   const bumpDataVersion = () => setDataVersion((v) => v + 1);
-  const { theme, toggle: toggleTheme } = useTheme();
 
   const meta = CONSOLE_META[CONSOLE];
 
@@ -522,10 +520,6 @@ export function App() {
             </div>
           </div>
           <div className="rail-foot-actions">
-            <button onClick={toggleTheme} title={theme === 'dark' ? 'Passer en mode jour' : 'Passer en mode nuit'}>
-              {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
-              {theme === 'dark' ? 'Jour' : 'Nuit'}
-            </button>
             <button onClick={() => logout()}>Déconnexion</button>
           </div>
         </div>
