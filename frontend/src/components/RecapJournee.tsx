@@ -66,15 +66,55 @@ function CountUp({ value, format, trigger, duration = 1100 }: { value: number; f
   return <>{format ? format(n) : n.toLocaleString('fr-FR')}</>;
 }
 
-function Fantome({ size = 22 }: { size?: number }) {
+// L'humeur de Fey, lue sur le recouvrement DU JOUR :
+//   • triste     → rien recouvré aujourd'hui (0 facture réglée)
+//   • content    → 1 ou 2 factures recouvrées
+//   • rayonnant  → 3 factures recouvrées ou plus (belle journée)
+//   • curieux    → avant le chargement des données
+type Humeur = 'curieux' | 'triste' | 'content' | 'rayonnant';
+const SEUIL_RAYONNANT = 3; // nb de règlements dans la journée pour « rayonnant »
+function humeurFey(data: RecapData | null): Humeur {
+  if (!data) return 'curieux';
+  const regles = data.facturesReglees ?? 0;
+  if (regles === 0 && (data.encaisse ?? 0) === 0) return 'triste';
+  if (regles >= SEUIL_RAYONNANT) return 'rayonnant';
+  return 'content';
+}
+
+// Le fantôme, avec une bouille qui suit l'humeur. `feature` = couleur des yeux
+// et de la bouche (blanc sur un fantôme coloré ; couleur d'accent sur le bouton
+// où le corps est blanc).
+function Fantome({ size = 22, humeur = 'curieux', feature = 'var(--surface, #fff)' }: { size?: number; humeur?: Humeur; feature?: string }) {
+  const stroke = { stroke: feature, strokeWidth: 1.1, strokeLinecap: 'round' as const, fill: 'none' };
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path
         d="M4 11a8 8 0 0 1 16 0v9.2c0 .7-.8 1.1-1.4.7l-1.5-1a1 1 0 0 0-1.1 0l-1.4 1a1 1 0 0 1-1.2 0l-1.4-1a1 1 0 0 0-1.1 0l-1.4 1a1 1 0 0 1-1.2 0l-1.4-1a1 1 0 0 0-1.1 0l-1.5 1c-.6.4-1.4 0-1.4-.7V11Z"
         fill="currentColor"
       />
-      <circle cx="9.3" cy="10.5" r="1.35" fill="var(--surface, #fff)" />
-      <circle cx="14.7" cy="10.5" r="1.35" fill="var(--surface, #fff)" />
+      {/* Yeux : arcs joyeux quand rayonnant, sinon deux points */}
+      {humeur === 'rayonnant' ? (
+        <>
+          <path d="M8.1 10.9 Q9.3 9.5 10.5 10.9" {...stroke} />
+          <path d="M13.5 10.9 Q14.7 9.5 15.9 10.9" {...stroke} />
+        </>
+      ) : (
+        <>
+          <circle cx="9.3" cy="10.5" r="1.35" fill={feature} />
+          <circle cx="14.7" cy="10.5" r="1.35" fill={feature} />
+        </>
+      )}
+      {/* Sourcils inquiets + bouche tombante quand triste */}
+      {humeur === 'triste' && (
+        <>
+          <path d="M8.2 8.9 L10.1 8.2" {...stroke} strokeWidth={0.9} />
+          <path d="M15.8 8.9 L13.9 8.2" {...stroke} strokeWidth={0.9} />
+          <path d="M9.5 15.3 Q12 13.7 14.5 15.3" {...stroke} />
+        </>
+      )}
+      {humeur === 'content' && <path d="M9.3 14.2 Q12 16.2 14.7 14.2" {...stroke} />}
+      {humeur === 'rayonnant' && <path d="M8.9 13.9 Q12 17 15.1 13.9" {...stroke} strokeWidth={1.2} />}
+      {humeur === 'curieux' && <circle cx="12" cy="14.4" r="0.75" fill={feature} />}
     </svg>
   );
 }
@@ -94,12 +134,12 @@ function saluteFey(): string {
   if (h < 18) return 'Bon aprèm';
   return 'Bonsoir';
 }
-function messageFey(data: RecapData | null, vide: boolean): string {
+function messageFey(data: RecapData | null, humeur: Humeur): string {
   const s = saluteFey();
   if (!data) return `${s} 👋 Je regarde ta journée…`;
-  if (vide) return `${s} 👋 Journée calme pour l’instant — le premier encaissement n’attend que toi 💪`;
-  if (data.facturesReglees >= 2 || data.encaisse > 0) return `${s} 👋 Belle journée, tu assures 🔥`;
-  return `${s} 👋 Ça avance, on continue 💪`;
+  if (humeur === 'triste') return `${s} 👋 Rien d’encaissé pour l’instant — le premier règlement n’attend que toi 💪`;
+  if (humeur === 'rayonnant') return `${s} 👋 Journée en feu, tu assures 🔥`;
+  return `${s} 👋 Belle journée, ça rentre 👏`;
 }
 
 export function RecapJournee() {
@@ -137,6 +177,16 @@ export function RecapJournee() {
     }
   }
 
+  // Chargé une fois au montage : le petit fantôme affiche tout de suite son
+  // humeur (triste/content/rayonnant) sans attendre qu'on l'ouvre.
+  useEffect(() => {
+    if (!chargeUneFois.current) {
+      chargeUneFois.current = true;
+      charger();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Recharge à minuit si la carte reste ouverte d'un jour à l'autre (rare, mais
   // évite d'afficher le récap de la veille).
   useEffect(() => {
@@ -148,6 +198,7 @@ export function RecapJournee() {
 
   const total = data ? data.relances + data.encaisse + data.facturesReglees + data.clientsAJour : 0;
   const journeeVide = !!data && total === 0;
+  const humeur = humeurFey(data);
 
   return (
     <div style={{ position: 'fixed', right: 20, bottom: 20, zIndex: 50, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 10 }}>
@@ -176,7 +227,7 @@ export function RecapJournee() {
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 2 }}>
             <span style={{ color: 'var(--accent)', display: 'inline-flex' }}>
-              <Fantome size={20} />
+              <Fantome size={20} humeur={humeur} />
             </span>
             <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--ink)' }}>Fey<span style={{ fontWeight: 500, color: 'var(--ink-soft)' }}> · ta journée</span></div>
             <button
@@ -187,7 +238,7 @@ export function RecapJournee() {
               ×
             </button>
           </div>
-          <div style={{ fontSize: 12.5, color: 'var(--ink)', marginBottom: 14, lineHeight: 1.45 }}>{messageFey(data, journeeVide)}</div>
+          <div style={{ fontSize: 12.5, color: 'var(--ink)', marginBottom: 14, lineHeight: 1.45 }}>{messageFey(data, humeur)}</div>
 
           {/* Bilan de l'année — toujours affiché dès que les données sont là,
               journée calme ou non. Le taux est calculé sur les factures déjà
@@ -330,7 +381,7 @@ export function RecapJournee() {
           animation: 'recapFloat 3.2s ease-in-out infinite',
         }}
       >
-        <Fantome size={24} />
+        <Fantome size={24} humeur={humeur} feature={open ? 'var(--accent-dark)' : 'var(--accent)'} />
       </button>
     </div>
   );
