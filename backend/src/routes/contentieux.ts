@@ -50,6 +50,7 @@ import {
 import { logoEntite, mentionsLegales } from '../lib/actes/mentionsLegales';
 import { IssueDossier, StatutActe, StatutDossierContentieux, StatutProposition, TypePiece, TypeActe } from '@prisma/client';
 import { eligibiliteContentieux } from '../lib/paliers';
+import { getContentieuxSeuils } from '../services/configService';
 
 export const contentieuxRouter = Router();
 import { tenantScope } from '../middleware/tenant';
@@ -1017,12 +1018,18 @@ contentieuxRouter.post('/basculer', async (req, res, next) => {
       where: { clientId },
       select: { montant: true, dateEcheance: true, statut: true },
     });
-    const elig = eligibiliteContentieux({
-      factures: toutesFactures,
-      frequenceFacturation: client.frequenceFacturation,
-      resilie: client.resilie,
-      contentieuxExclu: client.contentieuxExclu,
-    });
+    const seuils = await getContentieuxSeuils();
+    const elig = eligibiliteContentieux(
+      {
+        factures: toutesFactures,
+        frequenceFacturation: client.frequenceFacturation,
+        resilie: client.resilie,
+        contentieuxExclu: client.contentieuxExclu,
+      },
+      undefined,
+      seuils.ageMinJours,
+      seuils.montantPlancher,
+    );
     if (client.contentieuxExclu) {
       return res.status(409).json({
         error: 'Ce client est exclu du contentieux — retirez l’exclusion avant de basculer.',

@@ -220,6 +220,11 @@ model Organisation {
   // Envoi automatique du rapport mensuel : email destinataire (null = désactivé).
   // Le cron mensuel génère le PDF du mois écoulé et l'envoie à cette adresse.
   reportingEmail       String?
+  // Règle contentieux (garde-fous), réglables par société. null = valeur par
+  // défaut (90 j / 50 000 FCFA). Âge minimum de la plus ancienne facture impayée
+  // et encours minimum avant qu'un client soit éligible au contentieux.
+  contentieuxAgeMinJours     Int?
+  contentieuxMontantPlancher Int?
 
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt

@@ -1,5 +1,5 @@
 import { prisma, currentOrganisationId } from '../db';
-import { CLE_PAR_PALIER, DEFAULT_CONFIG, PALIERS_MODIFIABLES, PALIER_PAR_CLE, PalierConfig } from '../lib/paliers';
+import { CLE_PAR_PALIER, CONTENTIEUX_AGE_MIN_JOURS, CONTENTIEUX_MONTANT_PLANCHER, DEFAULT_CONFIG, PALIERS_MODIFIABLES, PALIER_PAR_CLE, PalierConfig } from '../lib/paliers';
 
 // Organisation socle du groupe : utilisée comme repli hors contexte tenant
 // (déploiement groupe RLS désactivée), cohérent avec le défaut de colonne.
@@ -36,6 +36,21 @@ export async function updateConfig(patch: Partial<PalierConfig>): Promise<Palier
     });
   }
   return getConfig();
+}
+
+// Seuils de la règle contentieux (garde-fous) de l'organisation courante :
+// âge minimum de la plus ancienne facture impayée + montant plancher d'encours.
+// Réglés par société sur Organisation ; toute valeur absente retombe sur le
+// défaut du code (CONTENTIEUX_AGE_MIN_JOURS / CONTENTIEUX_MONTANT_PLANCHER).
+export async function getContentieuxSeuils(): Promise<{ ageMinJours: number; montantPlancher: number }> {
+  const org = await prisma.organisation.findUnique({
+    where: { id: orgCourante() },
+    select: { contentieuxAgeMinJours: true, contentieuxMontantPlancher: true },
+  });
+  return {
+    ageMinJours: org?.contentieuxAgeMinJours ?? CONTENTIEUX_AGE_MIN_JOURS,
+    montantPlancher: org?.contentieuxMontantPlancher ?? CONTENTIEUX_MONTANT_PLANCHER,
+  };
 }
 
 // ── Réglages complets d'un palier (jours + activation + libellé) ────────────
