@@ -145,6 +145,80 @@ export function clientRetardInhabituel(client: ClientWithFactures): boolean {
   return joursRetard > Math.max(moyenne, 0) * 2;
 }
 
+// ── Règle d'éligibilité au CONTENTIEUX ────────────────────────────────────
+// Le contentieux ne se déclenche PLUS sur le seul âge d'une facture (une vieille
+// facture isolée est souvent un oubli / mauvais lettrage / facture non reçue).
+// Il se déclenche sur un COMPORTEMENT de non-paiement :
+//   • au moins 3 factures impayées, OU
+//   • au moins 2 factures impayées CONSÉCUTIVES (aucune payée entre elles), OU
+//   • client résilié (facturation arrêtée) mais toujours débiteur,
+// ET deux garde-fous : la plus ancienne dépasse un âge minimum, et l'encours
+// dépasse un montant plancher (une procédure coûte plus qu'une créance dérisoire).
+// Un agent peut toujours EXCLURE (contentieuxExclu) ou FORCER (hors de cette
+// fonction, au niveau de la bascule) un client.
+
+// Âge minimum de la plus ancienne facture impayée (jours de retard) et encours
+// minimum (FCFA) avant qu'un client soit éligible au contentieux. Valeurs par
+// défaut — pourront devenir configurables par organisation.
+export const CONTENTIEUX_AGE_MIN_JOURS = 90;
+export const CONTENTIEUX_MONTANT_PLANCHER = 50000;
+
+// Plus longue série de factures impayées CONSÉCUTIVES dans l'ordre des
+// échéances (une facture payée coupe la série). Janv+Fév impayées = 2 ;
+// Janv impayée, Fév payée, Juin impayée = 1 (non successives).
+export function maxImpayeesConsecutives(client: ClientWithFactures): number {
+  const tri = client.factures
+    .slice()
+    .sort((a, b) => new Date(a.dateEcheance).getTime() - new Date(b.dateEcheance).getTime());
+  let serie = 0;
+  let max = 0;
+  for (const f of tri) {
+    if (f.statut === 'impayee') {
+      serie += 1;
+      if (serie > max) max = serie;
+    } else {
+      serie = 0;
+    }
+  }
+  return max;
+}
+
+export interface EligibiliteContentieux {
+  eligible: boolean;
+  motifs: string[]; // ce qui déclenche (volume / successives / résilié)
+  bloquants: string[]; // garde-fous non remplis (âge, montant, exclusion)
+}
+
+export function eligibiliteContentieux(
+  client: ClientWithFactures & { resilie?: boolean | null; contentieuxExclu?: boolean | null },
+  config: PalierConfig = DEFAULT_CONFIG,
+  ageMinJours: number = CONTENTIEUX_AGE_MIN_JOURS,
+  montantPlancher: number = CONTENTIEUX_MONTANT_PLANCHER,
+): EligibiliteContentieux {
+  void config; // réservé (seuils par organisation à venir)
+  const motifs: string[] = [];
+  const bloquants: string[] = [];
+
+  if (client.contentieuxExclu) return { eligible: false, motifs, bloquants: ['Exclu manuellement du contentieux'] };
+
+  const impayees = client.factures.filter((f) => f.statut === 'impayee');
+  if (!impayees.length) return { eligible: false, motifs, bloquants: ['Aucune facture impayée'] };
+
+  // Critères déclencheurs (au moins un requis)
+  if (impayees.length >= 3) motifs.push(`${impayees.length} factures impayées`);
+  if (maxImpayeesConsecutives(client) >= 2) motifs.push('≥ 2 échéances consécutives impayées');
+  if (client.resilie) motifs.push('Client résilié avec impayé');
+
+  // Garde-fous (tous requis)
+  const jours = clientJoursRetard(client);
+  const encours = clientEncours(client);
+  if (jours < ageMinJours) bloquants.push(`Retard le plus ancien < ${ageMinJours} j (${jours} j)`);
+  if (encours < montantPlancher) bloquants.push(`Encours < ${montantPlancher.toLocaleString('fr-FR')} FCFA`);
+
+  const eligible = motifs.length > 0 && bloquants.length === 0;
+  return { eligible, motifs, bloquants };
+}
+
 // Type délibérément plus étroit que FactureLike (pas de montant) : la route
 // qui appelle enLitigeSignal ne sélectionne même pas ce champ en base, pour
 // que l'isolation financière du module Opérations ne dépende pas d'une

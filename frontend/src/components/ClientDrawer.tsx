@@ -26,7 +26,9 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
   const { data: signalOperations } = useResource<SignalOperations>(`/api/clients/${clientId}/signal-operations`);
   // Dossier contentieux du client — chargé seulement à partir du palier 7
   // (« Commandement société »), pour proposer la bascule ou renvoyer au dossier.
-  const dossierContentieuxPath = client && client.palier >= 7 ? `/api/contentieux/client/${clientId}/dossier` : null;
+  // On charge le dossier quel que soit le palier : le passage en contentieux
+  // n'est plus piloté par l'âge (palier) mais par la règle d'éligibilité.
+  const dossierContentieuxPath = client ? `/api/contentieux/client/${clientId}/dossier` : null;
   const { data: dossierContentieux, refetch: refetchDossier } = useResource<DossierRef | null>(dossierContentieuxPath);
 
   const [editingContact, setEditingContact] = useState(false);
@@ -371,17 +373,36 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
     );
   }
 
-  async function handleBasculer() {
-    if (!confirm('Basculer ce client en contentieux ?\n\nUn dossier contentieux et un brouillon de commandement de payer (société) seront préparés automatiquement. L’envoi restera à valider dans l’onglet Contentieux.')) return;
+  async function handleBasculer(force = false) {
+    const elig = client?.contentieux;
+    if (!force && elig && !elig.eligible) {
+      const raison = elig.bloquants.length ? elig.bloquants.join(' · ') : 'ne remplit pas la règle';
+      if (!confirm(`Ce client ne remplit PAS la règle de passage en contentieux (${raison}).\n\nForcer le passage quand même ?`)) return;
+      force = true;
+    } else if (!confirm('Basculer ce client en contentieux ?\n\nUn dossier contentieux et un brouillon de commandement de payer (société) seront préparés automatiquement. L’envoi restera à valider dans l’onglet Contentieux.')) {
+      return;
+    }
     setBusy(true);
     try {
-      const r = await api.post<{ dossier: DossierRef; existant: boolean }>('/api/contentieux/basculer', { clientId });
+      const r = await api.post<{ dossier: DossierRef; existant: boolean }>('/api/contentieux/basculer', { clientId, force });
       showToast(
         r.existant
           ? `Déjà en contentieux : ${r.dossier.reference}`
           : `Basculé en contentieux : ${r.dossier.reference} — brouillon de commandement prêt dans l’onglet Contentieux`,
       );
       refetchDossier();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function setContentieuxFlag(patch: { resilie?: boolean; contentieuxExclu?: boolean }) {
+    setBusy(true);
+    try {
+      await api.patch(`/api/clients/${clientId}/contentieux-flags`, patch);
+      afterMutation();
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Erreur');
     } finally {
@@ -945,11 +966,44 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
               <div style={{ color: 'var(--ink-soft)', fontSize: 12.5 }}>Aucune action enregistrée.</div>
             )}
 
+            {client.encours > 0 && (
+              <div className="card-mini" style={{ marginTop: 8 }}>
+                <div className="section-title" style={{ marginTop: 0 }}><span>Contentieux</span></div>
+                {client.contentieuxExclu ? (
+                  <div style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>🚫 Exclu du contentieux (décision manuelle).</div>
+                ) : client.contentieux.eligible ? (
+                  <div style={{ fontSize: 12.5, color: 'var(--ink)' }}>✅ Éligible — {client.contentieux.motifs.join(' · ')}.</div>
+                ) : (
+                  <div style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>
+                    Non éligible{client.contentieux.bloquants.length ? ` — ${client.contentieux.bloquants.join(' · ')}` : ''}.
+                    {client.contentieux.motifs.length > 0 && (
+                      <div style={{ marginTop: 3 }}>Critères réunis : {client.contentieux.motifs.join(' · ')}.</div>
+                    )}
+                  </div>
+                )}
+                {canRecordAction && (
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+                    <button onClick={() => setContentieuxFlag({ resilie: !client.resilie })} disabled={busy}>
+                      {client.resilie ? '✓ Client résilié' : 'Marquer résilié'}
+                    </button>
+                    <button onClick={() => setContentieuxFlag({ contentieuxExclu: !client.contentieuxExclu })} disabled={busy}>
+                      {client.contentieuxExclu ? '✓ Exclu du contentieux' : 'Exclure du contentieux'}
+                    </button>
+                    {!dossierContentieux && !client.contentieux.eligible && !client.contentieuxExclu && (
+                      <button className="danger-btn" onClick={() => handleBasculer(true)} disabled={busy}>
+                        Forcer le passage
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             {client.palier > 0 ? (
               <div className="action-box">
                 <div style={{ fontWeight: 600, marginBottom: 4 }}>Action recommandée</div>
                 <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginBottom: 12 }}>{PALIERS[client.palier].desc}</div>
-                {client.palier >= 7 ? (
+                {dossierContentieux || client.contentieux.eligible ? (
                   dossierContentieux ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
                       <Scale size={16} style={{ color: 'var(--accent-dark)', flexShrink: 0 }} />
@@ -961,10 +1015,10 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
                   ) : (
                     <div>
                       <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginBottom: 10 }}>
-                        À ce palier on ne rédige plus de courrier amiable : le commandement de payer (société) se prépare dans le
-                        contentieux — l’envoi restera à valider.
+                        <strong style={{ color: 'var(--ink)' }}>Éligible au contentieux</strong> — {client.contentieux.motifs.join(' · ')}.
+                        Le commandement de payer (société) se prépare dans le contentieux ; l’envoi restera à valider.
                       </div>
-                      <button className="primary" disabled={busy} onClick={handleBasculer}>
+                      <button className="primary" disabled={busy} onClick={() => handleBasculer(false)}>
                         <Scale size={14} /> Basculer en contentieux
                       </button>
                     </div>

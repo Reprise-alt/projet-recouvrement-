@@ -249,6 +249,9 @@ export interface ClientDetail {
   palier: number;
   retardInhabituel: boolean;
   delaiMoyenHistorique: number | null;
+  resilie: boolean;
+  contentieuxExclu: boolean;
+  contentieux: { eligible: boolean; motifs: string[]; bloquants: string[] };
 }
 
 export interface Repartition {
