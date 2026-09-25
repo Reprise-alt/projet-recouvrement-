@@ -502,6 +502,9 @@ model Facture {
 
   // Clé de fusion à l'import : le numéro de facture, jamais l'ordre des lignes.
   @@unique([clientId, numero])
+  // Accélère les agrégats par plage d'échéance (bilan annuel Fey, mois bouclés,
+  // colonne échéance de la console) sur les gros portefeuilles (100k+ factures).
+  @@index([dateEcheance])
 }
 
 // Modalité contractuelle de l'augmentation tarifaire annuelle :
