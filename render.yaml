@@ -163,6 +163,23 @@ services:
       # Laisser vide tant qu'aucune migration n'est prévue.
       - key: SOURCE_DATABASE_URL
         sync: false
+      # Connexion Gmail (lecture des avis bancaires → rapprochement, et envoi).
+      # Identifiants OAuth de l'app Google Cloud. Sans eux, « Connecter la boîte »
+      # renvoie « GOOGLE_CLIENT_ID n'est pas configuré côté serveur ». À renseigner
+      # dans Render. GOOGLE_REDIRECT_URI doit pointer EXACTEMENT sur le callback de
+      # CE backend : https://<host-backend-saas>/api/integrations/gmail/callback
+      # (et cette même URL doit être ajoutée dans « URI de redirection autorisés »
+      # de l'app Google Cloud).
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        sync: false
+      # URL du front SaaS : le callback OAuth y renvoie l'utilisateur avec
+      # ?gmail=connected après consentement (sinon simple page « Fermer l'onglet »).
+      - key: FRONTEND_URL
+        sync: false
 
   # ── SaaS : front-end (inscription self-service par code email) ────────────
   - type: web
