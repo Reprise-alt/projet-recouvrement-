@@ -2,11 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
 import { fmtFCFA } from '../lib/constants';
 
-// « Le Fantôme du jour » — un petit récap animé de la journée, en bouton
-// flottant. Au clic il déplie une carte ; les chiffres du jour grimpent de 0 à
-// leur valeur (count-up). L'animation se rejoue à chaque survol de la carte —
-// le petit shot de satisfaction de fin de journée. Ton sobre et pro : un
-// fantôme discret, pas de confettis. Respecte prefers-reduced-motion.
+// « Fey » — le petit compagnon fantôme qui fait le récap de la journée, en
+// bouton flottant. Au clic il déplie une carte ; il salue l'agent (ton
+// chaleureux, tutoie, félicite les bons jours), puis les chiffres du jour
+// grimpent de 0 à leur valeur (count-up). L'animation se rejoue à chaque survol
+// — le petit shot de satisfaction de fin de journée. Respecte
+// prefers-reduced-motion.
 
 interface PaiementJour {
   client: string;
@@ -75,6 +76,22 @@ const METRIQUES: { cle: 'encaisse' | 'relances' | 'facturesReglees' | 'clientsAJ
   { cle: 'facturesReglees', label: 'Factures réglées', emoji: '✅' },
   { cle: 'clientsAJour', label: 'Clients repassés à jour', emoji: '🎯' },
 ];
+
+// La voix de Fey : chaleureuse, tutoie, félicite les bons jours et encourage
+// (jamais culpabilise) les jours calmes. Varie selon l'heure et ce qui a bougé.
+function saluteFey(): string {
+  const h = new Date().getHours();
+  if (h < 12) return 'Bonjour';
+  if (h < 18) return 'Bon aprèm';
+  return 'Bonsoir';
+}
+function messageFey(data: RecapData | null, vide: boolean): string {
+  const s = saluteFey();
+  if (!data) return `${s} 👋 Je regarde ta journée…`;
+  if (vide) return `${s} 👋 Journée calme pour l’instant — le premier encaissement n’attend que toi 💪`;
+  if (data.facturesReglees >= 2 || data.encaisse > 0) return `${s} 👋 Belle journée, tu assures 🔥`;
+  return `${s} 👋 Ça avance, on continue 💪`;
+}
 
 export function RecapJournee() {
   const [open, setOpen] = useState(false);
@@ -152,7 +169,7 @@ export function RecapJournee() {
             <span style={{ color: 'var(--accent)', display: 'inline-flex' }}>
               <Fantome size={20} />
             </span>
-            <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--ink)' }}>Ma journée</div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--ink)' }}>Fey<span style={{ fontWeight: 500, color: 'var(--ink-soft)' }}> · ta journée</span></div>
             <button
               onClick={() => setOpen(false)}
               aria-label="Fermer"
@@ -161,7 +178,7 @@ export function RecapJournee() {
               ×
             </button>
           </div>
-          <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginBottom: 14 }}>Ce que Feyma a fait avancer aujourd’hui.</div>
+          <div style={{ fontSize: 12.5, color: 'var(--ink)', marginBottom: 14, lineHeight: 1.45 }}>{messageFey(data, journeeVide)}</div>
 
           {loading && <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', padding: '10px 0' }}>Chargement…</div>}
           {erreur && (
@@ -170,12 +187,6 @@ export function RecapJournee() {
               <button onClick={charger} style={{ border: 'none', background: 'none', color: 'var(--accent-dark)', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>
                 Réessayer
               </button>
-            </div>
-          )}
-
-          {!loading && !erreur && data && journeeVide && (
-            <div style={{ fontSize: 12.8, color: 'var(--ink-soft)', lineHeight: 1.5, padding: '4px 0 6px' }}>
-              Journée calme pour l’instant. <br />Le premier encaissement n’attend que toi 👻
             </div>
           )}
 
@@ -259,8 +270,8 @@ export function RecapJournee() {
       <button
         className="recap-ghost"
         onClick={ouvrir}
-        aria-label="Récap de la journée"
-        title="Récap de la journée"
+        aria-label="Fey — ton récap du jour"
+        title="Fey — ton récap du jour"
         style={{
           width: 52,
           height: 52,
