@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api/client';
 import { fmtFCFA } from '../lib/constants';
 
@@ -24,6 +24,16 @@ interface BilanAnnee {
   aEchoir: number; // facturé cette année mais pas encore échu (hors taux)
 }
 
+interface Celebration {
+  cle: string; // identifiant unique portée+mois+palier (pour ne fêter qu'une fois)
+  mois: string; // 'septembre'
+  annee: number;
+  taux: number; // 98–100
+  recouvre: number; // FCFA recouvrés ce mois
+  parfait: boolean; // true = 100 % (confettis) ; false = ≥98 % (clin d'œil sobre)
+  portee: string; // 'GLOBAL' | 'IRIS' | 'SORAM' | …
+}
+
 interface RecapData {
   relances: number;
   encaisse: number;
@@ -31,7 +41,28 @@ interface RecapData {
   clientsAJour: number;
   paiements?: PaiementJour[];
   annee?: BilanAnnee;
+  celebrations?: Celebration[];
   date: string;
+}
+
+// Mémoire locale des fêtes déjà vues, pour ne pas rejouer l'animation à chaque
+// chargement. Tolérant aux navigateurs sans localStorage (private, etc.).
+const FETE_KEY = 'fey:fetes-vues';
+function fetesVues(): string[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(FETE_KEY) || '[]');
+    return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
+}
+function marquerFeteVue(cle: string) {
+  try {
+    const v = fetesVues();
+    if (!v.includes(cle)) localStorage.setItem(FETE_KEY, JSON.stringify([...v, cle].slice(-24)));
+  } catch {
+    /* pas de persistance → la fête pourra se rejouer, sans gravité */
+  }
 }
 
 const reduitLeMouvement = () => {
@@ -84,16 +115,24 @@ function humeurFey(data: RecapData | null): Humeur {
 // Le fantôme, avec une bouille qui suit l'humeur. `feature` = couleur des yeux
 // et de la bouche (blanc sur un fantôme coloré ; couleur d'accent sur le bouton
 // où le corps est blanc).
-function Fantome({ size = 22, humeur = 'curieux', feature = 'var(--surface, #fff)' }: { size?: number; humeur?: Humeur; feature?: string }) {
+function Fantome({ size = 22, humeur = 'curieux', feature = 'var(--surface, #fff)', fete = false }: { size?: number; humeur?: Humeur; feature?: string; fete?: boolean }) {
   const stroke = { stroke: feature, strokeWidth: 1.1, strokeLinecap: 'round' as const, fill: 'none' };
+  const h: Humeur = fete ? 'rayonnant' : humeur; // en fête, Fey est forcément rayonnant
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path
         d="M4 11a8 8 0 0 1 16 0v9.2c0 .7-.8 1.1-1.4.7l-1.5-1a1 1 0 0 0-1.1 0l-1.4 1a1 1 0 0 1-1.2 0l-1.4-1a1 1 0 0 0-1.1 0l-1.4 1a1 1 0 0 1-1.2 0l-1.4-1a1 1 0 0 0-1.1 0l-1.5 1c-.6.4-1.4 0-1.4-.7V11Z"
         fill="currentColor"
       />
+      {/* Chapeau de fête */}
+      {fete && (
+        <>
+          <path d="M12 2.2 L14.4 6.4 H9.6 Z" fill="#F4C542" stroke="#E0A92E" strokeWidth={0.5} strokeLinejoin="round" />
+          <circle cx="12" cy="2.2" r="0.95" fill="#fff" />
+        </>
+      )}
       {/* Yeux : arcs joyeux quand rayonnant, sinon deux points */}
-      {humeur === 'rayonnant' ? (
+      {h === 'rayonnant' ? (
         <>
           <path d="M8.1 10.9 Q9.3 9.5 10.5 10.9" {...stroke} />
           <path d="M13.5 10.9 Q14.7 9.5 15.9 10.9" {...stroke} />
@@ -105,16 +144,16 @@ function Fantome({ size = 22, humeur = 'curieux', feature = 'var(--surface, #fff
         </>
       )}
       {/* Sourcils inquiets + bouche tombante quand triste */}
-      {humeur === 'triste' && (
+      {h === 'triste' && (
         <>
           <path d="M8.2 8.9 L10.1 8.2" {...stroke} strokeWidth={0.9} />
           <path d="M15.8 8.9 L13.9 8.2" {...stroke} strokeWidth={0.9} />
           <path d="M9.5 15.3 Q12 13.7 14.5 15.3" {...stroke} />
         </>
       )}
-      {humeur === 'content' && <path d="M9.3 14.2 Q12 16.2 14.7 14.2" {...stroke} />}
-      {humeur === 'rayonnant' && <path d="M8.9 13.9 Q12 17 15.1 13.9" {...stroke} strokeWidth={1.2} />}
-      {humeur === 'curieux' && <circle cx="12" cy="14.4" r="0.75" fill={feature} />}
+      {h === 'content' && <path d="M9.3 14.2 Q12 16.2 14.7 14.2" {...stroke} />}
+      {h === 'rayonnant' && <path d="M8.9 13.9 Q12 17 15.1 13.9" {...stroke} strokeWidth={1.2} />}
+      {h === 'curieux' && <circle cx="12" cy="14.4" r="0.75" fill={feature} />}
     </svg>
   );
 }
@@ -142,6 +181,17 @@ function messageFey(data: RecapData | null, humeur: Humeur): string {
   return `${s} 👋 Belle journée, ça rentre 👏`;
 }
 
+// Textes de la fête « mois bouclé »
+function moisCap(c: Celebration): string {
+  return c.mois.charAt(0).toUpperCase() + c.mois.slice(1);
+}
+function titreFete(c: Celebration): string {
+  return c.parfait ? `${moisCap(c)} bouclé à 100 % 🎉` : `${moisCap(c)} à ${c.taux} %`;
+}
+function sousTitreFete(c: Celebration): string {
+  return c.parfait ? 'Bravo — tout ce qui était dû est recouvré.' : 'Plus qu’un souffle avant le 100 %, on le boucle ?';
+}
+
 export function RecapJournee() {
   const [open, setOpen] = useState(false);
   const [data, setData] = useState<RecapData | null>(null);
@@ -149,6 +199,7 @@ export function RecapJournee() {
   const [erreur, setErreur] = useState(false);
   const [anim, setAnim] = useState(0); // incrémenté pour rejouer le count-up
   const [detail, setDetail] = useState(false); // liste des paiements dépliée
+  const [fete, setFete] = useState<Celebration | null>(null); // fête « mois bouclé » en cours
   const chargeUneFois = useRef(false);
 
   function charger() {
@@ -159,6 +210,12 @@ export function RecapJournee() {
       .then((r) => {
         setData(r);
         setAnim((a) => a + 1);
+        // Y a-t-il un mois fraîchement bouclé (ou tout proche) pas encore fêté ?
+        const nouvelle = (r.celebrations ?? []).find((c) => !fetesVues().includes(c.cle));
+        if (nouvelle) {
+          setFete(nouvelle);
+          marquerFeteVue(nouvelle.cle);
+        }
       })
       .catch(() => setErreur(true))
       .finally(() => setLoading(false));
@@ -196,6 +253,26 @@ export function RecapJournee() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  // La fête se referme d'elle-même après quelques secondes (fermable à la main
+  // aussi). Un peu plus longue pour un mois parfait.
+  useEffect(() => {
+    if (!fete) return;
+    const t = setTimeout(() => setFete(null), fete.parfait ? 9000 : 6500);
+    return () => clearTimeout(t);
+  }, [fete]);
+
+  // Confettis figés le temps d'une fête (recalculés seulement quand la fête change).
+  const confettis = useMemo(() => {
+    const cols = ['#1D9E75', '#33C594', '#F4C542', '#E8705B', '#5B8DEF'];
+    return Array.from({ length: 26 }, (_, i) => ({
+      left: 6 + Math.random() * 88,
+      delay: Math.random() * 0.9,
+      dur: 2.2 + Math.random() * 1.4,
+      col: cols[i % cols.length],
+      rot: Math.random() * 360,
+    }));
+  }, [fete?.cle]);
+
   const total = data ? data.relances + data.encaisse + data.facturesReglees + data.clientsAJour : 0;
   const journeeVide = !!data && total === 0;
   const humeur = humeurFey(data);
@@ -205,11 +282,79 @@ export function RecapJournee() {
       <style>{`
         @keyframes recapFloat { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-3px) } }
         @keyframes recapPop { 0% { opacity: 0; transform: translateY(8px) scale(.98) } 100% { opacity: 1; transform: translateY(0) scale(1) } }
+        @keyframes feyConfetti { 0% { transform: translateY(-14px) rotate(0deg); opacity: 0 } 12% { opacity: 1 } 100% { transform: translateY(210px) rotate(320deg); opacity: 0 } }
+        @keyframes feyPouf { 0% { transform: scale(.6); opacity: 0 } 55% { transform: scale(1.06) } 100% { transform: scale(1); opacity: 1 } }
         @media (prefers-reduced-motion: reduce) {
           .recap-ghost { animation: none !important }
           .recap-card { animation: none !important }
+          .fey-confetti { display: none !important }
+          .fey-fete { animation: none !important }
         }
       `}</style>
+
+      {/* Fête « mois bouclé » : toast festif au-dessus de Fey. Confettis pour un
+          mois parfait (100 %), version sobre pour un clin d'œil (≥98 %). */}
+      {fete && (
+        <div
+          className="fey-fete"
+          style={{
+            width: 300,
+            position: 'relative',
+            background: 'var(--surface, #fff)',
+            border: '1px solid var(--line)',
+            borderRadius: 16,
+            boxShadow: '0 18px 44px rgba(14, 29, 51, 0.18)',
+            padding: '16px 16px 15px',
+            overflow: 'hidden',
+            animation: 'feyPouf .34s ease both',
+          }}
+        >
+          <div style={{ position: 'absolute', inset: '0 0 auto 0', height: 74, background: 'linear-gradient(180deg, var(--accent-soft), transparent)', pointerEvents: 'none' }} />
+          {fete.parfait && (
+            <div aria-hidden className="fey-confetti" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden' }}>
+              {confettis.map((c, i) => (
+                <span
+                  key={i}
+                  style={{
+                    position: 'absolute',
+                    top: -14,
+                    left: `${c.left}%`,
+                    width: 7,
+                    height: 11,
+                    borderRadius: 2,
+                    background: c.col,
+                    transform: `rotate(${c.rot}deg)`,
+                    animation: `feyConfetti ${c.dur}s linear ${c.delay}s infinite`,
+                  }}
+                />
+              ))}
+            </div>
+          )}
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 11 }}>
+            <span style={{ width: 46, height: 46, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 18px rgba(14, 124, 90, 0.35)', flex: 'none', color: '#fff' }}>
+              <Fantome size={26} fete={fete.parfait} humeur="content" feature="var(--accent)" />
+            </span>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--ink)', lineHeight: 1.2 }}>
+                {fete.portee !== 'GLOBAL' && <span style={{ color: 'var(--accent-dark)' }}>{fete.portee} · </span>}
+                {titreFete(fete)}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 2, lineHeight: 1.35 }}>{sousTitreFete(fete)}</div>
+            </div>
+            <button
+              onClick={() => setFete(null)}
+              aria-label="Fermer"
+              style={{ alignSelf: 'flex-start', border: 'none', background: 'transparent', color: 'var(--ink-soft)', fontSize: 18, lineHeight: 1, cursor: 'pointer', padding: 2 }}
+            >
+              ×
+            </button>
+          </div>
+          <div style={{ position: 'relative', marginTop: 12, fontSize: 12.5, color: 'var(--ink)', background: 'var(--accent-soft)', borderRadius: 11, padding: '9px 11px', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+            <span>{fete.parfait ? 'Recouvré ce mois-ci' : 'Déjà recouvré'}</span>
+            <b style={{ fontSize: 15, color: 'var(--accent-dark)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{fmtFCFA(fete.recouvre)}</b>
+          </div>
+        </div>
+      )}
 
       {open && (
         <div

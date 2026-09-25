@@ -313,7 +313,51 @@ clientsRouter.get('/journee', async (req, res, next) => {
       clientsAJour = clientsPayeurs.filter((c) => clientEncours(c) === 0).length;
     }
 
-    res.json({ relances, encaisse, facturesReglees, clientsAJour, paiements, annee, date: now.toISOString().slice(0, 10) });
+    // ── Célébrations : mois « bouclés » (100 % recouvré) ou tout proches (≥98 %)
+    // Même équité que le bilan annuel : on ne juge un mois que lorsqu'il est
+    // ENTIÈREMENT ÉCHU (plus aucune facture à échoir dedans), et le taux porte
+    // sur le montant. Passe légère : on n'examine que le mois précédent et le
+    // mois courant (le cas fréquent = solder les impayés du mois écoulé). La
+    // portée suit la vue de l'utilisateur (une entité s'il est scopé, sinon
+    // toute la société) — le front fête au bon niveau sans plomberie en plus.
+    const moisLabels = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+    const portee = entiteFilter === 'ALL' ? 'GLOBAL' : String(entiteFilter);
+    const moisCourant = { y: now.getUTCFullYear(), m: now.getUTCMonth() };
+    const moisPrec = moisCourant.m === 0 ? { y: moisCourant.y - 1, m: 11 } : { y: moisCourant.y, m: moisCourant.m - 1 };
+    type Celebration = { cle: string; mois: string; annee: number; taux: number; recouvre: number; parfait: boolean; portee: string };
+    const celebrations: Celebration[] = [];
+    for (const { y, m } of [moisPrec, moisCourant]) {
+      const start = new Date(Date.UTC(y, m, 1));
+      const end = new Date(Date.UTC(y, m + 1, 1));
+      // Le mois n'est « jugeable » que s'il est entièrement dû : aucune facture
+      // de ce mois dont l'échéance est encore à venir.
+      if (end > now) {
+        const futures = await prisma.facture.count({ where: { dateEcheance: { gte: now, lt: end }, client: where } });
+        if (futures > 0) continue;
+      }
+      const [totAgg, paidAgg] = await Promise.all([
+        prisma.facture.aggregate({ _sum: { montant: true }, where: { dateEcheance: { gte: start, lt: end }, client: where } }),
+        prisma.facture.aggregate({ _sum: { montant: true }, where: { dateEcheance: { gte: start, lt: end }, statut: 'payee', client: where } }),
+      ]);
+      const tot = totAgg._sum.montant ?? 0;
+      if (tot <= 0) continue; // pas de facturation ce mois → rien à fêter
+      const paid = paidAgg._sum.montant ?? 0;
+      const taux = (paid / tot) * 100;
+      if (taux < 98) continue;
+      const parfait = tot - paid < 1; // moins d'1 FCFA restant = bouclé
+      celebrations.push({
+        cle: `${portee}:${y}-${String(m + 1).padStart(2, '0')}:${parfait ? 'parfait' : 'proche'}`,
+        mois: moisLabels[m],
+        annee: y,
+        taux: Math.round(taux * 10) / 10,
+        recouvre: Math.round(paid),
+        parfait,
+        portee,
+      });
+    }
+    celebrations.reverse(); // le plus récent d'abord (mois courant avant mois précédent)
+
+    res.json({ relances, encaisse, facturesReglees, clientsAJour, paiements, annee, celebrations, date: now.toISOString().slice(0, 10) });
   } catch (err) {
     next(err);
   }
