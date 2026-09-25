@@ -199,8 +199,14 @@ organisationRouter.post('/test-email', requireOrgRole('proprietaire', 'administr
       ? construireRelanceMarque(
           {
             nom: 'Client (exemple)',
+            // Exemple à PLUSIEURS factures échues + une NON encore échue : montre
+            // l'encart « Factures concernées » et prouve que le montant réclamé
+            // ne compte que l'échu (la facture à échoir est exclue du total).
             factures: [
-              { numero: 'FAC-EXEMPLE-001', montant: 150000, dateEcheance: new Date(Date.now() - 20 * 864e5), statut: 'impayee' },
+              { numero: 'FAC-EXEMPLE-001', montant: 150000, dateEcheance: new Date(Date.now() - 42 * 864e5), statut: 'impayee' },
+              { numero: 'FAC-EXEMPLE-002', montant: 90000, dateEcheance: new Date(Date.now() - 21 * 864e5), statut: 'impayee' },
+              { numero: 'FAC-EXEMPLE-003', montant: 120000, dateEcheance: new Date(Date.now() - 6 * 864e5), statut: 'impayee' },
+              { numero: 'FAC-EXEMPLE-004', montant: 200000, dateEcheance: new Date(Date.now() + 12 * 864e5), statut: 'impayee' },
             ],
           },
           orgIdentite,
