@@ -8,16 +8,30 @@
 // des surcharges par tenant ; ici on fournit les modèles par défaut, le moteur
 // de variables et le rendu HTML.
 import { fmtDate, fmtFCFA } from './dates';
-import { ClientWithFactures, clientEncours, clientJoursRetard, clientOldestEcheance } from './paliers';
+import { ClientWithFactures, FactureLike, clientJoursRetard, clientOldestEcheance } from './paliers';
 import { MoyenPaiementRender } from './moyensPaiement';
+
+// Factures IMPAYÉES et DÉJÀ ÉCHUES (échéance ≤ aujourd'hui), de la plus ancienne
+// à la plus récente. Une relance ne réclame QUE ce qui est dû : une facture
+// récente non encore échue ne doit jamais gonfler le montant réclamé.
+export function facturesEchues(client: ClientWithFactures): FactureLike[] {
+  const maintenant = Date.now();
+  return client.factures
+    .filter((f) => f.statut === 'impayee' && new Date(f.dateEcheance).getTime() <= maintenant)
+    .sort((a, b) => new Date(a.dateEcheance).getTime() - new Date(b.dateEcheance).getTime());
+}
+// Montant réellement dû = somme des factures échues impayées (hors « à échoir »).
+export function montantEchu(client: ClientWithFactures): number {
+  return facturesEchues(client).reduce((s, f) => s + f.montant, 0);
+}
 
 // Variables disponibles dans les modèles (documentées pour l'éditeur §5.3).
 export const VARIABLES_RELANCE = [
   { cle: 'entreprise', desc: 'Nom de votre entreprise' },
   { cle: 'debiteur', desc: 'Nom du client débiteur' },
-  { cle: 'montant_du', desc: 'Montant total restant dû' },
-  { cle: 'facture', desc: 'Numéro de la facture la plus ancienne' },
-  { cle: 'echeance', desc: 'Date d’échéance de la facture la plus ancienne' },
+  { cle: 'montant_du', desc: 'Montant échu restant dû (hors factures non encore échues)' },
+  { cle: 'facture', desc: 'Facture(s) échue(s) concernée(s)' },
+  { cle: 'echeance', desc: 'Échéance de la facture échue la plus ancienne' },
   { cle: 'jours_retard', desc: 'Nombre de jours de retard' },
   { cle: 'instructions_paiement', desc: 'Vos instructions de paiement' },
   { cle: 'contact', desc: 'Votre contact recouvrement' },
@@ -150,13 +164,22 @@ export function variablesRelance(
   client: ClientWithFactures & { nom: string },
   org: OrgIdentite,
 ): Record<string, string> {
-  const oldest = clientOldestEcheance(client);
+  const echues = facturesEchues(client);
+  // Référence de facture : le n° s'il n'y a qu'une facture échue, sinon la plus
+  // ancienne « + N autre(s) » (le détail complet figure dans l'encart dédié).
+  const premiere = echues[0] ?? clientOldestEcheance(client);
+  const autres = Math.max(0, echues.length - 1);
+  const refFacture = premiere?.numero
+    ? autres > 0
+      ? `${premiere.numero} + ${autres} autre${autres > 1 ? 's' : ''}`
+      : premiere.numero
+    : '—';
   return {
     entreprise: org.raisonSociale,
     debiteur: client.nom,
-    montant_du: fmtFCFA(clientEncours(client)),
-    facture: oldest?.numero ?? '—',
-    echeance: oldest ? fmtDate(oldest.dateEcheance) : '—',
+    montant_du: fmtFCFA(montantEchu(client)),
+    facture: refFacture,
+    echeance: premiere ? fmtDate(premiere.dateEcheance) : '—',
     jours_retard: String(clientJoursRetard(client)),
     instructions_paiement: org.instructionsPaiement ?? '',
     contact: org.contactRecouvrement ?? '',
@@ -191,6 +214,30 @@ function promoFeymaHtml(nomOrg: string, code: string): string {
   </div>`;
 }
 
+// Encart « Factures concernées » : listé lorsque PLUSIEURS factures échues sont
+// réclamées, pour que le client réconcilie le montant total avec son détail
+// (sinon il ne voit qu'une facture nommée alors que le total en couvre
+// plusieurs). Une seule facture échue → pas d'encart (la phrase suffit).
+function blocFacturesHtml(echues: FactureLike[]): string {
+  if (echues.length < 2) return '';
+  const lignes = echues
+    .map(
+      (f) =>
+        `<tr>
+           <td style="padding:6px 10px 6px 0;font-size:13.5px;color:#22262a">${escapeHtml(f.numero ?? '—')}</td>
+           <td style="padding:6px 10px;font-size:12.5px;color:#5b6469;white-space:nowrap">échue le ${escapeHtml(fmtDate(f.dateEcheance))}</td>
+           <td style="padding:6px 0;font-size:13.5px;color:#22262a;text-align:right;white-space:nowrap"><b>${escapeHtml(fmtFCFA(f.montant))}</b></td>
+         </tr>`,
+    )
+    .join('');
+  const total = echues.reduce((s, f) => s + f.montant, 0);
+  return `<div style="margin-top:16px;padding:14px 16px;background:#f4f6f5;border:1px solid #e4e7e3;border-radius:12px">
+       <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#5b6469;margin-bottom:6px">Factures concernées (${echues.length})</div>
+       <table style="width:100%;border-collapse:collapse">${lignes}</table>
+       <div style="margin-top:8px;padding-top:8px;border-top:1px solid #e4e7e3;font-size:13.5px;color:#0e1d33;display:flex;justify-content:space-between"><span>Total échu</span><b>${escapeHtml(fmtFCFA(total))}</b></div>
+     </div>`;
+}
+
 // Email de marque : logo et coordonnées de l'organisation autour du message.
 // Styles INLINE (les clients mail ignorent les <style>). Neutre, lisible, sobre.
 export function emailRelanceHtml(
@@ -200,6 +247,7 @@ export function emailRelanceHtml(
   paiementCtx?: { montant?: number | null; reference?: string | null },
   lienChequeDispo?: string | null,
   promoFeyma?: { code: string; nom: string } | null,
+  blocFactures?: string | null,
 ): string {
   const nom = escapeHtml(org.raisonSociale);
   const logo = org.logoUrl
@@ -254,7 +302,7 @@ export function emailRelanceHtml(
   <div style="max-width:560px;margin:0 auto;padding:24px 16px">
     <div style="background:#fff;border:1px solid #e4e7e3;border-radius:14px;overflow:hidden">
       <div style="padding:22px 26px;border-bottom:1px solid #eef0eb">${logo}</div>
-      <div style="padding:24px 26px">${corpsHtml}${blocMobile}${blocCheque}${paiement}</div>
+      <div style="padding:24px 26px">${corpsHtml}${blocFactures ?? ''}${blocMobile}${blocCheque}${paiement}</div>
     </div>
     <div style="padding:16px 26px;font-size:11.5px;line-height:1.5;color:#8a9298;text-align:center">
       ${piedInfos ? `<div>${piedInfos}</div>` : ''}
@@ -277,7 +325,11 @@ export function construireRelanceMarque(
   const vars = variablesRelance(client, org);
   const sujet = rendreVariables(tpl.sujet, vars);
   const texte = rendreVariables(tpl.corps, vars);
-  const oldest = clientOldestEcheance(client);
+  // On ne réclame et n'encaisse QUE l'échu ; la référence de paiement pointe la
+  // facture échue la plus ancienne. L'encart détaillé n'apparaît qu'à ≥ 2
+  // factures échues.
+  const echues = facturesEchues(client);
+  const blocFactures = blocFacturesHtml(echues);
   // Recommandation Feyma : uniquement sur les paliers amiables, si l'org l'a
   // laissée active (défaut) et possède un code de parrainage.
   const promoFeyma =
@@ -288,9 +340,10 @@ export function construireRelanceMarque(
     org,
     texte,
     org.instructionsPaiement,
-    { montant: clientEncours(client), reference: oldest?.numero ?? null },
+    { montant: montantEchu(client), reference: echues[0]?.numero ?? clientOldestEcheance(client)?.numero ?? null },
     lienChequeDispo,
     promoFeyma,
+    blocFactures,
   );
   return { sujet, texte, html };
 }
