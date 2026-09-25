@@ -8,6 +8,7 @@ import {
   clientOldestEcheance,
   clientPalier,
   clientRetardInhabituel,
+  eligibiliteContentieux,
   PALIERS,
   type ClientWithFactures,
   type FactureLike,
@@ -354,7 +355,27 @@ clientsRouter.get('/:id', async (req, res, next) => {
       palier: clientPalier(client, config),
       retardInhabituel: clientRetardInhabituel(client),
       delaiMoyenHistorique: clientDelaiMoyenHistorique(client),
+      contentieux: eligibiliteContentieux(client, config),
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Drapeaux contentieux d'un client : « résilié » (facturation arrêtée) et
+// « exclu du contentieux » (décision agent). Alimentent la règle d'éligibilité.
+clientsRouter.patch('/:id/contentieux-flags', requireRole('admin', 'manager_entite', 'comptable'), async (req, res, next) => {
+  try {
+    const existing = await prisma.client.findUnique({ where: { id: req.params.id } });
+    if (!existing) return res.status(404).json({ error: 'Client introuvable' });
+    if (!assertEntiteInScope(req, res, existing.entite as Entite)) return;
+    const b = (req.body ?? {}) as Record<string, unknown>;
+    const data: { resilie?: boolean; contentieuxExclu?: boolean } = {};
+    if (typeof b.resilie === 'boolean') data.resilie = b.resilie;
+    if (typeof b.contentieuxExclu === 'boolean') data.contentieuxExclu = b.contentieuxExclu;
+    if (!Object.keys(data).length) return res.status(400).json({ error: 'Aucun drapeau fourni' });
+    const maj = await prisma.client.update({ where: { id: req.params.id }, data, select: { id: true, resilie: true, contentieuxExclu: true } });
+    res.json(maj);
   } catch (err) {
     next(err);
   }

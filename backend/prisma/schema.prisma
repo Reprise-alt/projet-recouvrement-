@@ -387,6 +387,11 @@ model Client {
   note                 String?
   prochaineRelance     DateTime?
   frequenceFacturation FrequenceFacturation @default(mensuelle)
+  // Contentieux (règle d'éligibilité) : `resilie` = client dont on a arrêté la
+  // facturation (relation rompue) mais qui reste débiteur ; `contentieuxExclu` =
+  // exclusion manuelle décidée par un agent (jamais poussé en contentieux).
+  resilie              Boolean              @default(false)
+  contentieuxExclu     Boolean              @default(false)
   createdAt            DateTime             @default(now())
   updatedAt            DateTime             @updatedAt
 

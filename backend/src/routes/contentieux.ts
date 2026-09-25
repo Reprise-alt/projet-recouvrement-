@@ -49,6 +49,7 @@ import {
 } from '../lib/actes/actesContentieux';
 import { logoEntite, mentionsLegales } from '../lib/actes/mentionsLegales';
 import { IssueDossier, StatutActe, StatutDossierContentieux, StatutProposition, TypePiece, TypeActe } from '@prisma/client';
+import { eligibiliteContentieux } from '../lib/paliers';
 
 export const contentieuxRouter = Router();
 import { tenantScope } from '../middleware/tenant';
@@ -1006,6 +1007,35 @@ contentieuxRouter.post('/basculer', async (req, res, next) => {
       select: { id: true, reference: true, statut: true },
     });
     if (existant) return res.json({ dossier: existant, existant: true, acteId: null });
+
+    // RÈGLE CONTENTIEUX : on ne bascule que si le client remplit la règle
+    // (comportement de non-paiement : ≥3 impayées, ≥2 consécutives, ou résilié —
+    // avec âge minimum et montant plancher), ou si un agent FORCE explicitement.
+    // Jamais si le client a été EXCLU manuellement.
+    const force = req.body?.force === true;
+    const toutesFactures = await prisma.facture.findMany({
+      where: { clientId },
+      select: { montant: true, dateEcheance: true, statut: true },
+    });
+    const elig = eligibiliteContentieux({
+      factures: toutesFactures,
+      frequenceFacturation: client.frequenceFacturation,
+      resilie: client.resilie,
+      contentieuxExclu: client.contentieuxExclu,
+    });
+    if (client.contentieuxExclu) {
+      return res.status(409).json({
+        error: 'Ce client est exclu du contentieux — retirez l’exclusion avant de basculer.',
+        eligibilite: elig,
+      });
+    }
+    if (!elig.eligible && !force) {
+      return res.status(409).json({
+        error: 'Ce client ne remplit pas la règle de passage en contentieux.',
+        eligibilite: elig,
+        forcageRequis: true,
+      });
+    }
 
     const impayees = await prisma.facture.findMany({ where: { clientId, statut: 'impayee' } });
     let dossier;
