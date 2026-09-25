@@ -16,12 +16,21 @@ interface PaiementJour {
   heure: string | null;
 }
 
+interface BilanAnnee {
+  annee: number;
+  factureEchu: number; // facturé cette année, déjà arrivé à échéance
+  recouvre: number; // recouvré parmi ces factures échues
+  tauxPct: number | null; // recouvre / factureEchu, en %
+  aEchoir: number; // facturé cette année mais pas encore échu (hors taux)
+}
+
 interface RecapData {
   relances: number;
   encaisse: number;
   facturesReglees: number;
   clientsAJour: number;
   paiements?: PaiementJour[];
+  annee?: BilanAnnee;
   date: string;
 }
 
@@ -179,6 +188,40 @@ export function RecapJournee() {
             </button>
           </div>
           <div style={{ fontSize: 12.5, color: 'var(--ink)', marginBottom: 14, lineHeight: 1.45 }}>{messageFey(data, journeeVide)}</div>
+
+          {/* Bilan de l'année — toujours affiché dès que les données sont là,
+              journée calme ou non. Le taux est calculé sur les factures déjà
+              échues (une facture pas encore à échéance ne peut pas être « en
+              retard »), la part à échoir est montrée à part pour rester honnête. */}
+          {data?.annee && (
+            <div style={{ marginBottom: 14, padding: '11px 12px', borderRadius: 12, background: 'var(--accent-soft)', border: '1px solid var(--line)' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 7, gap: 8 }}>
+                <span style={{ fontSize: 10.5, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--ink-soft)', fontWeight: 700 }}>
+                  Cette année {data.annee.annee}
+                </span>
+                <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--accent-dark)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                  {data.annee.tauxPct === null ? '—' : `${data.annee.tauxPct} %`}
+                </span>
+              </div>
+              {data.annee.tauxPct !== null && (
+                <div style={{ height: 7, borderRadius: 5, background: 'var(--surface, #fff)', overflow: 'hidden', marginBottom: 8 }}>
+                  <div style={{ width: `${Math.max(0, Math.min(100, data.annee.tauxPct))}%`, height: '100%', background: 'var(--accent)', borderRadius: 5, transition: 'width .6s ease' }} />
+                </div>
+              )}
+              <div style={{ fontSize: 11.5, color: 'var(--ink)', lineHeight: 1.5 }}>
+                Facturé <b style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtFCFA(data.annee.factureEchu)}</b> · recouvré{' '}
+                <b style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--accent-dark)' }}>{fmtFCFA(data.annee.recouvre)}</b>
+              </div>
+              {data.annee.aEchoir > 0 && (
+                <div style={{ fontSize: 10.5, color: 'var(--ink-soft)', marginTop: 3, fontVariantNumeric: 'tabular-nums' }}>
+                  + {fmtFCFA(data.annee.aEchoir)} encore à échoir (hors calcul)
+                </div>
+              )}
+              <div style={{ fontSize: 10, color: 'var(--ink-soft)', marginTop: 5, lineHeight: 1.4 }}>
+                Taux calculé sur les factures déjà arrivées à échéance.
+              </div>
+            </div>
+          )}
 
           {loading && <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', padding: '10px 0' }}>Chargement…</div>}
           {erreur && (
