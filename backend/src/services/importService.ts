@@ -86,7 +86,34 @@ export async function applyImport(clients: ParsedClient[], organisationId: strin
     organisationId,
   );
 
+  // MISE À L'ÉCHELLE : les créations de factures/contrats sont accumulées puis
+  // insérées en LOTS (`createMany`) au lieu d'un INSERT par ligne. Un import de
+  // centaines de milliers de factures passe ainsi de « des heures + timeout » à
+  // quelques minutes. Les MISES À JOUR restent unitaires (rares dans un import
+  // initial). Les créations de client restent unitaires : on a besoin de l'id
+  // généré pour rattacher ses factures.
+  const CHUNK = 2000;
+  const facturesToCreate: Prisma.FactureUncheckedCreateInput[] = [];
+  const contratsToCreate: Prisma.ContratUncheckedCreateInput[] = [];
+  async function flush(force = false) {
+    while (facturesToCreate.length >= CHUNK || (force && facturesToCreate.length)) {
+      await prisma.facture.createMany({ data: facturesToCreate.splice(0, CHUNK) });
+    }
+    while (contratsToCreate.length >= CHUNK || (force && contratsToCreate.length)) {
+      await prisma.contrat.createMany({ data: contratsToCreate.splice(0, CHUNK) });
+    }
+  }
+
+  // Si un même client réapparaît dans le fichier, on matérialise d'abord les
+  // lignes déjà en attente : sa fusion (planFactureMerge) doit voir en base ce
+  // qu'on s'apprête à créer, pour ne pas dupliquer.
+  const clientsVus = new Set<string>();
+
   for (const parsed of clients) {
+    const cle = `${parsed.entite}::${parsed.nom.toLowerCase()}`;
+    if (clientsVus.has(cle)) await flush(true);
+    clientsVus.add(cle);
+
     const existing = await prisma.client.findFirst({
       where: { organisationId, entite: parsed.entite, nom: { equals: parsed.nom, mode: 'insensitive' } },
       include: { factures: true, contrats: true },
@@ -118,7 +145,7 @@ export async function applyImport(clients: ParsedClient[], organisationId: strin
     if (parsed.factures.length) {
       const facturePlan = planFactureMerge(existing?.factures ?? [], parsed.factures);
       for (const f of facturePlan.toCreate) {
-        await prisma.facture.create({ data: { ...factureFields(f), clientId } });
+        facturesToCreate.push({ ...factureFields(f), clientId });
         summary.facturesCreated++;
       }
       for (const u of facturePlan.toUpdate) {
@@ -131,7 +158,7 @@ export async function applyImport(clients: ParsedClient[], organisationId: strin
     if (parsed.contrats.length) {
       const contratPlan = planContratMerge(existing?.contrats ?? [], parsed.contrats);
       for (const c of contratPlan.toCreate) {
-        await prisma.contrat.create({ data: { ...contratFields(c), clientId } });
+        contratsToCreate.push({ ...contratFields(c), clientId });
         summary.contratsCreated++;
       }
       for (const u of contratPlan.toUpdate) {
@@ -140,7 +167,10 @@ export async function applyImport(clients: ParsedClient[], organisationId: strin
         summary.contratsUpdated++;
       }
     }
+
+    await flush();
   }
 
+  await flush(true);
   return summary;
 }

@@ -9,6 +9,8 @@ import {
   clientPalier,
   clientRetardInhabituel,
   PALIERS,
+  type ClientWithFactures,
+  type FactureLike,
 } from '../lib/paliers';
 import { generateLetter } from '../lib/letters';
 import { Entite, resolveEntiteScope } from '../lib/entites';
@@ -72,42 +74,96 @@ clientsRouter.get('/console', async (req, res, next) => {
   try {
     const entiteFilter = resolveEntiteScope(req.user!, req.query.entite);
     const config = await getConfig();
-    const clients = await prisma.client.findMany({
-      where: entiteWhere(entiteFilter),
-      // On ne sélectionne QUE les champs de facture réellement utilisés par les
-      // calculs (encours, échéance, retard, palier) — pas les colonnes lourdes
-      // (désignation, commercial…). À gros volume (dizaines/centaines de milliers
-      // de factures), charger la ligne entière saturait la mémoire du serveur ;
-      // ce projeté allège d'un facteur ~3-5 sans rien changer aux résultats.
-      include: {
-        factures: { select: { montant: true, dateEcheance: true, datePaiement: true, statut: true } },
-        actions: { orderBy: { date: 'desc' }, take: 1 },
-        contacts: { orderBy: { createdAt: 'asc' }, select: { id: true, nom: true, fonction: true, email: true, tel: true } },
-      },
+    const where = entiteWhere(entiteFilter);
+
+    // MISE À L'ÉCHELLE (portefeuilles à ~100k+ factures) : on n'ouvre JAMAIS
+    // toutes les factures en mémoire. On agrège côté base —
+    //  • rollup des IMPAYÉS par client (somme d'encours + échéance la plus
+    //    ancienne) via groupBy : quelques milliers de lignes, pas des centaines
+    //    de milliers ;
+    //  • historique PAYÉ (léger quand le portefeuille est surtout impayé), utile
+    //    au seul signal « retard inhabituel » qui a besoin des dates de paiement.
+    // groupBy/findMany passent par l'extension tenant → RLS respectée. On
+    // n'utilise pas $queryRaw ici (il contournerait la transaction tenant → fuite).
+    const [impayeRoll, payes, clients] = await Promise.all([
+      prisma.facture.groupBy({
+        by: ['clientId'],
+        where: { statut: 'impayee', client: where },
+        _sum: { montant: true },
+        _min: { dateEcheance: true },
+      }),
+      prisma.facture.findMany({
+        where: { statut: 'payee', datePaiement: { not: null }, client: where },
+        select: { clientId: true, dateEcheance: true, datePaiement: true },
+      }),
+      prisma.client.findMany({
+        where,
+        select: {
+          id: true, nom: true, entite: true, contact: true, email: true, tel: true, note: true,
+          prochaineRelance: true, frequenceFacturation: true,
+          contacts: { orderBy: { createdAt: 'asc' }, select: { id: true, nom: true, fonction: true, email: true, tel: true } },
+          actions: { orderBy: { date: 'desc' }, take: 1, select: { label: true, date: true, palier: true } },
+        },
+      }),
+    ]);
+
+    const impayeParClient = new Map(
+      impayeRoll.map((r) => [r.clientId, { encours: r._sum.montant ?? 0, oldest: r._min.dateEcheance }]),
+    );
+    const payesParClient = new Map<string, { dateEcheance: Date; datePaiement: Date }[]>();
+    for (const p of payes) {
+      if (!p.datePaiement) continue;
+      const item = { dateEcheance: p.dateEcheance, datePaiement: p.datePaiement };
+      const arr = payesParClient.get(p.clientId);
+      if (arr) arr.push(item);
+      else payesParClient.set(p.clientId, [item]);
+    }
+
+    // ClientWithFactures MINIMAL par client → donne EXACTEMENT les mêmes résultats
+    // que les fonctions existantes : une facture impayée synthétique (montant =
+    // encours total, échéance = la plus ancienne) couvre encours/retard/palier ;
+    // les factures payées réelles (dates) alimentent le délai moyen historique.
+    function toCwf(id: string, freq: ClientWithFactures['frequenceFacturation']): ClientWithFactures {
+      const imp = impayeParClient.get(id);
+      const factures: FactureLike[] = [];
+      if (imp && imp.oldest) factures.push({ montant: imp.encours, dateEcheance: imp.oldest, statut: 'impayee' });
+      for (const pf of payesParClient.get(id) ?? []) {
+        factures.push({ montant: 0, dateEcheance: pf.dateEcheance, datePaiement: pf.datePaiement, statut: 'payee' });
+      }
+      return { frequenceFacturation: freq, factures };
+    }
+
+    const enriched = clients.map((c) => {
+      const cwf = toCwf(c.id, c.frequenceFacturation);
+      return { c, cwf, encours: clientEncours(cwf), palier: clientPalier(cwf, config) };
     });
 
-    // ── KPIs (identiques à /kpis, calculés sur l'ensemble des clients) ──
-    const totalEncours = clients.reduce((s, c) => s + clientEncours(c), 0);
-    const enRetard = clients.filter((c) => clientPalier(c, config) >= 1).length;
-    const contentieux = clients.filter((c) => clientPalier(c, config) >= 7).reduce((s, c) => s + clientEncours(c), 0);
-    const lettresAEnvoyer = clients.filter((c) => clientPalier(c, config) >= 5).length;
-    const retardsInhabituels = clients.filter((c) => clientRetardInhabituel(c)).length;
+    // ── KPIs ──
+    let totalEncours = 0;
+    let enRetard = 0;
+    let contentieux = 0;
+    let lettresAEnvoyer = 0;
+    let retardsInhabituels = 0;
     const ladder: Record<number, number> = {};
     PALIERS.forEach((p) => (ladder[p.id] = 0));
     let dansLesClous = 0;
     let arretService = 0;
     let litige = 0;
     let totalActifs = 0;
-    clients.forEach((c) => {
-      if (clientEncours(c) > 0) {
+    for (const { cwf, encours, palier } of enriched) {
+      totalEncours += encours;
+      if (palier >= 1) enRetard++;
+      if (palier >= 7) contentieux += encours;
+      if (palier >= 5) lettresAEnvoyer++;
+      if (clientRetardInhabituel(cwf)) retardsInhabituels++;
+      if (encours > 0) {
         totalActifs++;
-        const p = clientPalier(c, config);
-        ladder[p]++;
-        if (p <= 4) dansLesClous++;
-        else if (p === 5) arretService++;
+        ladder[palier]++;
+        if (palier <= 4) dansLesClous++;
+        else if (palier === 5) arretService++;
         else litige++;
       }
-    });
+    }
     const kpis = {
       totalEncours,
       enRetard,
@@ -119,11 +175,11 @@ clientsRouter.get('/console', async (req, res, next) => {
       config,
     };
 
-    // ── Liste (identique à /, sans encours nul, non triée : tri côté client) ──
-    const list = clients
-      .map((c) => {
-        const encours = clientEncours(c);
-        const oldest = clientOldestEcheance(c);
+    // ── Liste (clients avec encours, tri côté client) ──
+    const list = enriched
+      .filter((e) => e.encours > 0)
+      .map(({ c, cwf, encours, palier }) => {
+        const oldest = clientOldestEcheance(cwf);
         const derniere = c.actions[0];
         return {
           id: c.id,
@@ -137,14 +193,13 @@ clientsRouter.get('/console', async (req, res, next) => {
           frequenceFacturation: c.frequenceFacturation,
           contacts: c.contacts.map((ct) => ({ id: ct.id, nom: ct.nom, fonction: ct.fonction, email: ct.email, tel: ct.tel })),
           encours,
-          joursRetard: clientJoursRetard(c),
-          palier: clientPalier(c, config),
-          retardInhabituel: clientRetardInhabituel(c),
+          joursRetard: clientJoursRetard(cwf),
+          palier,
+          retardInhabituel: clientRetardInhabituel(cwf),
           echeanceLaPlusAncienne: oldest?.dateEcheance ?? null,
           derniereAction: derniere ? { label: derniere.label, date: derniere.date, palier: derniere.palier } : null,
         };
-      })
-      .filter((c) => c.encours > 0);
+      });
 
     res.json({ kpis, list });
   } catch (err) {
