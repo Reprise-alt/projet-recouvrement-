@@ -523,6 +523,25 @@ clientsRouter.post('/:id/actions', requireRole('admin', 'manager_entite', 'compt
   }
 });
 
+// Mot bienveillant HORS PALIER : geste manuel envers un bon payeur en retard
+// inhabituel. Journalisé comme action (palier 0, libellé dédié) pour garder une
+// trace dans l'historique, SANS faire avancer l'échelle de recouvrement.
+clientsRouter.post('/:id/relance-bienveillante', requireRole('admin', 'manager_entite', 'comptable'), async (req, res, next) => {
+  try {
+    const existing = await prisma.client.findUnique({ where: { id: req.params.id } });
+    if (!existing) return res.status(404).json({ error: 'Client introuvable' });
+    if (!assertEntiteInScope(req, res, existing.entite as Entite)) return;
+    const canal = typeof req.body?.canal === 'string' ? req.body.canal.trim().slice(0, 40) : '';
+    const note = ['Mot bienveillant envoyé', canal ? `(${canal})` : ''].filter(Boolean).join(' ');
+    const action = await prisma.actionRecouvrement.create({
+      data: { clientId: req.params.id, palier: 0, label: 'Mot bienveillant (hors palier)', note, utilisateurId: req.user!.id },
+    });
+    res.status(201).json(action);
+  } catch (err) {
+    next(err);
+  }
+});
+
 clientsRouter.get('/:id/letters/:palierId', requireRole('admin', 'manager_entite'), async (req, res, next) => {
   try {
     const client = await prisma.client.findUnique({
