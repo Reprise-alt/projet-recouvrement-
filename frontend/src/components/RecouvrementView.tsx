@@ -436,9 +436,21 @@ export function RecouvrementView({ entityFilter, role, reloadKey, onImport, canR
                       <td className="mono" title={fmtDate(c.echeanceLaPlusAncienne)}>{fmtDate(c.echeanceLaPlusAncienne)}</td>
                       <td className="mono">{c.joursRetard} j</td>
                       <td>
-                        <span className="badge" data-tone={pal.tone}>
-                          {libelle(c.palier)}
-                        </span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+                          <span className="badge" data-tone={pal.tone}>
+                            {libelle(c.palier)}
+                          </span>
+                          {c.contentieuxEligible && (
+                            <span
+                              className="badge"
+                              data-tone="danger"
+                              style={{ flex: 'none' }}
+                              title="Ce client remplit la règle d'éligibilité au contentieux (comportement de non-paiement + garde-fous d'âge et de montant). La bascule reste votre décision."
+                            >
+                              <Gavel size={11} /> Éligible contentieux
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td style={{ fontSize: 12 }}>
                         {c.derniereAction ? (

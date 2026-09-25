@@ -75,6 +75,7 @@ clientsRouter.get('/console', async (req, res, next) => {
   try {
     const entiteFilter = resolveEntiteScope(req.user!, req.query.entite);
     const config = await getConfig();
+    const seuils = await getContentieuxSeuils();
     const where = entiteWhere(entiteFilter);
 
     // MISE À L'ÉCHELLE (portefeuilles à ~100k+ factures) : on n'ouvre JAMAIS
@@ -92,6 +93,7 @@ clientsRouter.get('/console', async (req, res, next) => {
         where: { statut: 'impayee', client: where },
         _sum: { montant: true },
         _min: { dateEcheance: true },
+        _count: { _all: true },
       }),
       prisma.facture.findMany({
         where: { statut: 'payee', datePaiement: { not: null }, client: where },
@@ -101,7 +103,7 @@ clientsRouter.get('/console', async (req, res, next) => {
         where,
         select: {
           id: true, nom: true, entite: true, contact: true, email: true, tel: true, note: true,
-          prochaineRelance: true, frequenceFacturation: true,
+          prochaineRelance: true, frequenceFacturation: true, resilie: true, contentieuxExclu: true,
           contacts: { orderBy: { createdAt: 'asc' }, select: { id: true, nom: true, fonction: true, email: true, tel: true } },
           actions: { orderBy: { date: 'desc' }, take: 1, select: { label: true, date: true, palier: true } },
         },
@@ -109,7 +111,7 @@ clientsRouter.get('/console', async (req, res, next) => {
     ]);
 
     const impayeParClient = new Map(
-      impayeRoll.map((r) => [r.clientId, { encours: r._sum.montant ?? 0, oldest: r._min.dateEcheance }]),
+      impayeRoll.map((r) => [r.clientId, { encours: r._sum.montant ?? 0, oldest: r._min.dateEcheance, nb: r._count._all }]),
     );
     const payesParClient = new Map<string, { dateEcheance: Date; datePaiement: Date }[]>();
     for (const p of payes) {
@@ -182,6 +184,20 @@ clientsRouter.get('/console', async (req, res, next) => {
       .map(({ c, cwf, encours, palier }) => {
         const oldest = clientOldestEcheance(cwf);
         const derniere = c.actions[0];
+        const joursRetard = clientJoursRetard(cwf);
+        // Éligibilité contentieux, version CONSERVATRICE compatible avec
+        // l'agrégat (on ne charge pas les factures détaillées ici) : on couvre
+        // les critères « ≥ 3 impayées » et « client résilié » + les garde-fous
+        // (âge/plancher). Le critère « ≥ 2 échéances CONSÉCUTIVES » exige
+        // l'ordre des factures : il est vérifié précisément sur la fiche client
+        // et au moment de la bascule. Ce drapeau ne fait donc JAMAIS de
+        // faux positif — au pire il manque le cas « 2 consécutives seules ».
+        const nbImpayees = impayeParClient.get(c.id)?.nb ?? 0;
+        const contentieuxEligible =
+          !c.contentieuxExclu &&
+          (nbImpayees >= 3 || !!c.resilie) &&
+          joursRetard >= seuils.ageMinJours &&
+          encours >= seuils.montantPlancher;
         return {
           id: c.id,
           nom: c.nom,
@@ -192,11 +208,14 @@ clientsRouter.get('/console', async (req, res, next) => {
           note: c.note,
           prochaineRelance: c.prochaineRelance,
           frequenceFacturation: c.frequenceFacturation,
+          resilie: c.resilie,
+          contentieuxExclu: c.contentieuxExclu,
           contacts: c.contacts.map((ct) => ({ id: ct.id, nom: ct.nom, fonction: ct.fonction, email: ct.email, tel: ct.tel })),
           encours,
-          joursRetard: clientJoursRetard(cwf),
+          joursRetard,
           palier,
           retardInhabituel: clientRetardInhabituel(cwf),
+          contentieuxEligible,
           echeanceLaPlusAncienne: oldest?.dateEcheance ?? null,
           derniereAction: derniere ? { label: derniere.label, date: derniere.date, palier: derniere.palier } : null,
         };
@@ -219,13 +238,53 @@ clientsRouter.get('/journee', async (req, res, next) => {
     const now = new Date();
     const debutJour = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0));
 
-    const [relances, facturesPayees] = await Promise.all([
+    // Bilan de l'année en cours (« Cette année, facturé X / recouvré Y = Z% »).
+    // Sommes calculées EN BASE (aggregate) — jamais de chargement de lignes,
+    // donc valable même sur un portefeuille à 100k+ factures.
+    // Équité vis-à-vis des délais de paiement : le taux se calcule uniquement
+    // sur les factures DÉJÀ ÉCHUES (dateEcheance ≤ aujourd'hui). Comme l'échéance
+    // intègre déjà le délai contractuel (émission + 30/60 j…), une facture émise
+    // récemment, dont l'échéance n'est pas encore arrivée, n'est PAS comptée
+    // comme « non recouvrée » — elle n'a tout simplement pas encore eu à être
+    // payée. Elle apparaît à part, en « encore à échoir ».
+    const debutAnnee = new Date(Date.UTC(now.getUTCFullYear(), 0, 1, 0, 0, 0));
+    const debutAnneeProchaine = new Date(Date.UTC(now.getUTCFullYear() + 1, 0, 1, 0, 0, 0));
+
+    const [relances, facturesPayees, factureAnneeAgg, factureEchuAgg, recouvreEchuAgg] = await Promise.all([
       prisma.actionRecouvrement.count({ where: { palier: { gte: 1 }, date: { gte: debutJour }, client: where } }),
       prisma.facture.findMany({
         where: { statut: 'payee', datePaiement: { gte: debutJour, lte: now }, client: where },
         select: { montant: true, clientId: true, numero: true, datePaiement: true, client: { select: { nom: true } } },
       }),
+      // Tout ce qui a été facturé cette année (échéance dans l'année civile).
+      prisma.facture.aggregate({
+        _sum: { montant: true },
+        where: { dateEcheance: { gte: debutAnnee, lt: debutAnneeProchaine }, client: where },
+      }),
+      // … dont la part déjà échue (base de calcul du taux).
+      prisma.facture.aggregate({
+        _sum: { montant: true },
+        where: { dateEcheance: { gte: debutAnnee, lte: now }, client: where },
+      }),
+      // … et, parmi les échues, ce qui est effectivement recouvré (payé).
+      prisma.facture.aggregate({
+        _sum: { montant: true },
+        where: { dateEcheance: { gte: debutAnnee, lte: now }, statut: 'payee', client: where },
+      }),
     ]);
+
+    const factureAnnee = Math.round(factureAnneeAgg._sum.montant ?? 0);
+    const factureEchu = Math.round(factureEchuAgg._sum.montant ?? 0);
+    const recouvreEchu = Math.round(recouvreEchuAgg._sum.montant ?? 0);
+    const aEchoir = Math.max(0, factureAnnee - factureEchu);
+    const tauxRecouvrement = factureEchu > 0 ? Math.round((recouvreEchu / factureEchu) * 100) : null;
+    const annee = {
+      annee: now.getUTCFullYear(),
+      factureEchu, // facturé cette année, déjà arrivé à échéance
+      recouvre: recouvreEchu, // recouvré parmi ces factures échues
+      tauxPct: tauxRecouvrement, // recouvreEchu / factureEchu, en %
+      aEchoir, // facturé cette année mais pas encore à échéance (exclu du taux)
+    };
 
     const encaisse = Math.round(facturesPayees.reduce((s, f) => s + f.montant, 0));
     const facturesReglees = facturesPayees.length;
@@ -254,7 +313,7 @@ clientsRouter.get('/journee', async (req, res, next) => {
       clientsAJour = clientsPayeurs.filter((c) => clientEncours(c) === 0).length;
     }
 
-    res.json({ relances, encaisse, facturesReglees, clientsAJour, paiements, date: now.toISOString().slice(0, 10) });
+    res.json({ relances, encaisse, facturesReglees, clientsAJour, paiements, annee, date: now.toISOString().slice(0, 10) });
   } catch (err) {
     next(err);
   }
