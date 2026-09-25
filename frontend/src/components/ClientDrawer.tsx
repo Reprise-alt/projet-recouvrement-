@@ -6,7 +6,7 @@ import { useResource } from '../hooks/useResource';
 import { useToast } from '../hooks/useToast';
 import { fmtDate, fmtFCFA, FREQUENCE_LABELS, PALIERS } from '../lib/constants';
 import { usePaliersConfig } from '../lib/paliersConfig';
-import { lienWhatsApp } from '../lib/whatsapp';
+import { lienWhatsApp, messageMotBienveillant } from '../lib/whatsapp';
 
 interface Props {
   clientId: string;
@@ -43,6 +43,8 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
   const [attachments, setAttachments] = useState<File[]>([]);
   const [sendStatus, setSendStatus] = useState<{ kind: 'ok' | 'err'; message: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [motOuvert, setMotOuvert] = useState(false);
+  const [motTexte, setMotTexte] = useState('');
 
   const canEditContact = role === 'admin' || role === 'manager_entite';
   const canEditNote = role === 'admin' || role === 'manager_entite' || role === 'comptable';
@@ -347,6 +349,20 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
     }
   }
 
+  async function marquerMotEnvoye(canal: string) {
+    setBusy(true);
+    try {
+      await api.post(`/api/clients/${clientId}/relance-bienveillante`, { canal });
+      showToast('Mot bienveillant journalisé.');
+      setMotOuvert(false);
+      afterMutation();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function copyLetter() {
     if (!letterText) return;
     navigator.clipboard?.writeText(letterText).then(
@@ -474,6 +490,76 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
                 </span>
               )}
             </div>
+
+            {client.retardInhabituel && (() => {
+              const impayees = client.factures.filter((f) => f.statut === 'impayee');
+              const cible = impayees.slice().sort((a, b) => +new Date(a.dateEcheance) - +new Date(b.dateEcheance))[0] ?? null;
+              const moy = client.delaiMoyenHistorique;
+              const habitude = moy == null ? null : Math.round(moy);
+              const ratio = moy && moy > 0 ? Math.round(client.joursRetard / moy) : null;
+              const dateLimite = new Date(Date.now() + 7 * 864e5).toLocaleDateString('fr-FR');
+              const explication =
+                habitude != null && habitude > 0
+                  ? `Ce client règle d’habitude sous ~${habitude} j. Là, ${client.joursRetard} j${ratio && ratio >= 2 ? ` — environ ${ratio}× son habitude` : ''}. Chez un bon payeur, c’est plutôt le signe d’un incident ponctuel (oubli, trésorerie serrée, litige léger) qu’un impayé volontaire : un contact rapide et bienveillant suffit souvent à débloquer.`
+                  : habitude != null
+                    ? `Ce client paie d’habitude à l’échéance${habitude < 0 ? ` (souvent ${-habitude} j en avance)` : ''}. Ce retard de ${client.joursRetard} j lui ressemble peu — sans doute un incident ponctuel. Un mot bienveillant vaut mieux qu’une relance ferme.`
+                    : `Ce client sort de ses habitudes de paiement. Avant toute relance ferme, un mot bienveillant permet souvent de débloquer sans abîmer la relation.`;
+              const waLink = lienWhatsApp(client.tel, motTexte);
+              return (
+                <div className="card-mini" style={{ borderColor: 'var(--amber)', background: 'var(--amber-soft)', marginTop: 10 }}>
+                  <div style={{ fontSize: 12.5, color: 'var(--ink)', lineHeight: 1.5 }}>{explication}</div>
+                  {!motOuvert ? (
+                    <button
+                      className="primary"
+                      style={{ marginTop: 10 }}
+                      onClick={() => {
+                        setMotTexte(
+                          messageMotBienveillant({
+                            contact: client.contact,
+                            factureNumero: cible?.numero ?? null,
+                            montant: cible?.montant ?? null,
+                            joursRetard: client.joursRetard,
+                            dateLimite,
+                          }),
+                        );
+                        setMotOuvert(true);
+                      }}
+                    >
+                      <MessageCircle size={14} style={{ verticalAlign: -2, marginRight: 5 }} /> Envoyer un mot bienveillant
+                    </button>
+                  ) : (
+                    <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <textarea rows={10} value={motTexte} onChange={(e) => setMotTexte(e.target.value)} style={{ fontSize: 12.5 }} />
+                      <div style={{ fontSize: 11, color: 'var(--ink-soft)' }}>
+                        Message manuel, hors échelle de recouvrement. Ajustez-le librement avant l’envoi.
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        {waLink && (
+                          <button className="primary" type="button" onClick={() => window.open(waLink, '_blank', 'noopener')}>
+                            WhatsApp
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            navigator.clipboard?.writeText(motTexte).then(
+                              () => showToast('Message copié'),
+                              () => showToast('Copie impossible dans cet environnement'),
+                            )
+                          }
+                        >
+                          Copier
+                        </button>
+                        <button type="button" className="primary" disabled={busy} onClick={() => marquerMotEnvoye('manuel')}>
+                          Marquer comme envoyé
+                        </button>
+                        <button type="button" onClick={() => setMotOuvert(false)}>Annuler</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             <div className="section-title">
               <span>Note</span>

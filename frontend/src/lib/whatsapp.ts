@@ -14,6 +14,38 @@ export function lienWhatsApp(tel: string | null | undefined, texte: string, indi
   return `https://wa.me/${d}?text=${encodeURIComponent(texte)}`;
 }
 
+// Mot BIENVEILLANT hors-palier : pour un bon payeur en retard inhabituel. Ton
+// chaleureux qui valorise sa régularité et invite en douceur à régulariser —
+// tout l'inverse d'une relance ferme. Pré-rempli, éditable avant envoi.
+export function messageMotBienveillant(params: {
+  contact?: string | null;
+  factureNumero?: string | null;
+  montant?: number | null;
+  joursRetard: number;
+  dateLimite?: string | null; // jj/mm/aaaa
+  entreprise?: string | null; // signature (nom de la société qui envoie)
+}): string {
+  const bonjour = params.contact && params.contact.trim() ? `Bonjour ${params.contact.trim()},` : 'Bonjour,';
+  const facture = params.factureNumero
+    ? `la facture ${params.factureNumero}${params.montant != null ? ` (${fmtFCFA(params.montant)})` : ''}`
+    : `votre règlement en cours${params.montant != null ? ` (${fmtFCFA(params.montant)})` : ''}`;
+  const cloture = params.dateLimite
+    ? `Si tout est déjà en route de votre côté, n’en tenez pas compte 🙂. Sinon, un règlement d’ici le ${params.dateLimite} nous arrangerait.`
+    : 'Si tout est déjà en route de votre côté, n’en tenez pas compte 🙂. Sinon, un règlement dans les prochains jours nous arrangerait.';
+  return [
+    bonjour,
+    '',
+    'Un petit mot, simplement pour vous remercier 🙏 Depuis le temps que nous travaillons ensemble, vos règlements sont d’une régularité qu’on aimerait à tous nos partenaires — on le remarque, et on l’apprécie sincèrement.',
+    '',
+    `C’est justement pour ça qu’on se permet ce message : ${facture} accuse ce mois-ci un retard un peu inhabituel de ${params.joursRetard} jours par rapport à vos habitudes. Rien d’alarmant — un simple oubli est vite arrivé, et on a préféré un rappel amical plutôt qu’une relance formelle.`,
+    '',
+    cloture,
+    '',
+    'Merci encore pour votre confiance et votre sérieux. Au plaisir de continuer longtemps ensemble !',
+    ...(params.entreprise && params.entreprise.trim() ? [params.entreprise.trim()] : []),
+  ].join('\n');
+}
+
 // Message de relance court et courtois, pré-rempli pour un envoi manuel rapide
 // par WhatsApp (l'agent peut l'ajuster dans WhatsApp avant d'envoyer). Sans le
 // détail des factures : c'est un rappel amiable, pas la lettre formelle.
