@@ -3,6 +3,8 @@ import multer from 'multer';
 import { prisma } from '../db';
 import { requireAuth, requireOrgRole } from '../middleware/auth';
 import { emailMode, getEmailProvider } from '../lib/email/provider';
+import { construireRelanceMarque, type OrgIdentite } from '../lib/modelesRelance';
+import { chargerMoyensPaiement } from '../lib/moyensPaiement';
 import { capacites } from '../lib/formules';
 import { superAdminEmails } from '../lib/superAdmin';
 import { verifierDelivrabilite } from '../lib/deliverability';
@@ -155,10 +157,57 @@ organisationRouter.post('/test-email', requireOrgRole('proprietaire', 'administr
   };
   try {
     const to = req.user!.email;
+    // Aperçu RÉEL de relance : on envoie exactement ce que verra un débiteur
+    // (logo, moyens de paiement, mentions légales, bouton chèque…), à partir de
+    // l'identité de l'organisation et d'une facture d'exemple. Ça permet de
+    // vérifier d'un coup d'œil le contenu (nom, coordonnées bancaires, rendu).
+    const orgRec = await prisma.organisation.findUnique({
+      where: { id: req.user!.organisationId },
+      select: {
+        raisonSociale: true, instructionsPaiement: true, logoUrl: true, adresse: true,
+        identifiantFiscal: true, rccm: true, formeJuridique: true, capitalSocial: true,
+        contactRecouvrement: true, pays: true, promoFeymaRelances: true, codeParrainage: true,
+      },
+    });
+    const moyensPaiement = await chargerMoyensPaiement(req.user!.organisationId);
+    const orgIdentite: OrgIdentite | null = orgRec
+      ? {
+          raisonSociale: orgRec.raisonSociale,
+          logoUrl: orgRec.logoUrl,
+          adresse: orgRec.adresse,
+          identifiantFiscal: orgRec.identifiantFiscal,
+          rccm: orgRec.rccm,
+          formeJuridique: orgRec.formeJuridique,
+          capitalSocial: orgRec.capitalSocial,
+          contactRecouvrement: orgRec.contactRecouvrement,
+          instructionsPaiement: orgRec.instructionsPaiement,
+          moyensPaiement,
+          pays: orgRec.pays,
+          promoFeymaRelances: orgRec.promoFeymaRelances,
+          codeParrainage: orgRec.codeParrainage,
+        }
+      : null;
+    const apercu = orgIdentite
+      ? construireRelanceMarque(
+          {
+            nom: 'Client (exemple)',
+            factures: [
+              { numero: 'FAC-EXEMPLE-001', montant: 150000, dateEcheance: new Date(Date.now() - 20 * 864e5), statut: 'impayee' },
+            ],
+          },
+          orgIdentite,
+          2,
+          undefined,
+          'https://feyma.olu360.com',
+        )
+      : null;
     await getEmailProvider().send({
       to,
-      subject: 'Test d’envoi — OLU 360',
-      text: 'Cet email confirme que l’envoi depuis votre espace OLU 360 fonctionne. Si vous le recevez, vos relances partiront bien à vos débiteurs.',
+      subject: apercu ? `[Aperçu de relance] ${apercu.sujet}` : 'Test d’envoi — OLU 360',
+      text: apercu
+        ? `APERÇU — voici ce que recevra votre débiteur (facture d'exemple).\n\n${apercu.texte}`
+        : 'Cet email confirme que l’envoi depuis votre espace OLU 360 fonctionne. Si vous le recevez, vos relances partiront bien à vos débiteurs.',
+      html: apercu?.html,
     });
     // En mode stub, aucun email n'est réellement parti (juste journalisé).
     res.json({
