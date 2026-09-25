@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { prisma } from '../db';
-import { getConfig } from '../services/configService';
+import { getConfig, getContentieuxSeuils } from '../services/configService';
 import {
   clientDelaiMoyenHistorique,
   clientEncours,
@@ -348,6 +348,7 @@ clientsRouter.get('/:id', async (req, res, next) => {
     if (!assertEntiteInScope(req, res, client.entite as Entite)) return;
 
     const config = await getConfig();
+    const seuils = await getContentieuxSeuils();
     res.json({
       ...client,
       encours: clientEncours(client),
@@ -355,7 +356,7 @@ clientsRouter.get('/:id', async (req, res, next) => {
       palier: clientPalier(client, config),
       retardInhabituel: clientRetardInhabituel(client),
       delaiMoyenHistorique: clientDelaiMoyenHistorique(client),
-      contentieux: eligibiliteContentieux(client, config),
+      contentieux: eligibiliteContentieux(client, config, seuils.ageMinJours, seuils.montantPlancher),
     });
   } catch (err) {
     next(err);

@@ -85,6 +85,14 @@ organisationRouter.patch('/', requireOrgRole('proprietaire', 'administrateur'), 
     if ('raisonSociale' in data && !String(data.raisonSociale ?? '').trim()) {
       return res.status(400).json({ error: 'La raison sociale est requise' });
     }
+    // Seuils numériques de la règle contentieux : entier ≥ 0, ou null (= défaut).
+    for (const k of ['contentieuxAgeMinJours', 'contentieuxMontantPlancher'] as const) {
+      if (k in body) {
+        const v = body[k];
+        const n = v === '' || v === null || v === undefined ? null : Number(v);
+        data[k] = n !== null && Number.isFinite(n) && n >= 0 ? Math.round(n) : null;
+      }
+    }
     const org = await prisma.organisation.update({ where: { id: req.user!.organisationId }, data: data as never });
     res.json(org);
   } catch (e) {

@@ -35,6 +35,8 @@ export interface Organisation {
   contactRecouvrement: string | null;
   emailReponse: string | null;
   promoFeymaRelances?: boolean;
+  contentieuxAgeMinJours?: number | null;
+  contentieuxMontantPlancher?: number | null;
   formule: string;
   statut: string;
 }

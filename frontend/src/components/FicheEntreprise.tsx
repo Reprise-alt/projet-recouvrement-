@@ -101,6 +101,8 @@ export function FicheEntreprise({
         contactRecouvrement: org.contactRecouvrement,
         emailReponse: org.emailReponse,
         promoFeymaRelances: org.promoFeymaRelances,
+        contentieuxAgeMinJours: org.contentieuxAgeMinJours ?? null,
+        contentieuxMontantPlancher: org.contentieuxMontantPlancher ?? null,
       });
       onSaved();
       onClose();
@@ -211,6 +213,36 @@ export function FicheEntreprise({
                 Un encart discret invite le destinataire (souvent un service comptable) à découvrir Feyma avec
                 votre code de parrainage. Uniquement sur les rappels amiables, jamais sur les relances fermes.
                 Chaque filleul qui s’abonne vous fait gagner un mois offert.
+              </div>
+            </div>
+
+            <div className="field">
+              <label>Règle contentieux — garde-fous</label>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <div style={{ flex: '1 1 180px' }}>
+                  <label style={{ fontSize: 11.5, color: 'var(--ink-soft)' }}>Retard minimum (jours)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={org.contentieuxAgeMinJours ?? ''}
+                    placeholder="90 (défaut)"
+                    onChange={(e) => champ('contentieuxAgeMinJours', e.target.value === '' ? null : Number(e.target.value))}
+                  />
+                </div>
+                <div style={{ flex: '1 1 180px' }}>
+                  <label style={{ fontSize: 11.5, color: 'var(--ink-soft)' }}>Encours minimum (FCFA)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={org.contentieuxMontantPlancher ?? ''}
+                    placeholder="50 000 (défaut)"
+                    onChange={(e) => champ('contentieuxMontantPlancher', e.target.value === '' ? null : Number(e.target.value))}
+                  />
+                </div>
+              </div>
+              <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 4 }}>
+                Un client ne part en contentieux (≥ 3 impayées, ≥ 2 consécutives, ou résilié) que si sa plus ancienne
+                facture dépasse ce retard <b>et</b> que son encours dépasse ce montant. Vide = valeurs par défaut.
               </div>
             </div>
 
