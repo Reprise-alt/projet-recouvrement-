@@ -74,7 +74,16 @@ clientsRouter.get('/console', async (req, res, next) => {
     const config = await getConfig();
     const clients = await prisma.client.findMany({
       where: entiteWhere(entiteFilter),
-      include: { factures: true, actions: { orderBy: { date: 'desc' }, take: 1 }, contacts: { orderBy: { createdAt: 'asc' } } },
+      // On ne sélectionne QUE les champs de facture réellement utilisés par les
+      // calculs (encours, échéance, retard, palier) — pas les colonnes lourdes
+      // (désignation, commercial…). À gros volume (dizaines/centaines de milliers
+      // de factures), charger la ligne entière saturait la mémoire du serveur ;
+      // ce projeté allège d'un facteur ~3-5 sans rien changer aux résultats.
+      include: {
+        factures: { select: { montant: true, dateEcheance: true, datePaiement: true, statut: true } },
+        actions: { orderBy: { date: 'desc' }, take: 1 },
+        contacts: { orderBy: { createdAt: 'asc' }, select: { id: true, nom: true, fonction: true, email: true, tel: true } },
+      },
     });
 
     // ── KPIs (identiques à /kpis, calculés sur l'ensemble des clients) ──
