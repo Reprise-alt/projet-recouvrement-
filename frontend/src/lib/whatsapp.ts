@@ -24,6 +24,8 @@ export function messageMotBienveillant(params: {
   joursRetard: number;
   dateLimite?: string | null; // jj/mm/aaaa
   entreprise?: string | null; // signature (nom de la société qui envoie)
+  coordonnees?: string | null; // contact recouvrement (email/tél) sous la signature
+  lienPaiement?: string | null; // lien de règlement en un clic (WhatsApp + email)
 }): string {
   const bonjour = params.contact && params.contact.trim() ? `Bonjour ${params.contact.trim()},` : 'Bonjour,';
   const facture = params.factureNumero
@@ -32,6 +34,9 @@ export function messageMotBienveillant(params: {
   const cloture = params.dateLimite
     ? `Si tout est déjà en route de votre côté, n’en tenez pas compte 🙂. Sinon, un règlement d’ici le ${params.dateLimite} nous arrangerait.`
     : 'Si tout est déjà en route de votre côté, n’en tenez pas compte 🙂. Sinon, un règlement dans les prochains jours nous arrangerait.';
+  const lien = params.lienPaiement?.trim() || null;
+  const ent = params.entreprise?.trim() || null;
+  const coord = params.coordonnees?.trim() || null;
   return [
     bonjour,
     '',
@@ -40,9 +45,13 @@ export function messageMotBienveillant(params: {
     `C’est justement pour ça qu’on se permet ce message : ${facture} accuse ce mois-ci un retard un peu inhabituel de ${params.joursRetard} jours par rapport à vos habitudes. Rien d’alarmant — un simple oubli est vite arrivé, et on a préféré un rappel amical plutôt qu’une relance formelle.`,
     '',
     cloture,
+    ...(lien ? ['', `💳 Pour régler en un clic : ${lien}`] : []),
     '',
     'Merci encore pour votre confiance et votre sérieux. Au plaisir de continuer longtemps ensemble !',
-    ...(params.entreprise && params.entreprise.trim() ? [params.entreprise.trim()] : []),
+    '',
+    'Cordialement,',
+    ...(ent ? [ent] : []),
+    ...(coord ? [coord] : []),
   ].join('\n');
 }
 

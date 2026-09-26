@@ -257,6 +257,7 @@ export interface ClientDetail {
   resilie: boolean;
   contentieuxExclu: boolean;
   contentieux: { eligible: boolean; motifs: string[]; bloquants: string[] };
+  emetteur?: { raisonSociale: string | null; contact: string | null; lienPaiement: string | null };
 }
 
 export interface Repartition {

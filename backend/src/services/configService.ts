@@ -1,5 +1,6 @@
 import { prisma, currentOrganisationId } from '../db';
 import { CLE_PAR_PALIER, CONTENTIEUX_AGE_MIN_JOURS, CONTENTIEUX_MONTANT_PLANCHER, DEFAULT_CONFIG, PALIERS_MODIFIABLES, PALIER_PAR_CLE, PalierConfig } from '../lib/paliers';
+import { chargerMoyensPaiement } from '../lib/moyensPaiement';
 
 // Organisation socle du groupe : utilisée comme repli hors contexte tenant
 // (déploiement groupe RLS désactivée), cohérent avec le défaut de colonne.
@@ -50,6 +51,26 @@ export async function getContentieuxSeuils(): Promise<{ ageMinJours: number; mon
   return {
     ageMinJours: org?.contentieuxAgeMinJours ?? CONTENTIEUX_AGE_MIN_JOURS,
     montantPlancher: org?.contentieuxMontantPlancher ?? CONTENTIEUX_MONTANT_PLANCHER,
+  };
+}
+
+// Identité de l'émetteur pour signer un message envoyé « à la main » (mot
+// bienveillant, relance WhatsApp) : nom de la société, coordonnée de contact et
+// un lien de paiement cliquable. Le lien reprend le premier moyen de paiement
+// en ligne configuré (même source que l'email de relance), avec repli sur le
+// lien Wave historique.
+export async function getEmetteurRelance(): Promise<{ raisonSociale: string | null; contact: string | null; lienPaiement: string | null }> {
+  const orgId = orgCourante();
+  const org = await prisma.organisation.findUnique({
+    where: { id: orgId },
+    select: { raisonSociale: true, contactRecouvrement: true, waveLien: true },
+  });
+  const moyens = await chargerMoyensPaiement(orgId);
+  const lienMoyen = moyens.find((m) => m.lien?.trim())?.lien?.trim() ?? null;
+  return {
+    raisonSociale: org?.raisonSociale ?? null,
+    contact: org?.contactRecouvrement?.trim() || null,
+    lienPaiement: lienMoyen ?? org?.waveLien?.trim() ?? null,
   };
 }
 
