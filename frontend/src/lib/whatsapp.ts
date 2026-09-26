@@ -26,6 +26,8 @@ export function messageMotBienveillant(params: {
   entreprise?: string | null; // signature (nom de la société qui envoie)
   coordonnees?: string | null; // contact recouvrement (email/tél) sous la signature
   lienPaiement?: string | null; // lien de règlement en un clic (WhatsApp + email)
+  codeParrainage?: string | null; // mention Feyma / parrainage (si promo active)
+  promoActive?: boolean; // la société laisse-t-elle la mention Feyma (défaut oui)
 }): string {
   const bonjour = params.contact && params.contact.trim() ? `Bonjour ${params.contact.trim()},` : 'Bonjour,';
   const facture = params.factureNumero
@@ -52,20 +54,52 @@ export function messageMotBienveillant(params: {
     'Cordialement,',
     ...(ent ? [ent] : []),
     ...(coord ? [coord] : []),
+    ...mentionFeymaLignes({ entreprise: ent, codeParrainage: params.codeParrainage, promoActive: params.promoActive }),
   ].join('\n');
+}
+
+// Mention « Feyma » (croissance / parrainage), en pied de message amiable —
+// l'équivalent WhatsApp de l'encart présent dans l'email de relance. Nette,
+// séparée du message par un filet, et jamais affichée si la société a coupé la
+// promo ou n'a pas de code de parrainage. Renvoie les lignes à concaténer (vide
+// = rien à ajouter).
+function mentionFeymaLignes(params: { entreprise?: string | null; codeParrainage?: string | null; promoActive?: boolean }): string[] {
+  if (params.promoActive === false) return [];
+  const code = params.codeParrainage?.trim();
+  if (!code) return [];
+  const ent = params.entreprise?.trim() || 'Notre société';
+  const lien = `https://feyma.olu360.com/inscription?parrain=${encodeURIComponent(code)}`;
+  return [
+    '',
+    '––––––',
+    `${ent} automatise son recouvrement avec Feyma. Vous aussi ? Essai gratuit 14 jours, et l’avantage parrainage avec le code ${code} : ${lien}`,
+  ];
 }
 
 // Message de relance court et courtois, pré-rempli pour un envoi manuel rapide
 // par WhatsApp (l'agent peut l'ajuster dans WhatsApp avant d'envoyer). Sans le
 // détail des factures : c'est un rappel amiable, pas la lettre formelle.
-export function messageRelanceWhatsApp(params: { entreprise?: string | null; encours: number }): string {
+export function messageRelanceWhatsApp(params: {
+  entreprise?: string | null;
+  encours: number;
+  coordonnees?: string | null; // contact recouvrement sous la signature
+  lienPaiement?: string | null; // règlement en un clic
+  codeParrainage?: string | null; // mention Feyma / parrainage
+  promoActive?: boolean;
+}): string {
   const ent = (params.entreprise ?? '').trim();
+  const coord = params.coordonnees?.trim() || null;
+  const lien = params.lienPaiement?.trim() || null;
   return [
     'Bonjour,',
     '',
     `Sauf erreur de notre part, votre compte présente un solde impayé de ${fmtFCFA(params.encours)}.`,
     'Nous vous remercions de bien vouloir procéder à sa régularisation dans les meilleurs délais.',
+    ...(lien ? ['', `💳 Pour régler en un clic : ${lien}`] : []),
     '',
-    ent ? `Cordialement,\n${ent}` : 'Cordialement',
+    'Cordialement,',
+    ...(ent ? [ent] : []),
+    ...(coord ? [coord] : []),
+    ...mentionFeymaLignes({ entreprise: ent, codeParrainage: params.codeParrainage, promoActive: params.promoActive }),
   ].join('\n');
 }

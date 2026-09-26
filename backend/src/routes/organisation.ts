@@ -5,6 +5,7 @@ import { requireAuth, requireOrgRole } from '../middleware/auth';
 import { emailMode, getEmailProvider } from '../lib/email/provider';
 import { construireRelanceMarque, type OrgIdentite } from '../lib/modelesRelance';
 import { chargerMoyensPaiement } from '../lib/moyensPaiement';
+import { getEmetteurRelance } from '../services/configService';
 import { capacites } from '../lib/formules';
 import { superAdminEmails } from '../lib/superAdmin';
 import { verifierDelivrabilite } from '../lib/deliverability';
@@ -64,6 +65,17 @@ organisationRouter.get('/', async (req, res, next) => {
     const org = await prisma.organisation.findUnique({ where: { id: req.user!.organisationId } });
     if (!org) return res.status(404).json({ error: 'Organisation introuvable' });
     res.json(org);
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Identité d'émetteur pour signer les messages manuels (mot bienveillant,
+// relance WhatsApp rapide) : société, contact, lien de paiement et mention
+// Feyma/parrainage. Léger, lisible par tout compte authentifié de l'org.
+organisationRouter.get('/emetteur', async (req, res, next) => {
+  try {
+    res.json(await getEmetteurRelance(req.user!.organisationId));
   } catch (e) {
     next(e);
   }

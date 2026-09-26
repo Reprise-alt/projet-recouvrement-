@@ -6,6 +6,7 @@ import { useToast } from '../hooks/useToast';
 import { useAuth } from '../auth/AuthContext';
 import { fmtFCFA, PALIERS } from '../lib/constants';
 import { lienWhatsApp, messageRelanceWhatsApp } from '../lib/whatsapp';
+import type { Emetteur } from '../api/types';
 import { JournalRelances } from './JournalRelances';
 
 // Aperçu « relances à venir » (addendum §5) — lecture seule. Montre, pour
@@ -45,6 +46,12 @@ export function RelancesAVenirView({ reloadKey, canManage }: { reloadKey: unknow
   const res = useResource<RelancesDuesResponse>('/api/relances/dues', reloadKey);
   const { showToast } = useToast();
   const { user } = useAuth();
+  // Identité d'émetteur (société, contact, lien de paiement, parrainage) pour
+  // signer la relance WhatsApp rapide. Chargée une fois.
+  const [emetteur, setEmetteur] = useState<Emetteur | null>(null);
+  useEffect(() => {
+    api.get<Emetteur>('/api/organisation/emetteur').then(setEmetteur).catch(() => {});
+  }, []);
   const [busy, setBusy] = useState(false);
   const [vue, setVue] = useState<'avenir' | 'historique'>('avenir');
   // Édition rapide des coordonnées d'un client depuis la liste (gain de temps).
@@ -155,7 +162,17 @@ export function RelancesAVenirView({ reloadKey, canManage }: { reloadKey: unknow
             <tbody>
               {data.relances.map((r) => {
                 const tone = PALIERS[r.palier]?.tone ?? 'amber';
-                const waHref = lienWhatsApp(r.tel, messageRelanceWhatsApp({ entreprise: user?.raisonSociale, encours: r.encours }));
+                const waHref = lienWhatsApp(
+                  r.tel,
+                  messageRelanceWhatsApp({
+                    entreprise: emetteur?.raisonSociale ?? user?.raisonSociale,
+                    encours: r.encours,
+                    coordonnees: emetteur?.contact ?? null,
+                    lienPaiement: emetteur?.lienPaiement ?? null,
+                    codeParrainage: emetteur?.codeParrainage ?? null,
+                    promoActive: emetteur?.promoActive ?? true,
+                  }),
+                );
                 return (
                   <tr key={r.clientId}>
                     <td>

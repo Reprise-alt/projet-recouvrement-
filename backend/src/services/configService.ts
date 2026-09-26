@@ -59,11 +59,18 @@ export async function getContentieuxSeuils(): Promise<{ ageMinJours: number; mon
 // un lien de paiement cliquable. Le lien reprend le premier moyen de paiement
 // en ligne configuré (même source que l'email de relance), avec repli sur le
 // lien Wave historique.
-export async function getEmetteurRelance(): Promise<{ raisonSociale: string | null; contact: string | null; lienPaiement: string | null }> {
-  const orgId = orgCourante();
+export interface EmetteurRelance {
+  raisonSociale: string | null;
+  contact: string | null;
+  lienPaiement: string | null;
+  codeParrainage: string | null; // mention Feyma / parrainage sur les messages amiables
+  promoActive: boolean; // la société laisse-t-elle la mention Feyma (défaut oui)
+}
+export async function getEmetteurRelance(orgIdExplicite?: string): Promise<EmetteurRelance> {
+  const orgId = orgIdExplicite ?? orgCourante();
   const org = await prisma.organisation.findUnique({
     where: { id: orgId },
-    select: { raisonSociale: true, contactRecouvrement: true, waveLien: true },
+    select: { raisonSociale: true, contactRecouvrement: true, waveLien: true, codeParrainage: true, promoFeymaRelances: true },
   });
   const moyens = await chargerMoyensPaiement(orgId);
   const lienMoyen = moyens.find((m) => m.lien?.trim())?.lien?.trim() ?? null;
@@ -71,6 +78,8 @@ export async function getEmetteurRelance(): Promise<{ raisonSociale: string | nu
     raisonSociale: org?.raisonSociale ?? null,
     contact: org?.contactRecouvrement?.trim() || null,
     lienPaiement: lienMoyen ?? org?.waveLien?.trim() ?? null,
+    codeParrainage: org?.codeParrainage?.trim() || null,
+    promoActive: org?.promoFeymaRelances !== false,
   };
 }
 

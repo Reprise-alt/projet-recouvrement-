@@ -544,6 +544,8 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
                             entreprise: client.emetteur?.raisonSociale ?? null,
                             coordonnees: client.emetteur?.contact ?? null,
                             lienPaiement: client.emetteur?.lienPaiement ?? null,
+                            codeParrainage: client.emetteur?.codeParrainage ?? null,
+                            promoActive: client.emetteur?.promoActive ?? true,
                           }),
                         );
                         setMotOuvert(true);
