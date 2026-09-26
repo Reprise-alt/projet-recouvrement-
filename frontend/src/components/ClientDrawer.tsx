@@ -541,6 +541,9 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
                             montant: cible?.montant ?? null,
                             joursRetard: client.joursRetard,
                             dateLimite,
+                            entreprise: client.emetteur?.raisonSociale ?? null,
+                            coordonnees: client.emetteur?.contact ?? null,
+                            lienPaiement: client.emetteur?.lienPaiement ?? null,
                           }),
                         );
                         setMotOuvert(true);

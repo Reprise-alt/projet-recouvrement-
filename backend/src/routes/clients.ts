@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { prisma } from '../db';
-import { getConfig, getContentieuxSeuils } from '../services/configService';
+import { getConfig, getContentieuxSeuils, getEmetteurRelance } from '../services/configService';
 import {
   clientDelaiMoyenHistorique,
   clientEncours,
@@ -452,6 +452,7 @@ clientsRouter.get('/:id', async (req, res, next) => {
 
     const config = await getConfig();
     const seuils = await getContentieuxSeuils();
+    const emetteur = await getEmetteurRelance();
     res.json({
       ...client,
       encours: clientEncours(client),
@@ -460,6 +461,7 @@ clientsRouter.get('/:id', async (req, res, next) => {
       retardInhabituel: clientRetardInhabituel(client),
       delaiMoyenHistorique: clientDelaiMoyenHistorique(client),
       contentieux: eligibiliteContentieux(client, config, seuils.ageMinJours, seuils.montantPlancher),
+      emetteur, // pour signer les messages manuels (mot bienveillant) + lien de paiement
     });
   } catch (err) {
     next(err);
