@@ -14,6 +14,15 @@ export function lienWhatsApp(tel: string | null | undefined, texte: string, indi
   return `https://wa.me/${d}?text=${encodeURIComponent(texte)}`;
 }
 
+// Injecte le montant dû dans un lien de paiement, partout où le placeholder
+// {montant} apparaît (même mécanisme que l'email de relance). Le prestataire
+// doit accepter le montant en paramètre : ex. Wave (…?amount={montant}). Un lien
+// générique sans {montant} est renvoyé tel quel (le payeur saisira le montant).
+function injecterMontant(lien: string, montant?: number | null): string {
+  if (montant == null) return lien;
+  return lien.replace(/\{montant\}/g, String(Math.round(montant)));
+}
+
 // Mot BIENVEILLANT hors-palier : pour un bon payeur en retard inhabituel. Ton
 // chaleureux qui valorise sa régularité et invite en douceur à régulariser —
 // tout l'inverse d'une relance ferme. Pré-rempli, éditable avant envoi.
@@ -36,7 +45,7 @@ export function messageMotBienveillant(params: {
   const cloture = params.dateLimite
     ? `Si tout est déjà en route de votre côté, n’en tenez pas compte 🙂. Sinon, un règlement d’ici le ${params.dateLimite} nous arrangerait.`
     : 'Si tout est déjà en route de votre côté, n’en tenez pas compte 🙂. Sinon, un règlement dans les prochains jours nous arrangerait.';
-  const lien = params.lienPaiement?.trim() || null;
+  const lien = params.lienPaiement?.trim() ? injecterMontant(params.lienPaiement.trim(), params.montant) : null;
   const ent = params.entreprise?.trim() || null;
   const coord = params.coordonnees?.trim() || null;
   return [
@@ -89,7 +98,7 @@ export function messageRelanceWhatsApp(params: {
 }): string {
   const ent = (params.entreprise ?? '').trim();
   const coord = params.coordonnees?.trim() || null;
-  const lien = params.lienPaiement?.trim() || null;
+  const lien = params.lienPaiement?.trim() ? injecterMontant(params.lienPaiement.trim(), params.encours) : null;
   return [
     'Bonjour,',
     '',
