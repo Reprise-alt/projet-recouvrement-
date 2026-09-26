@@ -149,13 +149,18 @@ function MoyenRow({ m, onLocal, onSave, onDelete, onQr }: { m: Moyen; onLocal: (
       </div>
       <div style={{ display: 'grid', gap: 8 }}>
         <input
-          type="url"
+          type="text"
           value={m.lien ?? ''}
           onChange={(e) => onLocal({ lien: e.target.value })}
           onBlur={(e) => onSave({ lien: e.target.value })}
           placeholder="Lien de paiement (https://pro.julaya.co/… ou https://pay.wave.com/…)"
           style={{ width: '100%', fontSize: 12.5 }}
         />
+        <div style={{ fontSize: 11, color: 'var(--ink-soft)', lineHeight: 1.45, marginTop: -2 }}>
+          Astuce : ajoutez <code>{'{montant}'}</code> là où votre prestataire attend le montant, et
+          Feyma le remplira automatiquement (email + WhatsApp). Ex. <code>…?amount={'{montant}'}</code>.
+          Sans <code>{'{montant}'}</code>, le lien s'ouvre sans montant pré-rempli.
+        </div>
         <input
           value={m.numero ?? ''}
           onChange={(e) => onLocal({ numero: e.target.value })}
