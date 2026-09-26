@@ -452,7 +452,7 @@ clientsRouter.get('/:id', async (req, res, next) => {
 
     const config = await getConfig();
     const seuils = await getContentieuxSeuils();
-    const emetteur = await getEmetteurRelance();
+    const emetteur = await getEmetteurRelance(client.organisationId);
     res.json({
       ...client,
       encours: clientEncours(client),

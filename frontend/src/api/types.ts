@@ -257,7 +257,17 @@ export interface ClientDetail {
   resilie: boolean;
   contentieuxExclu: boolean;
   contentieux: { eligible: boolean; motifs: string[]; bloquants: string[] };
-  emetteur?: { raisonSociale: string | null; contact: string | null; lienPaiement: string | null };
+  emetteur?: Emetteur;
+}
+
+// Identité d'émetteur pour signer les messages manuels (mot bienveillant,
+// relance WhatsApp rapide) : société, contact, lien de paiement, parrainage.
+export interface Emetteur {
+  raisonSociale: string | null;
+  contact: string | null;
+  lienPaiement: string | null;
+  codeParrainage: string | null;
+  promoActive: boolean;
 }
 
 export interface Repartition {
