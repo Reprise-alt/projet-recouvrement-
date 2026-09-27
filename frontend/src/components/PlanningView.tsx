@@ -7,6 +7,7 @@ import { CoursiersPanel } from './CoursiersPanel';
 import { TacheModelesPanel } from './TacheModelesPanel';
 import { EntityLogo } from './EntityLogo';
 import { PlanningRapportView } from './PlanningRapportView';
+import { AnalyseCoursesView } from './AnalyseCoursesView';
 
 interface Props {
   entityFilter: Entite | 'ALL';
@@ -45,6 +46,7 @@ export function PlanningView({ entityFilter, role }: Props) {
   const [showCoursiers, setShowCoursiers] = useState(false);
   const [showModeles, setShowModeles] = useState(false);
   const [showRapport, setShowRapport] = useState(false);
+  const [showAnalyse, setShowAnalyse] = useState(false);
   const [reportDates, setReportDates] = useState<Record<string, string>>({});
   // Entreprise du formulaire d'ajout -- verrouillée sur l'onglet actif sauf
   // en vue "Tous", où il faut la choisir explicitement (cf. demande :
@@ -117,6 +119,9 @@ export function PlanningView({ entityFilter, role }: Props) {
             <button type="button" onClick={() => setShowRapport((v) => !v)}>
               {showRapport ? 'Masquer le reporting' : 'Reporting planning'}
             </button>
+            <button type="button" onClick={() => setShowAnalyse((v) => !v)}>
+              {showAnalyse ? 'Masquer l’analyse' : 'Analyse des courses'}
+            </button>
             <button type="button" onClick={() => setShowModeles(true)}>
               Tâches récurrentes
             </button>
@@ -188,6 +193,7 @@ export function PlanningView({ entityFilter, role }: Props) {
       </div>
 
       {showRapport && <PlanningRapportView entityFilter={entityFilter} />}
+      {showAnalyse && <AnalyseCoursesView entityFilter={entityFilter} />}
 
       {loading || !data ? (
         <div className="empty-state">Chargement…</div>

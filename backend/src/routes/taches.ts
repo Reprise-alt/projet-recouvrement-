@@ -5,7 +5,7 @@ import * as XLSX from 'xlsx';
 import { prisma } from '../db';
 import { requireAccesPlanningCoursiers, requireAuth, requireRole } from '../middleware/auth';
 import { Entite, resolveEntiteScope, userCanAccessEntite } from '../lib/entites';
-import { buildPlanningRapport, modeleDuLe, resumeJournee, TACHE_TYPE_LABELS, TacheRapportEntree } from '../lib/taches';
+import { buildAnalyseCourses, buildPlanningRapport, creneauReel, CreneauReel, modeleDuLe, resumeJournee, TACHE_TYPE_LABELS, TacheRapportEntree } from '../lib/taches';
 import { parseTacheCoursierImportWorkbook } from '../lib/parsers/tacheCoursierImport';
 
 export const tachesRouter = Router();
@@ -430,6 +430,64 @@ tachesRouter.get('/reporting', requireRole(...ADV_ROLES), async (req, res, next)
     }));
 
     res.json(buildPlanningRapport(entrees));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Analyse croisée des courses (écran dédié) : nombre de courses ventilé par
+// type, coursier, jour et créneau réalisé, avec filtres facultatifs (type /
+// coursier / créneau). Même scope entité + rôles avancés que le reporting.
+tachesRouter.get('/analyse', requireRole(...ADV_ROLES), async (req, res, next) => {
+  try {
+    const from = parseDateOnly(req.query.from);
+    const to = parseDateOnly(req.query.to);
+    if (!from || !to || from > to) {
+      return res.status(400).json({ error: 'Période invalide — from et to sont requis (format AAAA-MM-JJ)' });
+    }
+    const toExclusive = new Date(to.getTime() + 24 * 60 * 60 * 1000);
+    const entiteFilter = resolveEntiteScope(req.user!, req.query.entite);
+
+    // Filtres facultatifs. type/coursier sont poussés en base ; le créneau
+    // (dérivé de l'heure d'exécution) est filtré en mémoire après chargement.
+    const typeQ = typeof req.query.type === 'string' ? req.query.type : '';
+    const typeFiltre = typeQ && typeQ in TACHE_TYPE_LABELS ? typeQ : null;
+    const coursierQ = typeof req.query.coursierId === 'string' ? req.query.coursierId : '';
+    const coursierFiltre = coursierQ || null; // '__non_assignee__' = tâches sans coursier
+    const creneauQ = typeof req.query.creneau === 'string' ? req.query.creneau : '';
+    const creneauFiltre: CreneauReel | null = ['matin', 'apres_midi', 'soir', 'non_execute'].includes(creneauQ) ? (creneauQ as CreneauReel) : null;
+
+    const where: Record<string, unknown> = { dateInitiale: { gte: from, lt: toExclusive }, ...tacheEntiteFilter(entiteFilter) };
+    if (typeFiltre) where.type = typeFiltre;
+    if (coursierFiltre) where.coursierId = coursierFiltre === '__non_assignee__' ? null : coursierFiltre;
+
+    const taches = await prisma.tacheCoursier.findMany({
+      where,
+      select: {
+        statut: true,
+        type: true,
+        date: true,
+        dateInitiale: true,
+        dateExecution: true,
+        entite: true,
+        coursierId: true,
+        coursier: { select: { nom: true } },
+      },
+    });
+
+    let entrees = taches.map((t) => ({
+      statut: t.statut,
+      type: t.type,
+      date: t.date,
+      dateInitiale: t.dateInitiale,
+      dateExecution: t.dateExecution,
+      entite: t.entite,
+      coursierId: t.coursierId,
+      coursierNom: t.coursier?.nom ?? null,
+    }));
+    if (creneauFiltre) entrees = entrees.filter((e) => creneauReel(e.dateExecution) === creneauFiltre);
+
+    res.json(buildAnalyseCourses(entrees));
   } catch (err) {
     next(err);
   }

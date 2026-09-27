@@ -160,6 +160,75 @@ export interface PlanningRapport {
   global: DecompteStatuts;
 }
 
+// Créneau RÉALISÉ d'une course, déduit de l'heure d'exécution (dateExecution).
+// Dakar = UTC+0, donc l'heure UTC est l'heure locale. « non_execute » = course
+// pas encore faite (aucune heure réelle à classer).
+export type CreneauReel = 'matin' | 'apres_midi' | 'soir' | 'non_execute';
+export const CRENEAUX_ORDRE: CreneauReel[] = ['matin', 'apres_midi', 'soir', 'non_execute'];
+export function creneauReel(dateExecution: Date | string | null | undefined): CreneauReel {
+  if (!dateExecution) return 'non_execute';
+  const h = new Date(dateExecution).getUTCHours();
+  if (h < 12) return 'matin';
+  if (h < 17) return 'apres_midi';
+  return 'soir';
+}
+
+export interface AnalyseCourseEntree extends TacheRapportEntree {
+  type: string;
+  dateExecution: Date | string | null;
+}
+export interface AnalyseCourses {
+  global: DecompteStatuts;
+  parType: (DecompteStatuts & { type: string })[];
+  parCoursier: (DecompteStatuts & { coursierId: string | null; nom: string })[];
+  parJour: (DecompteStatuts & { date: string })[];
+  parCreneau: (DecompteStatuts & { creneau: CreneauReel })[];
+}
+
+// Analyse croisée des courses (écran « Analyse des courses ») : mêmes décomptes
+// que le reporting mais ventilés par TYPE, par COURSIER, par JOUR et par
+// CRÉNEAU réalisé. Les filtres (type / coursier / créneau) sont appliqués en
+// amont (cf. route) ; ici on ne fait qu'agréger la liste déjà filtrée.
+export function buildAnalyseCourses(taches: AnalyseCourseEntree[]): AnalyseCourses {
+  const global = decompteVide();
+  const parType = new Map<string, DecompteStatuts>();
+  const parCoursier = new Map<string, { nom: string; d: DecompteStatuts }>();
+  const parJour = new Map<string, DecompteStatuts>();
+  const parCreneau = new Map<CreneauReel, DecompteStatuts>();
+
+  for (const t of taches) {
+    const s = statutAffiche(t);
+    accumuler(global, s);
+
+    if (!parType.has(t.type)) parType.set(t.type, decompteVide());
+    accumuler(parType.get(t.type)!, s);
+
+    const ck = t.coursierId ?? '__non_assignee__';
+    if (!parCoursier.has(ck)) parCoursier.set(ck, { nom: t.coursierNom ?? 'Non assignée', d: decompteVide() });
+    accumuler(parCoursier.get(ck)!.d, s);
+
+    const jour = new Date(t.dateInitiale).toISOString().slice(0, 10);
+    if (!parJour.has(jour)) parJour.set(jour, decompteVide());
+    accumuler(parJour.get(jour)!, s);
+
+    const cr = creneauReel(t.dateExecution);
+    if (!parCreneau.has(cr)) parCreneau.set(cr, decompteVide());
+    accumuler(parCreneau.get(cr)!, s);
+  }
+
+  return {
+    global,
+    parType: [...parType.entries()].map(([type, d]) => ({ type, ...d })).sort((a, b) => b.total - a.total),
+    parCoursier: [...parCoursier.entries()]
+      .map(([id, { nom, d }]) => ({ coursierId: id === '__non_assignee__' ? null : id, nom, ...d }))
+      .sort((a, b) => b.total - a.total),
+    parJour: [...parJour.entries()].map(([date, d]) => ({ date, ...d })).sort((a, b) => a.date.localeCompare(b.date)),
+    parCreneau: [...parCreneau.entries()]
+      .map(([creneau, d]) => ({ creneau, ...d }))
+      .sort((a, b) => CRENEAUX_ORDRE.indexOf(a.creneau) - CRENEAUX_ORDRE.indexOf(b.creneau)),
+  };
+}
+
 function decompteVide(): DecompteStatuts {
   return { total: 0, faites: 0, reportees: 0, aFaire: 0, annulees: 0 };
 }

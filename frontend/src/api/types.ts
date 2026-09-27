@@ -533,6 +533,20 @@ export interface PlanningRapportResponse {
   global: DecompteStatuts;
 }
 
+// Créneau RÉALISÉ (déduit de l'heure d'exécution). « non_execute » = course
+// pas encore faite (pas d'heure réelle à classer).
+export type CreneauReel = 'matin' | 'apres_midi' | 'soir' | 'non_execute';
+
+// Analyse croisée des courses : nombre de courses ventilé par type, coursier,
+// jour et créneau réalisé, selon les filtres actifs.
+export interface AnalyseCoursesResponse {
+  global: DecompteStatuts;
+  parType: (DecompteStatuts & { type: TypeTacheCoursier })[];
+  parCoursier: (DecompteStatuts & { coursierId: string | null; nom: string })[];
+  parJour: (DecompteStatuts & { date: string })[];
+  parCreneau: (DecompteStatuts & { creneau: CreneauReel })[];
+}
+
 // Vue publique (lien personnel coursier, sans authentification) -- un
 // sous-ensemble volontairement réduit du client complet.
 export interface TacheCoursierPublic extends Omit<TacheCoursier, 'client' | 'coursier'> {
