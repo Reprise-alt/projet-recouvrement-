@@ -252,11 +252,24 @@ export async function computePilotage(period: Period, where: object) {
     },
   });
 
-  // Balance âgée : sur toutes les factures impayées, réparties par tranche de retard.
+  // Balance âgée À LA FIN DE LA PÉRIODE (pas « aujourd'hui ») : on reconstitue
+  // l'encours tel qu'il était au dernier jour de la période choisie, pour que le
+  // montant en retard (+90 j notamment) varie d'un mois à l'autre. Une facture est
+  // « en cours » à cette date si elle existait déjà (dateFacture ≤ fin) et n'était
+  // pas encore payée à cette date (jamais payée, ou payée après). L'ancienneté est
+  // mesurée à la fin de période.
+  const asOf = period.to.getTime();
   const facturesImpayees = clients.flatMap((c) =>
-    c.factures.map((f) => ({ montant: f.montant, dateEcheance: f.dateEcheance, statut: f.statut as 'impayee' | 'payee' })),
+    c.factures
+      .filter((f) => {
+        const emiseAvant = f.dateFacture ? new Date(f.dateFacture).getTime() <= asOf : true;
+        if (!emiseAvant) return false;
+        const payeeAvant = f.statut === 'payee' && f.datePaiement != null && new Date(f.datePaiement).getTime() <= asOf;
+        return !payeeAvant;
+      })
+      .map((f) => ({ montant: f.montant, dateEcheance: f.dateEcheance, statut: 'impayee' as const })),
   );
-  const balanceAgee = buildBalanceAgee(facturesImpayees);
+  const balanceAgee = buildBalanceAgee(facturesImpayees, period.to);
 
   // Top débiteurs : plus gros encours en retard, avec leur dernier palier relancé.
   const topDebiteurs = clients
