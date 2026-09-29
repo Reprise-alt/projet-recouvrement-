@@ -472,6 +472,7 @@ tachesRouter.get('/analyse', requireRole(...ADV_ROLES), async (req, res, next) =
         entite: true,
         coursierId: true,
         coursier: { select: { nom: true } },
+        client: { select: { nom: true } },
       },
     });
 
@@ -484,6 +485,7 @@ tachesRouter.get('/analyse', requireRole(...ADV_ROLES), async (req, res, next) =
       entite: t.entite,
       coursierId: t.coursierId,
       coursierNom: t.coursier?.nom ?? null,
+      clientNom: t.client?.nom ?? null,
     }));
     if (creneauFiltre) entrees = entrees.filter((e) => creneauReel(e.dateExecution) === creneauFiltre);
 
