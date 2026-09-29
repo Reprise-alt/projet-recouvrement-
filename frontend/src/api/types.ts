@@ -539,12 +539,21 @@ export type CreneauReel = 'matin' | 'apres_midi' | 'soir' | 'non_execute';
 
 // Analyse croisée des courses : nombre de courses ventilé par type, coursier,
 // jour et créneau réalisé, selon les filtres actifs.
+export interface ReporteeDetail {
+  type: TypeTacheCoursier;
+  entite: string;
+  clientNom: string | null;
+  coursierNom: string | null;
+  prevueLe: string;
+  reporteeAu: string;
+}
 export interface AnalyseCoursesResponse {
   global: DecompteStatuts;
   parType: (DecompteStatuts & { type: TypeTacheCoursier })[];
   parCoursier: (DecompteStatuts & { coursierId: string | null; nom: string })[];
   parJour: (DecompteStatuts & { date: string })[];
   parCreneau: (DecompteStatuts & { creneau: CreneauReel })[];
+  reportees: ReporteeDetail[];
 }
 
 // Vue publique (lien personnel coursier, sans authentification) -- un

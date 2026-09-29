@@ -176,6 +176,16 @@ export function creneauReel(dateExecution: Date | string | null | undefined): Cr
 export interface AnalyseCourseEntree extends TacheRapportEntree {
   type: string;
   dateExecution: Date | string | null;
+  clientNom?: string | null;
+}
+// Détail d'une course reportée, pour la lister telle quelle dans le reporting.
+export interface ReporteeDetail {
+  type: string;
+  entite: string;
+  clientNom: string | null;
+  coursierNom: string | null;
+  prevueLe: string;   // jour où elle était prévue à l'origine (dateInitiale)
+  reporteeAu: string; // nouveau jour planifié (date)
 }
 export interface AnalyseCourses {
   global: DecompteStatuts;
@@ -183,6 +193,7 @@ export interface AnalyseCourses {
   parCoursier: (DecompteStatuts & { coursierId: string | null; nom: string })[];
   parJour: (DecompteStatuts & { date: string })[];
   parCreneau: (DecompteStatuts & { creneau: CreneauReel })[];
+  reportees: ReporteeDetail[];
 }
 
 // Analyse croisée des courses (écran « Analyse des courses ») : mêmes décomptes
@@ -195,10 +206,21 @@ export function buildAnalyseCourses(taches: AnalyseCourseEntree[]): AnalyseCours
   const parCoursier = new Map<string, { nom: string; d: DecompteStatuts }>();
   const parJour = new Map<string, DecompteStatuts>();
   const parCreneau = new Map<CreneauReel, DecompteStatuts>();
+  const reportees: ReporteeDetail[] = [];
 
   for (const t of taches) {
     const s = statutAffiche(t);
     accumuler(global, s);
+    if (s === 'reportee') {
+      reportees.push({
+        type: t.type,
+        entite: t.entite,
+        clientNom: t.clientNom ?? null,
+        coursierNom: t.coursierNom ?? null,
+        prevueLe: new Date(t.dateInitiale).toISOString().slice(0, 10),
+        reporteeAu: new Date(t.date).toISOString().slice(0, 10),
+      });
+    }
 
     if (!parType.has(t.type)) parType.set(t.type, decompteVide());
     accumuler(parType.get(t.type)!, s);
@@ -226,6 +248,7 @@ export function buildAnalyseCourses(taches: AnalyseCourseEntree[]): AnalyseCours
     parCreneau: [...parCreneau.entries()]
       .map(([creneau, d]) => ({ creneau, ...d }))
       .sort((a, b) => CRENEAUX_ORDRE.indexOf(a.creneau) - CRENEAUX_ORDRE.indexOf(b.creneau)),
+    reportees: reportees.sort((a, b) => a.prevueLe.localeCompare(b.prevueLe) || a.entite.localeCompare(b.entite)),
   };
 }
 
