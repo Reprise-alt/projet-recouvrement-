@@ -123,7 +123,7 @@ export function RecouvrementView({ entityFilter, role, reloadKey, onImport, canR
       )}
 
       {canReporting && showReporting ? (
-        <ReportingView entityFilter={entityFilter} role={role} />
+        <ReportingView entityFilter={entityFilter} role={role} onOpenClient={setSelectedClientId} />
       ) : !list.loading && !list.error && list.data && list.data.length === 0 ? (
         // Écran vide pédagogique : compte neuf, aucune créance importée (addendum §4.3).
         <div className="empty-state empty-onboarding">
