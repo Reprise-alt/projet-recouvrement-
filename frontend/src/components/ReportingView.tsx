@@ -537,6 +537,62 @@ export function ReportingView({ entityFilter, role }: Props) {
             </table>
           </div>
 
+          {summary.recouvrementCohorte && summary.recouvrementCohorte.length > 0 && (
+            <div className="table-card" style={{ marginBottom: 24 }}>
+              <div className="table-head" style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>Taux de recouvrement par mois de facturation</div>
+                {(() => {
+                  const mats = summary.recouvrementCohorte.filter((r) => !r.enCours && r.caFacture > 0);
+                  const ca = mats.reduce((s, r) => s + r.caFacture, 0);
+                  const rec = mats.reduce((s, r) => s + r.recouvre, 0);
+                  const moy = ca > 0 ? Math.round((rec / ca) * 1000) / 10 : null;
+                  return moy !== null ? (
+                    <div style={{ fontSize: 13, color: 'var(--ink-soft)' }}>
+                      Moyenne (mois mûrs) :{' '}
+                      <b style={{ color: moy >= 85 ? 'var(--success)' : moy >= 70 ? 'var(--amber)' : 'var(--red)' }}>{moy}%</b>
+                    </div>
+                  ) : null;
+                })()}
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Mois</th>
+                    <th>Recouvré / facturé</th>
+                    <th>CA facturé</th>
+                    <th>Recouvré</th>
+                    <th>Taux</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {summary.recouvrementCohorte.map((r) => {
+                    const t = r.taux;
+                    const col = t == null ? 'var(--ink-soft)' : t >= 85 ? 'var(--success)' : t >= 70 ? 'var(--amber)' : 'var(--red)';
+                    return (
+                      <tr key={r.mois} style={r.enCours ? { opacity: 0.7 } : undefined}>
+                        <td className="mono">
+                          {r.mois}
+                          {r.enCours && <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--ink-soft)', fontWeight: 600 }}>en cours</span>}
+                        </td>
+                        <td>
+                          <div style={{ width: 130, height: 9, borderRadius: 5, background: 'var(--paper-2)', overflow: 'hidden' }} title={t != null ? `${t}%` : '—'}>
+                            <div style={{ width: `${Math.min(100, t ?? 0)}%`, height: '100%', background: r.enCours ? 'var(--ink-soft)' : col }} />
+                          </div>
+                        </td>
+                        <td className="mono">{fmtFCFAcompact(r.caFacture)}</td>
+                        <td className="mono">{fmtFCFAcompact(r.recouvre)}</td>
+                        <td className="mono" style={{ fontWeight: 600, color: col }}>{t != null ? `${t}%` : '—'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              <div style={{ padding: '10px 16px', fontSize: 12, color: 'var(--ink-soft)', lineHeight: 1.5 }}>
+                Part de ce qui a été <b>facturé</b> chaque mois et déjà <b>encaissée</b> à ce jour. Les 2 derniers mois (« en cours ») sont encore trop récents pour être jugés. Sous&nbsp;70&nbsp;% = mois à retravailler.
+              </div>
+            </div>
+          )}
+
           <div className="table-card">
             <div className="table-head">
               <div style={{ fontWeight: 600, fontSize: 14 }}>

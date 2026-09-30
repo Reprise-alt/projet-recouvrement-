@@ -44,6 +44,18 @@ export interface EvolutionMoisEntry {
   nombre: number;
 }
 
+// Taux de recouvrement PAR COHORTE mensuelle : sur ce qui a été facturé un mois
+// donné (dateFacture), quelle part a été payée. Les 2 mois les plus récents sont
+// marqués « en cours » (immatures : pas encore eu le temps d'être recouvrés).
+export interface RecouvrementMoisEntry {
+  mois: string;
+  caFacture: number;
+  recouvre: number;
+  taux: number | null;   // recouvre / caFacture, en %
+  nombre: number;
+  enCours: boolean;
+}
+
 export interface ReportingSummary {
   from: string;
   to: string;
@@ -51,6 +63,7 @@ export interface ReportingSummary {
   relances: PalierCount[];
   delaiEncaissement: { global: number | null; parEntite: DelaiParEntite[] };
   evolutionMensuelle: EvolutionMoisEntry[];
+  recouvrementCohorte: RecouvrementMoisEntry[];
 }
 
 function joursEntre(a: Date | string, b: Date | string): number {
@@ -116,6 +129,28 @@ export function buildEvolutionMensuelle(
   });
 }
 
+// Taux de recouvrement par cohorte : on rattache chaque facture au mois de son
+// ÉMISSION (dateFacture), et on regarde la part payée. Les 2 derniers mois de la
+// liste sont marqués « en cours » (trop récents pour être jugés).
+export function buildRecouvrementParCohorte(
+  factures: { montant: number; dateFacture: Date | string | null; statut: 'impayee' | 'payee' }[],
+  months: string[],
+): RecouvrementMoisEntry[] {
+  return months.map((mois, idx) => {
+    const subset = factures.filter((f) => f.dateFacture != null && monthKey(f.dateFacture) === mois);
+    const caFacture = subset.reduce((s, f) => s + f.montant, 0);
+    const recouvre = subset.filter((f) => f.statut === 'payee').reduce((s, f) => s + f.montant, 0);
+    return {
+      mois,
+      caFacture,
+      recouvre,
+      taux: caFacture > 0 ? Math.round((recouvre / caFacture) * 1000) / 10 : null,
+      nombre: subset.length,
+      enCours: idx >= months.length - 2,
+    };
+  });
+}
+
 // Agrège les factures payées et les relances effectuées sur une période —
 // fonctions pures (pas d'accès DB) pour rester facilement testables ; les
 // routes se chargent de la requête Prisma et leur passent les lignes brutes.
@@ -126,6 +161,7 @@ export function buildReportingSummary(
   actions: ReportingAction[],
   evolutionFactures: { montant: number; dateFacture: Date | string | null; datePaiement: Date | string }[],
   evolutionMonths: string[],
+  cohorteFactures: { montant: number; dateFacture: Date | string | null; statut: 'impayee' | 'payee' }[] = [],
 ): ReportingSummary {
   const montantTotal = factures.reduce((sum, f) => sum + f.montant, 0);
 
@@ -148,6 +184,7 @@ export function buildReportingSummary(
       parEntite: buildDelaiParEntite(factures),
     },
     evolutionMensuelle: buildEvolutionMensuelle(evolutionFactures, evolutionMonths),
+    recouvrementCohorte: buildRecouvrementParCohorte(cohorteFactures, evolutionMonths),
   };
 }
 
