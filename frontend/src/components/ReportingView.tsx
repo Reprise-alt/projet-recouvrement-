@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { api, ApiError, buildQuery, downloadFilePost } from '../api/client';
 import { useResource } from '../hooks/useResource';
-import { AgentStat, AnalyseResult, ComparaisonResult, Entite, RelanceDetail, ReportingSummary, RoleUtilisateur } from '../api/types';
+import { AgentStat, AnalyseResult, CohorteImpayeesResponse, ComparaisonResult, Entite, RelanceDetail, ReportingSummary, RoleUtilisateur } from '../api/types';
 import { fmtDate, fmtFCFA, fmtFCFAcompact, PALIERS } from '../lib/constants';
 import { usePaliersConfig } from '../lib/paliersConfig';
 import { IS_SAAS } from '../auth/mode';
@@ -188,6 +188,11 @@ export function ReportingView({ entityFilter, role }: Props) {
 
   const relancesPath = selectedPalier !== null ? `/api/reporting/relances${buildQuery({ ...query, palier: selectedPalier })}` : null;
   const { data: relanceDetails, loading: loadingRelances } = useResource<RelanceDetail[]>(relancesPath);
+
+  // Cohorte d'un mois cliqué : factures impayées émises ce mois-là.
+  const [openCohorte, setOpenCohorte] = useState<string | null>(null);
+  const cohortePath = openCohorte ? `/api/reporting/cohorte-impayees${buildQuery({ mois: openCohorte, entite: entityFilter })}` : null;
+  const { data: cohorteDetails, loading: loadingCohorte } = useResource<CohorteImpayeesResponse>(cohortePath);
 
   const canSeeAgents = role === 'admin' || role === 'manager_entite';
   const agentsPath = canSeeAgents && from && to ? `/api/reporting/agents${buildQuery(query)}` : null;
@@ -568,21 +573,70 @@ export function ReportingView({ entityFilter, role }: Props) {
                   {summary.recouvrementCohorte.map((r) => {
                     const t = r.taux;
                     const col = t == null ? 'var(--ink-soft)' : t >= 85 ? 'var(--success)' : t >= 70 ? 'var(--amber)' : 'var(--red)';
+                    const ouvert = openCohorte === r.mois;
                     return (
-                      <tr key={r.mois} style={r.enCours ? { opacity: 0.7 } : undefined}>
-                        <td className="mono">
-                          {r.mois}
-                          {r.enCours && <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--ink-soft)', fontWeight: 600 }}>en cours</span>}
-                        </td>
-                        <td>
-                          <div style={{ width: 130, height: 9, borderRadius: 5, background: 'var(--paper-2)', overflow: 'hidden' }} title={t != null ? `${t}%` : '—'}>
-                            <div style={{ width: `${Math.min(100, t ?? 0)}%`, height: '100%', background: r.enCours ? 'var(--ink-soft)' : col }} />
-                          </div>
-                        </td>
-                        <td className="mono">{fmtFCFAcompact(r.caFacture)}</td>
-                        <td className="mono">{fmtFCFAcompact(r.recouvre)}</td>
-                        <td className="mono" style={{ fontWeight: 600, color: col }}>{t != null ? `${t}%` : '—'}</td>
-                      </tr>
+                      <Fragment key={r.mois}>
+                        <tr
+                          onClick={() => setOpenCohorte(ouvert ? null : r.mois)}
+                          style={{ cursor: 'pointer', ...(r.enCours ? { opacity: 0.72 } : {}), ...(ouvert ? { background: 'var(--paper-2)' } : {}) }}
+                          title="Voir les factures impayées de ce mois"
+                        >
+                          <td className="mono">
+                            <span style={{ color: 'var(--ink-soft)', marginRight: 6 }}>{ouvert ? '▾' : '▸'}</span>
+                            {r.mois}
+                            {r.enCours && <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--ink-soft)', fontWeight: 600 }}>en cours</span>}
+                          </td>
+                          <td>
+                            <div style={{ width: 130, height: 9, borderRadius: 5, background: 'var(--paper-2)', overflow: 'hidden' }} title={t != null ? `${t}%` : '—'}>
+                              <div style={{ width: `${Math.min(100, t ?? 0)}%`, height: '100%', background: r.enCours ? 'var(--ink-soft)' : col }} />
+                            </div>
+                          </td>
+                          <td className="mono">{fmtFCFAcompact(r.caFacture)}</td>
+                          <td className="mono">{fmtFCFAcompact(r.recouvre)}</td>
+                          <td className="mono" style={{ fontWeight: 600, color: col }}>{t != null ? `${t}%` : '—'}</td>
+                        </tr>
+                        {ouvert && (
+                          <tr>
+                            <td colSpan={5} style={{ background: 'var(--paper-2)', padding: '4px 16px 14px' }}>
+                              {loadingCohorte || !cohorteDetails || cohorteDetails.mois !== r.mois ? (
+                                <div style={{ color: 'var(--ink-soft)', padding: '8px 0' }}>Chargement…</div>
+                              ) : cohorteDetails.factures.length === 0 ? (
+                                <div style={{ color: 'var(--ink-soft)', padding: '8px 0' }}>Aucune facture impayée sur ce mois. 👍</div>
+                              ) : (
+                                <div>
+                                  <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', margin: '8px 0 6px' }}>
+                                    <b style={{ color: 'var(--ink)' }}>{cohorteDetails.nombre}</b> facture{cohorteDetails.nombre > 1 ? 's' : ''} impayée{cohorteDetails.nombre > 1 ? 's' : ''} · <b style={{ color: 'var(--red)' }}>{fmtFCFA(cohorteDetails.total)}</b> à recouvrer — les plus gros d'abord :
+                                  </div>
+                                  <table style={{ background: 'var(--surface)', borderRadius: 8 }}>
+                                    <thead>
+                                      <tr>
+                                        <th>Facture</th>
+                                        <th>Client</th>
+                                        <th>Échéance</th>
+                                        <th>Retard</th>
+                                        <th>Montant</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {cohorteDetails.factures.map((f) => (
+                                        <tr key={f.id}>
+                                          <td className="mono">{f.numero}</td>
+                                          <td>{f.clientNom}</td>
+                                          <td className="mono">{fmtDate(f.dateEcheance)}</td>
+                                          <td className="mono" style={{ color: f.joursRetard > 90 ? 'var(--red)' : f.joursRetard > 0 ? 'var(--amber)' : 'var(--ink-soft)' }}>
+                                            {f.joursRetard > 0 ? `${f.joursRetard} j` : '—'}
+                                          </td>
+                                          <td className="mono" style={{ fontWeight: 600 }}>{fmtFCFA(f.montant)}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
                     );
                   })}
                 </tbody>
