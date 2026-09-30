@@ -24,7 +24,11 @@ import { clientEncours, clientJoursRetard, clientPalier, clientRetardInhabituel,
 import { getConfig } from '../services/configService';
 import { AnalyseResult, buildAnalyse } from '../lib/analyse';
 
-const EVOLUTION_MONTHS = 6;
+// Fenêtre d'évolution du reporting détaillé : année glissante (12 mois), pour
+// voir toute la saisonnalité, janvier compris. La vignette d'accueil (/impact)
+// n'en garde que les 6 derniers pour rester lisible.
+const EVOLUTION_MONTHS = 12;
+const IMPACT_MONTHS = 6;
 const LOGO_DIR = path.join(__dirname, '..', '..', 'assets', 'logos');
 const LOGO_FILES: Record<string, string> = { SORAM: 'soram.png', SIS: 'sis.png', IRIS: 'iris.png' };
 
@@ -398,7 +402,7 @@ reportingRouter.get('/impact', async (req, res, next) => {
       encoursRetard: { montant: encoursRetardMontant, nombre: encoursRetardNombre },
       relancesEnvoyees: { ceMois: relancesCeMois, total: relancesTotal },
       tauxRecouvrement: pilotage.recouvrement.taux,
-      evolution: sumCourant.evolutionMensuelle.map((mo) => ({ mois: mo.mois, montant: mo.montantTotal })),
+      evolution: sumCourant.evolutionMensuelle.slice(-IMPACT_MONTHS).map((mo) => ({ mois: mo.mois, montant: mo.montantTotal })),
     });
   } catch (err) {
     next(err);
@@ -445,6 +449,45 @@ reportingRouter.get('/relances', async (req, res, next) => {
         entite: a.client.entite,
       })),
     );
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Factures IMPAYÉES d'une cohorte mensuelle (mois d'émission) — pour cliquer sur
+// un mois du panneau « taux de recouvrement » et cibler les relances sur les plus
+// gros restes à recouvrer. Triées par montant décroissant.
+reportingRouter.get('/cohorte-impayees', async (req, res, next) => {
+  try {
+    const mois = typeof req.query.mois === 'string' ? req.query.mois : '';
+    const m = mois.match(/^(\d{4})-(\d{2})$/);
+    if (!m) return res.status(400).json({ error: 'Mois invalide (format AAAA-MM)' });
+    const y = Number(m[1]), mo = Number(m[2]);
+    const from = new Date(Date.UTC(y, mo - 1, 1));
+    const to = new Date(Date.UTC(y, mo, 1)); // borne haute exclusive
+    const entiteFilter = resolveEntiteScope(req.user!, req.query.entite);
+    const where = entiteWhere(entiteFilter);
+
+    const factures = await prisma.facture.findMany({
+      where: { statut: 'impayee', dateFacture: { gte: from, lt: to }, client: where },
+      include: { client: { select: { nom: true, entite: true } } },
+      orderBy: { montant: 'desc' },
+    });
+    const now = Date.now();
+    res.json({
+      mois,
+      nombre: factures.length,
+      total: factures.reduce((s, f) => s + f.montant, 0),
+      factures: factures.map((f) => ({
+        id: f.id,
+        numero: f.numero,
+        clientNom: f.client.nom,
+        entite: f.client.entite,
+        montant: f.montant,
+        dateEcheance: f.dateEcheance,
+        joursRetard: Math.max(0, Math.floor((now - new Date(f.dateEcheance).getTime()) / 86_400_000)),
+      })),
+    });
   } catch (err) {
     next(err);
   }
@@ -1157,7 +1200,7 @@ function drawReportingDocument(doc: PDFKit.PDFDocument, period: Period, data: Re
   // ── Page 2 : détail ──
   doc.addPage();
 
-  drawSectionTitle(doc, `Encaissements par mois (${EVOLUTION_MONTHS} derniers mois)`);
+  drawSectionTitle(doc, `Encaissements par mois (${IMPACT_MONTHS} derniers mois)`);
   {
     const w = pdfPageWidth(doc);
     const y = doc.y;
@@ -1169,7 +1212,7 @@ function drawReportingDocument(doc: PDFKit.PDFDocument, period: Period, data: Re
       y + 16,
       w - 36,
       h - 24,
-      summary.evolutionMensuelle.map((m) => ({ label: m.mois.slice(5), value: m.montantTotal })),
+      summary.evolutionMensuelle.slice(-IMPACT_MONTHS).map((m) => ({ label: m.mois.slice(5), value: m.montantTotal })),
     );
     doc.y = y + h + 14;
   }

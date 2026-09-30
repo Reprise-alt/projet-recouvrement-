@@ -346,6 +346,22 @@ export interface ReportingSummary {
   recouvrementCohorte: RecouvrementMoisEntry[];
 }
 
+export interface CohorteImpayeeFacture {
+  id: string;
+  numero: string;
+  clientNom: string;
+  entite: string;
+  montant: number;
+  dateEcheance: string;
+  joursRetard: number;
+}
+export interface CohorteImpayeesResponse {
+  mois: string;
+  nombre: number;
+  total: number;
+  factures: CohorteImpayeeFacture[];
+}
+
 export interface AnalyseResult {
   pointsForts: string[];
   actionsPositives: string[];
