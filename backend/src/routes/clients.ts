@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { prisma } from '../db';
-import { getConfig, getContentieuxSeuils, getEmetteurRelance } from '../services/configService';
+import { getConfig, getContentieuxSeuils, getEmetteurRelance, getPaliersActifs } from '../services/configService';
+import { ClientRelance, relancesDues } from '../lib/moteurRelances';
 import {
   clientDelaiMoyenHistorique,
   clientEncours,
@@ -33,7 +34,15 @@ clientsRouter.get('/kpis', async (req, res, next) => {
   try {
     const entiteFilter = resolveEntiteScope(req.user!, req.query.entite);
     const config = await getConfig();
-    const clients = await prisma.client.findMany({ where: entiteWhere(entiteFilter), include: { factures: true } });
+    const paliersActifs = await getPaliersActifs();
+    const clients = await prisma.client.findMany({
+      where: entiteWhere(entiteFilter),
+      include: {
+        factures: true,
+        actions: { select: { palier: true, date: true } },
+        echeanciers: { select: { tranches: { select: { dateEcheance: true, statut: true } } } },
+      },
+    });
 
     const totalEncours = clients.reduce((s, c) => s + clientEncours(c), 0);
     const enRetard = clients.filter((c) => clientPalier(c, config) >= 1).length;
@@ -59,7 +68,26 @@ clientsRouter.get('/kpis', async (req, res, next) => {
     });
     const repartition = { total: totalActifs, dansLesClous, arretService, litige };
 
-    res.json({ totalEncours, enRetard, contentieux, lettresAEnvoyer, retardsInhabituels, ladder, repartition, config });
+    // « À relancer » par palier : ce que le MOTEUR enverrait/traiterait maintenant
+    // (relance non encore envoyée à ce palier, hors pause promesse/litige/opposition).
+    // Distinct de `ladder` (position actuelle, déjà relancé pour la plupart) — c'est
+    // ce qui lève la confusion « clients dans un palier » vs « aucune relance à envoyer ».
+    const now = new Date();
+    const entree: ClientRelance[] = clients.map((c) => ({
+      id: c.id,
+      nom: c.nom,
+      factures: c.factures,
+      frequenceFacturation: c.frequenceFacturation,
+      actions: c.actions,
+      echeanciers: c.echeanciers,
+    }));
+    const ladderARelancer: Record<number, number> = {};
+    PALIERS.forEach((p) => (ladderARelancer[p.id] = 0));
+    for (const d of relancesDues(entree, config, now, paliersActifs)) {
+      ladderARelancer[d.palier] = (ladderARelancer[d.palier] ?? 0) + 1;
+    }
+
+    res.json({ totalEncours, enRetard, contentieux, lettresAEnvoyer, retardsInhabituels, ladder, ladderARelancer, repartition, config });
   } catch (err) {
     next(err);
   }
