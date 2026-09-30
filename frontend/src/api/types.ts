@@ -327,6 +327,15 @@ export interface AgentStat {
   nombreFactures: number;
 }
 
+export interface RecouvrementMoisEntry {
+  mois: string;
+  caFacture: number;
+  recouvre: number;
+  taux: number | null;
+  nombre: number;
+  enCours: boolean;
+}
+
 export interface ReportingSummary {
   from: string;
   to: string;
@@ -334,6 +343,7 @@ export interface ReportingSummary {
   relances: PalierCount[];
   delaiEncaissement: { global: number | null; parEntite: DelaiParEntite[] };
   evolutionMensuelle: EvolutionMoisEntry[];
+  recouvrementCohorte: RecouvrementMoisEntry[];
 }
 
 export interface AnalyseResult {

@@ -125,6 +125,12 @@ async function computeSummaryForPeriod(period: Period, where: object): Promise<R
   const facturesEvolution = await prisma.facture.findMany({
     where: { statut: 'payee', datePaiement: { gte: evolutionFrom }, client: where },
   });
+  // Cohortes : TOUTES les factures émises sur la fenêtre (payées ou non), pour le
+  // taux de recouvrement par mois d'émission.
+  const facturesCohorte = await prisma.facture.findMany({
+    where: { dateFacture: { gte: evolutionFrom }, client: where },
+    select: { montant: true, dateFacture: true, statut: true },
+  });
 
   return buildReportingSummary(
     period.fromStr,
@@ -140,6 +146,7 @@ async function computeSummaryForPeriod(period: Period, where: object): Promise<R
     actions,
     facturesEvolution.map((f) => ({ montant: f.montant, dateFacture: f.dateFacture, datePaiement: f.datePaiement! })),
     evolutionMonths,
+    facturesCohorte.map((f) => ({ montant: f.montant, dateFacture: f.dateFacture, statut: f.statut as 'impayee' | 'payee' })),
   );
 }
 
