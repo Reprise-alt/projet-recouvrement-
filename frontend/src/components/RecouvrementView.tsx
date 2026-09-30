@@ -90,6 +90,7 @@ export function RecouvrementView({ entityFilter, role, reloadKey, onImport, canR
   }
 
   const ladder = kpis.data?.ladder ?? {};
+  const ladderARelancer = kpis.data?.ladderARelancer ?? {};
   const rep = kpis.data?.repartition;
   const pct = (n: number) => (rep && rep.total > 0 ? Math.round((n / rep.total) * 100) : 0);
   const aTraiter = list.data?.filter(needsAction) ?? [];
@@ -233,8 +234,9 @@ export function RecouvrementView({ entityFilter, role, reloadKey, onImport, canR
       <div className="ladder-card">
         <div className="ladder-title">Échelle de recouvrement</div>
         <div className="ladder-sub">
-          Chaque client est positionné automatiquement selon ses jours de retard. La taille de chaque palier suit son nombre de
-          clients — cliquer pour filtrer.
+          Position actuelle de chaque client selon ses jours de retard (déjà relancé pour la plupart) — <b>ce n'est pas le nombre de
+          relances à envoyer</b>. Le badge <span style={{ color: 'var(--amber)', fontWeight: 700 }}>· N à relancer</span> indique, lui,
+          combien partiraient maintenant à ce palier. Cliquer pour filtrer.
         </div>
         {(() => {
           const counts = PALIERS.map((p) => ladder[p.id] ?? 0);
@@ -281,6 +283,11 @@ export function RecouvrementView({ entityFilter, role, reloadKey, onImport, canR
                       <div className="rung-meta">
                         <div className="rung-label">{libelle(p.id)}</div>
                         <div className="rung-days">{p.key && kpis.data ? `J+${kpis.data.config[p.key]}` : '—'}</div>
+                        {(ladderARelancer[p.id] ?? 0) > 0 && (
+                          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--amber)', marginTop: 2 }}>
+                            · {ladderARelancer[p.id]} à relancer
+                          </div>
+                        )}
                       </div>
                     </button>
                   );

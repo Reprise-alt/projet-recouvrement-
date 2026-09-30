@@ -284,6 +284,7 @@ export interface RecouvrementKpis {
   lettresAEnvoyer: number;
   retardsInhabituels: number;
   ladder: Record<number, number>;
+  ladderARelancer?: Record<number, number>;
   repartition: Repartition;
   config: PalierConfig;
 }
