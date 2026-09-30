@@ -349,6 +349,7 @@ export interface ReportingSummary {
 export interface CohorteImpayeeFacture {
   id: string;
   numero: string;
+  clientId: string;
   clientNom: string;
   entite: string;
   montant: number;

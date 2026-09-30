@@ -481,6 +481,7 @@ reportingRouter.get('/cohorte-impayees', async (req, res, next) => {
       factures: factures.map((f) => ({
         id: f.id,
         numero: f.numero,
+        clientId: f.clientId,
         clientNom: f.client.nom,
         entite: f.client.entite,
         montant: f.montant,

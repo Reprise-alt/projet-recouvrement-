@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react';
+import { CSSProperties, Fragment, useEffect, useState } from 'react';
 import { api, ApiError, buildQuery, downloadFilePost } from '../api/client';
 import { useResource } from '../hooks/useResource';
 import { AgentStat, AnalyseResult, CohorteImpayeesResponse, ComparaisonResult, Entite, RelanceDetail, ReportingSummary, RoleUtilisateur } from '../api/types';
@@ -150,7 +150,18 @@ function fmtDeltaPourcent(pourcent: number | null): string {
 interface Props {
   entityFilter: Entite | 'ALL';
   role: RoleUtilisateur;
+  onOpenClient?: (clientId: string) => void;
 }
+
+const miniBtn: CSSProperties = {
+  fontSize: 12,
+  padding: '4px 9px',
+  borderRadius: 6,
+  border: '1px solid var(--line)',
+  background: 'var(--surface)',
+  cursor: 'pointer',
+  fontWeight: 600,
+};
 
 function firstDayOfMonth(): string {
   const d = new Date();
@@ -171,7 +182,7 @@ function fmtDelta(delta: number): string {
   return `${delta > 0 ? '+' : '−'}${Math.abs(delta)} j`;
 }
 
-export function ReportingView({ entityFilter, role }: Props) {
+export function ReportingView({ entityFilter, role, onOpenClient }: Props) {
   const { libelle } = usePaliersConfig();
   const [from, setFrom] = useState(firstDayOfMonth());
   const [to, setTo] = useState(today());
@@ -181,7 +192,7 @@ export function ReportingView({ entityFilter, role }: Props) {
 
   const query = { from, to, entite: entityFilter };
   const summaryPath = `/api/reporting/summary${buildQuery(query)}`;
-  const { data: summary, loading, error } = useResource<ReportingSummary>(from && to ? summaryPath : null);
+  const { data: summary, loading, error, refetch: refetchSummary } = useResource<ReportingSummary>(from && to ? summaryPath : null);
 
   const pilotagePath = from && to ? `/api/reporting/pilotage${buildQuery(query)}` : null;
   const { data: pilotage } = useResource<PilotageData>(pilotagePath);
@@ -192,7 +203,23 @@ export function ReportingView({ entityFilter, role }: Props) {
   // Cohorte d'un mois cliqué : factures impayées émises ce mois-là.
   const [openCohorte, setOpenCohorte] = useState<string | null>(null);
   const cohortePath = openCohorte ? `/api/reporting/cohorte-impayees${buildQuery({ mois: openCohorte, entite: entityFilter })}` : null;
-  const { data: cohorteDetails, loading: loadingCohorte } = useResource<CohorteImpayeesResponse>(cohortePath);
+  const { data: cohorteDetails, loading: loadingCohorte, refetch: refetchCohorte } = useResource<CohorteImpayeesResponse>(cohortePath);
+  const [payBusy, setPayBusy] = useState<string | null>(null);
+
+  const canMarkPaid = role === 'admin' || role === 'manager_entite' || role === 'comptable';
+  const marquerPaye = async (factureId: string, numero: string) => {
+    if (!window.confirm(`Marquer la facture ${numero} comme payée ?`)) return;
+    setPayBusy(factureId);
+    try {
+      await api.patch(`/api/factures/${factureId}/toggle-paid`);
+      refetchCohorte();
+      refetchSummary();
+    } catch {
+      window.alert('Erreur lors de la mise à jour de la facture.');
+    } finally {
+      setPayBusy(null);
+    }
+  };
 
   const canSeeAgents = role === 'admin' || role === 'manager_entite';
   const agentsPath = canSeeAgents && from && to ? `/api/reporting/agents${buildQuery(query)}` : null;
@@ -615,18 +642,49 @@ export function ReportingView({ entityFilter, role }: Props) {
                                         <th>Échéance</th>
                                         <th>Retard</th>
                                         <th>Montant</th>
+                                        <th style={{ textAlign: 'right' }}>Actions</th>
                                       </tr>
                                     </thead>
                                     <tbody>
                                       {cohorteDetails.factures.map((f) => (
                                         <tr key={f.id}>
                                           <td className="mono">{f.numero}</td>
-                                          <td>{f.clientNom}</td>
+                                          <td>
+                                            {onOpenClient ? (
+                                              <button
+                                                type="button"
+                                                onClick={() => onOpenClient(f.clientId)}
+                                                title="Ouvrir la fiche client (relances)"
+                                                style={{ background: 'none', border: 0, padding: 0, color: 'var(--accent)', cursor: 'pointer', font: 'inherit', textDecoration: 'underline' }}
+                                              >
+                                                {f.clientNom}
+                                              </button>
+                                            ) : (
+                                              f.clientNom
+                                            )}
+                                          </td>
                                           <td className="mono">{fmtDate(f.dateEcheance)}</td>
                                           <td className="mono" style={{ color: f.joursRetard > 90 ? 'var(--red)' : f.joursRetard > 0 ? 'var(--amber)' : 'var(--ink-soft)' }}>
                                             {f.joursRetard > 0 ? `${f.joursRetard} j` : '—'}
                                           </td>
                                           <td className="mono" style={{ fontWeight: 600 }}>{fmtFCFA(f.montant)}</td>
+                                          <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                            {onOpenClient && (
+                                              <button type="button" onClick={() => onOpenClient(f.clientId)} style={{ ...miniBtn, marginRight: 6 }}>
+                                                Relancer
+                                              </button>
+                                            )}
+                                            {canMarkPaid && (
+                                              <button
+                                                type="button"
+                                                onClick={() => marquerPaye(f.id, f.numero)}
+                                                disabled={payBusy === f.id}
+                                                style={{ ...miniBtn, color: 'var(--success)', borderColor: 'var(--success)' }}
+                                              >
+                                                {payBusy === f.id ? '…' : '✓ Payé'}
+                                              </button>
+                                            )}
+                                          </td>
                                         </tr>
                                       ))}
                                     </tbody>
