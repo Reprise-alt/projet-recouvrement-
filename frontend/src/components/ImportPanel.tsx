@@ -107,14 +107,16 @@ export function ImportPanel({ onClose, onImported }: { onClose: () => void; onIm
 
   const headerIndex = useMemo(() => {
     const m: Record<string, number> = {};
-    preview?.headers.forEach((h, i) => (m[h] = i));
+    // `headers` est absent quand le classeur est déjà reconnu (OLU/contrats) :
+    // on garde une garde pour ne pas planter l'app (écran blanc).
+    (preview?.headers || []).forEach((h, i) => (m[h] = i));
     return m;
   }, [preview]);
 
   // Lignes d'aperçu reconstituées selon la correspondance en cours.
-  const mappedCols = preview ? preview.fields.filter((f) => mapping[f.field]) : [];
+  const mappedCols = preview?.fields ? preview.fields.filter((f) => mapping[f.field]) : [];
   const previewRows = useMemo(() => {
-    if (!preview) return [];
+    if (!preview || !preview.fields || !preview.sample) return [];
     const cols = preview.fields.filter((f) => mapping[f.field]);
     return preview.sample.map((row) =>
       cols.map((f) => {
