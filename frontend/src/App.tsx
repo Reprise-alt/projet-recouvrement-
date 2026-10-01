@@ -624,6 +624,7 @@ export function App() {
             reloadKey={dataVersion}
             canReporting={canReporting}
             onImport={isAdmin ? () => setImportOpen(true) : undefined}
+            onReload={bumpDataVersion}
           />
         )}
       </main>

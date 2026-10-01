@@ -274,6 +274,27 @@ services:
           type: web
           envVarKey: RELANCES_CRON_SECRET
 
+  # ── SaaS : cron de relance d'essai (« pensez à importer ») ────────────────
+  # Chaque matin à 08:00 UTC : relance une seule fois les comptes en essai créés
+  # depuis au moins 48 h qui n'ont encore importé aucune créance réelle, vers
+  # l'activation. Idempotent (garde-fou relanceEssaiImportEnvoyee). Même secret.
+  - type: cron
+    name: olu360-saas-essai-relance-cron
+    runtime: node
+    rootDir: backend
+    plan: starter
+    schedule: "0 8 * * *"
+    buildCommand: echo "no build"
+    startCommand: 'curl -fsS --retry 5 --retry-all-errors --retry-connrefused --retry-delay 10 --max-time 300 -X POST "https://$SAAS_BACKEND_HOST/api/cron/essai-relance" -H "X-Cron-Secret: $CRON_SECRET"'
+    envVars:
+      - key: SAAS_BACKEND_HOST
+        value: olu360-saas-backend.onrender.com
+      - key: CRON_SECRET
+        fromService:
+          name: olu360-saas-backend
+          type: web
+          envVarKey: RELANCES_CRON_SECRET
+
   # ── Console Opérations ───────────────────────────────────────────────────
   - type: web
     name: operations-frontend

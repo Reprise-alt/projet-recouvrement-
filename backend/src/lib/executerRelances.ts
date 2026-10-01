@@ -132,6 +132,9 @@ export async function executerRelancesTenant(opts: OptionsExecution = {}): Promi
   const config = await getConfig();
   const paliersActifs = await getPaliersActifs();
   const clients = await prisma.client.findMany({
+    // Les créances d'exemple (onboarding) ne doivent JAMAIS déclencher de
+    // relance réelle : leurs adresses sont fictives. On les exclut à la source.
+    where: { estExemple: false },
     include: {
       factures: true,
       actions: { select: { palier: true, date: true } },
