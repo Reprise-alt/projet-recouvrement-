@@ -918,6 +918,29 @@ export interface ImportSummary {
   clientsCount: number;
 }
 
+export type ImportField =
+  | 'entite'
+  | 'client_nom'
+  | 'client_contact'
+  | 'client_email'
+  | 'client_tel'
+  | 'facture_numero'
+  | 'facture_montant'
+  | 'facture_echeance'
+  | 'facture_statut';
+
+export interface ImportPreview {
+  recognized: boolean;
+  kind?: 'olu' | 'contrats';
+  message?: string;
+  clientsCount?: number;
+  headers: string[];
+  guess: Record<ImportField, string | null>;
+  sample: string[][];
+  rowCount: number;
+  fields: { field: ImportField; label: string; required: boolean }[];
+}
+
 /* ---------- Parc d'impression (suivi COPIL) ---------- */
 
 export type StatutEquipement = 'actif' | 'retire' | 'introuvable';
