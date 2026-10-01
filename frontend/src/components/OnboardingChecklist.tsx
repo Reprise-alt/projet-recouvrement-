@@ -21,6 +21,8 @@ interface Checklist {
   etapes: Etape[];
   progression: { faites: number; total: number; pourcentage: number };
   afficherChecklist: boolean;
+  exempleActif?: boolean;
+  exempleCount?: number;
 }
 interface DemoDebiteur {
   nom: string;
@@ -63,6 +65,32 @@ export function OnboardingChecklist({ onEntrerConsole }: { onEntrerConsole: () =
       }
     } catch {
       /* silencieux ; l'utilisateur peut réessayer */
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  // Remplit la vraie console avec un jeu d'exemple, puis y entre pour que le
+  // prospect l'explore immédiatement (relances, paliers, reporting peuplés).
+  async function chargerExemple() {
+    setBusy('exemple');
+    try {
+      await api.post('/api/onboarding/charger-exemple');
+      onEntrerConsole();
+    } catch {
+      /* silencieux */
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function viderExemple() {
+    setBusy('exemple');
+    try {
+      await api.delete('/api/onboarding/exemple');
+      await charger();
+    } catch {
+      /* silencieux */
     } finally {
       setBusy(null);
     }
@@ -168,8 +196,28 @@ export function OnboardingChecklist({ onEntrerConsole }: { onEntrerConsole: () =
           </>
         )}
 
+        {/* Lever d'activation : remplir la vraie console avec un exemple pour
+            l'explorer sans attendre d'avoir préparé son fichier. */}
+        {data?.exempleActif ? (
+          <div className="onb-exemple-note" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 12.5, color: 'var(--ink-soft)', margin: '2px 0 4px' }}>
+            <span>✓ Un exemple est chargé dans votre console.</span>
+            <button onClick={viderExemple} disabled={busy === 'exemple'}>
+              {busy === 'exemple' ? '…' : "Vider l'exemple"}
+            </button>
+          </div>
+        ) : (
+          <button
+            className="onb-exemple-cta"
+            onClick={chargerExemple}
+            disabled={busy === 'exemple'}
+            style={{ marginTop: 2 }}
+          >
+            {busy === 'exemple' ? 'Chargement…' : '✨ Remplir ma console avec un exemple'}
+          </button>
+        )}
+
         <div className="onb-actions">
-          <button onClick={ouvrirDemo}>Explorer un exemple (démo)</button>
+          <button onClick={ouvrirDemo}>Voir un aperçu (démo)</button>
           <button className="primary" onClick={onEntrerConsole}>Accéder à la console →</button>
         </div>
       </div>

@@ -25,6 +25,7 @@ import { abonnementRouter } from './routes/abonnement';
 import { parrainageRouter } from './routes/parrainage';
 import { exploitantRouter } from './routes/exploitant';
 import { relancesCronRouter } from './routes/relancesCron';
+import { essaiRelanceCronRouter } from './routes/essaiRelanceCron';
 import { remisesRouter } from './routes/remises';
 import { remisesCronRouter } from './routes/remisesCron';
 import { contactRouter } from './routes/contact';
@@ -96,6 +97,7 @@ export function createApp() {
   app.use('/api/cron/relances', relancesCronRouter);
   app.use('/api/cron/reporting', reportingCronRouter);
   app.use('/api/cron/remises', remisesCronRouter);
+  app.use('/api/cron/essai-relance', essaiRelanceCronRouter);
   app.use('/api/contact', contactRouter);
   app.use('/api/taches', tachesRouter);
   app.use('/api/operations', operationsRouter);

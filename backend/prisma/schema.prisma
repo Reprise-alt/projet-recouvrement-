@@ -211,6 +211,10 @@ model Organisation {
   scenarioVu           Boolean            @default(false)
   relanceTestEnvoyee   Boolean            @default(false)
   relancesActivees     Boolean            @default(false)
+  // Garde-fou anti-doublon pour la relance d'essai « pensez à importer » (J+2) :
+  // envoyée une seule fois par le cron tant que le compte en essai n'a importé
+  // aucune créance réelle.
+  relanceEssaiImportEnvoyee Boolean        @default(false)
   // Recommandation Feyma en pied des relances AMIABLES (levier de croissance /
   // parrainage) : un encart discret invite le destinataire (souvent un service
   // ADV, cible idéale) à tester Feyma avec le code de parrainage de l'émetteur —
@@ -397,6 +401,11 @@ model Client {
   // exclusion manuelle décidée par un agent (jamais poussé en contentieux).
   resilie              Boolean              @default(false)
   contentieuxExclu     Boolean              @default(false)
+  // Données d'exemple injectées depuis l'onboarding pour laisser le prospect
+  // explorer une console peuplée avant d'importer son vrai fichier. Jamais
+  // comptées comme de vraies créances (checklist, écran vide) et supprimables
+  // d'un clic (« Vider l'exemple »).
+  estExemple           Boolean              @default(false)
   createdAt            DateTime             @default(now())
   updatedAt            DateTime             @updatedAt
 

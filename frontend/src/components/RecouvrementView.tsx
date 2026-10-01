@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
-import { AlertTriangle, Gavel, Mail, TrendingUp, Users, Wallet } from 'lucide-react';
-import { buildQuery } from '../api/client';
+import { AlertTriangle, Gavel, Mail, Sparkles, TrendingUp, Users, Wallet } from 'lucide-react';
+import { api, buildQuery } from '../api/client';
 import { useResource } from '../hooks/useResource';
 import { ClientListItem, Entite, RecouvrementKpis, RoleUtilisateur } from '../api/types';
 import { fmtDate, fmtFCFA, PALIERS } from '../lib/constants';
@@ -21,6 +21,8 @@ interface Props {
   onImport?: () => void;
   // Reporting inclus dans la formule ? (masque l'onglet Reporting sinon.)
   canReporting?: boolean;
+  // Force le rechargement de la console après chargement/vidage d'un exemple.
+  onReload?: () => void;
 }
 
 function needsAction(c: ClientListItem): boolean {
@@ -29,9 +31,31 @@ function needsAction(c: ClientListItem): boolean {
   return actionStale || relanceOverdue;
 }
 
-export function RecouvrementView({ entityFilter, role, reloadKey, onImport, canReporting = true }: Props) {
+export function RecouvrementView({ entityFilter, role, reloadKey, onImport, canReporting = true, onReload }: Props) {
   const { libelle } = usePaliersConfig();
   const { user } = useAuth();
+  // Données d'exemple (SaaS) : état pour le bandeau « vous explorez un exemple »
+  // et le bouton de chargement dans l'écran vide.
+  const exempleRes = useResource<{ actif: boolean; count: number }>(IS_SAAS ? '/api/onboarding/exemple' : null, reloadKey);
+  const [exempleBusy, setExempleBusy] = useState(false);
+  async function chargerExemple() {
+    setExempleBusy(true);
+    try {
+      await api.post('/api/onboarding/charger-exemple');
+      onReload?.();
+    } finally {
+      setExempleBusy(false);
+    }
+  }
+  async function viderExemple() {
+    setExempleBusy(true);
+    try {
+      await api.delete('/api/onboarding/exemple');
+      onReload?.();
+    } finally {
+      setExempleBusy(false);
+    }
+  }
   // SaaS : toutes les entités du client portent SON logo enregistré (une seule
   // marque). Côté groupe (Olu360), on garde le logo par entité.
   const orgLogo = IS_SAAS ? user?.logoUrl ?? null : null;
@@ -111,6 +135,36 @@ export function RecouvrementView({ entityFilter, role, reloadKey, onImport, canR
 
   return (
     <div>
+      {/* Bandeau « vous explorez un exemple » : visible tant que des données
+          d'exemple sont chargées, avec un vidage d'un clic. */}
+      {exempleRes.data?.actif && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            flexWrap: 'wrap',
+            padding: '9px 14px',
+            marginBottom: 16,
+            borderRadius: 10,
+            background: 'color-mix(in srgb, var(--accent, #1D9E75) 10%, transparent)',
+            border: '1px solid color-mix(in srgb, var(--accent, #1D9E75) 35%, transparent)',
+            fontSize: 13,
+          }}
+        >
+          <Sparkles size={16} />
+          <span style={{ flex: 1, minWidth: 180 }}>
+            Vous explorez un <b>exemple</b>. Ces créances ne sont pas réelles — videz-les avant d'importer les vôtres.
+          </span>
+          {onImport && (
+            <button onClick={onImport}>Importer mes créances</button>
+          )}
+          <button onClick={viderExemple} disabled={exempleBusy}>
+            {exempleBusy ? '…' : "Vider l'exemple"}
+          </button>
+        </div>
+      )}
+
       {/* L'onglet Reporting est réservé aux formules PME/Grands comptes (SaaS). */}
       {canReporting && (
         <div className="entity-toggle" style={{ display: 'inline-flex', marginBottom: 22 }}>
@@ -137,9 +191,16 @@ export function RecouvrementView({ entityFilter, role, reloadKey, onImport, canR
             sont repris automatiquement. Les relances pourront ensuite partir toutes seules, à votre nom.
           </p>
           {onImport ? (
-            <button className="primary" onClick={onImport}>
-              Importer mes créances
-            </button>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
+              <button className="primary" onClick={onImport}>
+                Importer mes créances
+              </button>
+              {IS_SAAS && (
+                <button onClick={chargerExemple} disabled={exempleBusy}>
+                  {exempleBusy ? 'Chargement…' : 'Ou explorer avec un exemple'}
+                </button>
+              )}
+            </div>
           ) : (
             <p className="empty-onboarding-hint">
               Demandez à un administrateur d'importer le premier fichier de créances.
