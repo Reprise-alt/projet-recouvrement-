@@ -838,6 +838,103 @@ reportingRouter.post('/export.xlsx', async (req, res, next) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Rapport comptable mensuel (mois de FACTURATION) — extract factuel, chiffres
+// bruts prêts à intégrer aux boards mensuels. Distinct de l'export de synthèse
+// (narratif) ci-dessus. 4 feuilles : Synthèse / Balance âgée / Impayés du mois /
+// Encaissements du mois. Multi-entités : une ligne par entité + TOTAL.
+const MOIS_FR = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+
+reportingRouter.post('/comptable.xlsx', async (req, res, next) => {
+  try {
+    const body = (req.body ?? {}) as { mois?: string; entite?: unknown };
+    const mm = (body.mois ?? '').match(/^(\d{4})-(\d{2})$/);
+    if (!mm) return res.status(400).json({ error: 'Mois invalide (format AAAA-MM)' });
+    const y = Number(mm[1]), mo = Number(mm[2]);
+    if (mo < 1 || mo > 12) return res.status(400).json({ error: 'Mois invalide' });
+    const monthStart = new Date(Date.UTC(y, mo - 1, 1));
+    const monthEnd = new Date(Date.UTC(y, mo, 1) - 1); // dernier instant du mois
+    const moisLabel = `${MOIS_FR[mo - 1]} ${y}`;
+
+    const entiteFilter = resolveEntiteScope(req.user!, body.entite);
+    const where = entiteWhere(entiteFilter);
+
+    const [facturesMois, facturesOuvertes, encaissements] = await Promise.all([
+      // Factures ÉMISES ce mois (mois de facturation).
+      prisma.facture.findMany({ where: { client: where, dateFacture: { gte: monthStart, lte: monthEnd } }, include: { client: { select: { nom: true, entite: true } } }, orderBy: { montant: 'desc' } }),
+      // Encours OUVERT à fin de mois : émis avant fin de mois, non réglé à cette date.
+      prisma.facture.findMany({ where: { client: where, dateFacture: { lte: monthEnd }, OR: [{ datePaiement: null }, { datePaiement: { gt: monthEnd } }] }, include: { client: { select: { nom: true, entite: true } } } }),
+      // Encaissements reçus ce mois (date de paiement dans le mois).
+      prisma.facture.findMany({ where: { client: where, datePaiement: { gte: monthStart, lte: monthEnd } }, include: { client: { select: { nom: true, entite: true } } }, orderBy: { datePaiement: 'asc' } }),
+    ]);
+
+    const entites = [...new Set([...facturesMois, ...facturesOuvertes].map((f) => f.client.entite))].sort();
+    const multi = entites.length > 1;
+    const totalLabel = multi ? 'TOTAL' : (entites[0] ?? 'TOTAL');
+    const now = new Date();
+
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'Feyma — OLU 360';
+
+    // ── Feuille 1 : Synthèse du mois ──
+    const wsS = wb.addWorksheet('Synthèse');
+    styleTitleRow(wsS, 1, `Rapport comptable — ${moisLabel} (mois de facturation)`, 8);
+    const synthRows: (string | number)[][] = [];
+    const ligneSynth = (label: string, fx: typeof facturesMois) => {
+      const ca = fx.reduce((s, f) => s + f.montant, 0);
+      const payees = fx.filter((f) => f.statut === 'payee');
+      const impayees = fx.filter((f) => f.statut === 'impayee');
+      const encaisse = payees.reduce((s, f) => s + f.montant, 0);
+      const reste = impayees.reduce((s, f) => s + f.montant, 0);
+      synthRows.push([label, ca, encaisse, ca > 0 ? encaisse / ca : 0, reste, fx.length, payees.length, impayees.length]);
+    };
+    if (multi) entites.forEach((e) => ligneSynth(e, facturesMois.filter((f) => f.client.entite === e)));
+    ligneSynth(totalLabel, facturesMois);
+    const endS = addBorderedTable(wsS, 3, ['Entité', 'CA facturé', 'Encaissé', 'Taux recouvrement', 'Reste à recouvrer', 'Factures émises', 'Payées', 'Impayées'], synthRows, [22, 16, 16, 16, 18, 15, 10, 10]);
+    [2, 3, 5].forEach((c) => (wsS.getColumn(c).numFmt = '#,##0'));
+    wsS.getColumn(4).numFmt = '0.0%';
+    wsS.getRow(endS - 1).font = { bold: true };
+
+    // ── Feuille 2 : Balance âgée de l'encours à fin de mois ──
+    const wsB = wb.addWorksheet('Balance âgée');
+    styleTitleRow(wsB, 1, `Balance âgée de l'encours au ${fmtDate(monthEnd)}`, 7);
+    const balRows: (string | number)[][] = [];
+    const ligneBal = (label: string, fx: typeof facturesOuvertes) => {
+      const tr = buildBalanceAgee(fx.map((f) => ({ montant: f.montant, dateEcheance: f.dateEcheance, statut: 'impayee' as const })), monthEnd);
+      const mt = (cle: string) => tr.find((t) => t.cle === cle)?.montant ?? 0;
+      balRows.push([label, mt('a_echoir'), mt('j0_30'), mt('j31_60'), mt('j61_90'), mt('j90_plus'), tr.reduce((s, t) => s + t.montant, 0)]);
+    };
+    if (multi) entites.forEach((e) => ligneBal(e, facturesOuvertes.filter((f) => f.client.entite === e)));
+    ligneBal(totalLabel, facturesOuvertes);
+    const endB = addBorderedTable(wsB, 3, ['Entité', 'Non échu', '0–30 j', '31–60 j', '61–90 j', '+90 j', 'Total encours'], balRows, [22, 16, 16, 16, 16, 16, 18]);
+    for (let c = 2; c <= 7; c++) wsB.getColumn(c).numFmt = '#,##0';
+    wsB.getRow(endB - 1).font = { bold: true };
+
+    // ── Feuille 3 : Impayés du mois ──
+    const wsI = wb.addWorksheet('Impayés du mois');
+    styleTitleRow(wsI, 1, `Factures impayées émises en ${moisLabel}`, 8);
+    const impRows = facturesMois
+      .filter((f) => f.statut === 'impayee')
+      .map((f) => [f.client.entite, f.client.nom, f.numero, f.dateFacture ? fmtDate(f.dateFacture) : '—', fmtDate(f.dateEcheance), f.montant, Math.max(0, Math.floor((now.getTime() - new Date(f.dateEcheance).getTime()) / 86_400_000)), 'Impayée']);
+    addBorderedTable(wsI, 3, ['Entité', 'Client', 'N° facture', 'Date facture', 'Échéance', 'Montant', 'Retard (j)', 'Statut'], impRows, [12, 30, 16, 14, 14, 16, 11, 11]);
+    wsI.getColumn(6).numFmt = '#,##0';
+
+    // ── Feuille 4 : Encaissements du mois ──
+    const wsE = wb.addWorksheet('Encaissements du mois');
+    styleTitleRow(wsE, 1, `Encaissements reçus en ${moisLabel}`, 6);
+    const encRows = encaissements.map((f) => [f.client.entite, f.client.nom, f.numero, f.dateFacture ? fmtDate(f.dateFacture) : '—', f.datePaiement ? fmtDate(f.datePaiement) : '—', f.montant]);
+    addBorderedTable(wsE, 3, ['Entité', 'Client', 'N° facture', 'Date facture', 'Date paiement', 'Montant'], encRows, [12, 30, 16, 14, 14, 16]);
+    wsE.getColumn(6).numFmt = '#,##0';
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="rapport_comptable_${body.mois}.xlsx"`);
+    await wb.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    next(err);
+  }
+});
+
 // La police standard PDF (Helvetica, encodage WinAnsi) n'a pas de glyphe pour
 // l'espace fine insécable (U+202F) que toLocaleString('fr-FR') utilise comme
 // séparateur de milliers — sans ça le nombre s'affiche avec un caractère
