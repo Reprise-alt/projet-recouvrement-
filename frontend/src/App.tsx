@@ -36,6 +36,20 @@ import { PartenaireConsole } from './components/PartenaireConsole';
 import { OperateurConsole } from './components/OperateurConsole';
 import { CONSOLE, CONSOLE_META, ECOSYSTEME } from './console';
 import { AUTH_MODE, IS_SAAS, redirigerVersHub } from './auth/mode';
+
+// Console interne du groupe (recouvrement.olu360.com, hors SaaS) : depuis le
+// passage du recouvrement dans Feyma, elle ne sert plus qu'au suivi des
+// échéances de contrats. Le recouvrement, les relances et le contentieux n'y
+// sont plus proposés. Le build SaaS (Feyma, IS_SAAS) n'est pas concerné.
+// Exception conservée : un collaborateur juridique externe (accès contentieux
+// seul) garde son onglet Contentieux tant que ses dossiers n'ont pas migré.
+const ECHEANCES_SEUL = CONSOLE === 'recouvrement' && !IS_SAAS;
+const META_ECHEANCES = {
+  marque: 'Suivi des échéances de contrats',
+  titre: 'Suivi des échéances de contrats',
+  sous: 'Renouvellements et révisions des contrats — SORAM · IRIS · SIS',
+  entites: 'groupe' as const,
+};
 import { setFeymaFavicon } from './lib/seo';
 
 type EntityFilter = Entite | 'ALL';
@@ -95,7 +109,7 @@ export function App() {
   }
 
   // En SaaS, le tableau de bord « Impact » est l'accueil (vu à chaque connexion).
-  const [recouvrementTab, setRecouvrementTab] = useState<RecouvrementTab>(IS_SAAS ? 'tableau' : 'recouvrement');
+  const [recouvrementTab, setRecouvrementTab] = useState<RecouvrementTab>(IS_SAAS ? 'tableau' : ECHEANCES_SEUL ? 'contrats' : 'recouvrement');
   const [entityFilter, setEntityFilter] = useState<EntityFilter>('ALL');
   const [parametresOpen, setParametresOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -121,7 +135,7 @@ export function App() {
   });
   const bumpDataVersion = () => setDataVersion((v) => v + 1);
 
-  const meta = CONSOLE_META[CONSOLE];
+  const meta = ECHEANCES_SEUL ? META_ECHEANCES : CONSOLE_META[CONSOLE];
 
   useEffect(() => {
     // En SaaS, l'appli est « Feyma » (jamais « OLU 360 ») — titre + favicon.
@@ -133,7 +147,7 @@ export function App() {
 
   // Alerte onglet Contentieux : nombre de propositions débiteur en attente.
   const { data: alertesContentieux } = useResource<{ propositionsEnAttente: number }>(
-    user && CONSOLE === 'recouvrement' && (user.accesRecouvrement || user.accesContentieux) ? '/api/contentieux/alertes' : null,
+    user && CONSOLE === 'recouvrement' && !ECHEANCES_SEUL && (user.accesRecouvrement || user.accesContentieux) ? '/api/contentieux/alertes' : null,
     dataVersion,
   );
   const nbAlertesContentieux = alertesContentieux?.propositionsEnAttente ?? 0;
@@ -276,7 +290,9 @@ export function App() {
   const canContentieux = !IS_SAAS || caps?.contentieux !== false;
   // Onglet effectif : le tableau de bord n'existe qu'en SaaS avec le reporting ;
   // sinon on retombe sur « Recouvrement » (évite un onglet actif mais masqué).
-  const tabActif: RecouvrementTab = recouvrementTab === 'tableau' && !(IS_SAAS && canReporting) ? 'recouvrement' : recouvrementTab;
+  const tabActif: RecouvrementTab = ECHEANCES_SEUL && !contentieuxSeul
+    ? 'contrats'
+    : recouvrementTab === 'tableau' && !(IS_SAAS && canReporting) ? 'recouvrement' : recouvrementTab;
   const canMultiEntites = !IS_SAAS || caps?.multiEntites !== false;
   // Contentieux non inclus dans la formule (SaaS « Petite structure ») : on
   // n'efface plus l'onglet, on le présente verrouillé avec un écran d'activation
@@ -376,7 +392,11 @@ export function App() {
         <div className="rail-section">
           <div className="rail-section-label">Navigation</div>
           <div className="rail-nav">
-            {CONSOLE === 'recouvrement' ? (
+            {ECHEANCES_SEUL && !contentieuxSeul ? (
+              // Console groupe : le recouvrement, les relances et le contentieux
+              // sont passés dans Feyma ; il ne reste que les échéances de contrats.
+              <button className="active">Échéances de contrats</button>
+            ) : CONSOLE === 'recouvrement' ? (
               <>
                 {!contentieuxSeul && (
                   <>

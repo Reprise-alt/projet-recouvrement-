@@ -49,7 +49,9 @@ export const CONSOLE_META: Record<ConsoleId, ConsoleMeta> = {
 // dépôt (afin de marquer la console courante) ; les autres pointent vers leurs
 // domaines respectifs. En dev/preview les liens restent absolus vers *.olu360.
 export const ECOSYSTEME: { id: string; label: string; url: string }[] = [
-  { id: 'recouvrement', label: 'Recouvrement', url: 'https://recouvrement.olu360.com' },
+  { id: 'recouvrement', label: 'Suivi échéances contrats', url: 'https://recouvrement.olu360.com' },
+  { id: 'feyma', label: 'Feyma', url: 'https://feyma.olu360.com' },
+  { id: 'reporting', label: 'Reporting', url: 'https://reporting.olu360.com' },
   { id: 'operations', label: 'Opérations', url: 'https://operations.olu360.com' },
   { id: 'coursier', label: 'Coursier', url: 'https://coursier.olu360.com' },
   { id: 'sav', label: 'SAV', url: 'https://sav.olu360.com' },
