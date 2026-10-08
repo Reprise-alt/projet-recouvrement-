@@ -188,6 +188,7 @@ export function ReportingView({ entityFilter, role, onOpenClient }: Props) {
   const [to, setTo] = useState(today());
   const [busy, setBusy] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [moisComptable, setMoisComptable] = useState(() => new Date().toISOString().slice(0, 7));
   const [selectedPalier, setSelectedPalier] = useState<number | null>(null);
 
   const query = { from, to, entite: entityFilter };
@@ -265,6 +266,22 @@ export function ReportingView({ entityFilter, role, onOpenClient }: Props) {
     }
   }
 
+  async function handleExportComptable() {
+    if (!moisComptable) return;
+    setBusy(true);
+    setExportError(null);
+    try {
+      await downloadFilePost('/api/reporting/comptable.xlsx', `rapport_comptable_${moisComptable}.xlsx`, {
+        mois: moisComptable,
+        entite: entityFilter,
+      });
+    } catch (err) {
+      setExportError(err instanceof ApiError ? err.message : "Échec de l'export comptable");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div>
       <div className="table-card" style={{ padding: '18px 22px', marginBottom: 24 }}>
@@ -285,6 +302,18 @@ export function ReportingView({ entityFilter, role, onOpenClient }: Props) {
               Exporter en PDF
             </button>
           </div>
+        </div>
+        <div style={{ borderTop: '1px solid var(--line)', marginTop: 16, paddingTop: 16, display: 'flex', gap: 16, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <div>
+            <label>Rapport comptable du mois</label>
+            <input type="month" value={moisComptable} onChange={(e) => setMoisComptable(e.target.value)} />
+          </div>
+          <button className="primary" disabled={busy || !moisComptable} onClick={handleExportComptable}>
+            📊 Télécharger (Excel)
+          </button>
+          <span style={{ fontSize: 12.5, color: 'var(--ink-soft)', maxWidth: 420 }}>
+            Synthèse, balance âgée, impayés &amp; encaissements du mois (mois de facturation) — chiffres bruts prêts à intégrer à vos boards.
+          </span>
         </div>
         {exportError && <div className="login-error" style={{ marginTop: 12 }}>{exportError}</div>}
       </div>
