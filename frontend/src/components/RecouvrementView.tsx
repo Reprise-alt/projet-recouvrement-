@@ -555,10 +555,6 @@ export function RecouvrementView({ entityFilter, role, reloadKey, onImport, canR
         </div>
       </div>
 
-      {selectedClientId && (
-        <ClientDrawer clientId={selectedClientId} role={role} onClose={() => setSelectedClientId(null)} onChanged={refetchAll} />
-      )}
-
       {bulkRelance && palierFilter !== null && (
         <BulkRelanceModal
           palierId={palierFilter}
@@ -568,6 +564,13 @@ export function RecouvrementView({ entityFilter, role, reloadKey, onImport, canR
         />
       )}
         </>
+      )}
+      {/* Tiroir fiche client : rendu à la RACINE (hors ternaire) pour être
+          accessible depuis les DEUX vues — Vue d'ensemble ET Reporting. Sinon,
+          un clic « Relancer » dans le Reporting fixe l'état sélectionné mais
+          aucun ClientDrawer n'est monté (il ne vivait que dans la Vue d'ensemble). */}
+      {selectedClientId && (
+        <ClientDrawer clientId={selectedClientId} role={role} onClose={() => setSelectedClientId(null)} onChanged={refetchAll} />
       )}
     </div>
   );
