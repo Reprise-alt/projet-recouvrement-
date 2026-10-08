@@ -41,8 +41,8 @@ import { AUTH_MODE, IS_SAAS, redirigerVersHub } from './auth/mode';
 // passage du recouvrement dans Feyma, elle ne sert plus qu'au suivi des
 // échéances de contrats. Le recouvrement, les relances et le contentieux n'y
 // sont plus proposés. Le build SaaS (Feyma, IS_SAAS) n'est pas concerné.
-// Exception conservée : un collaborateur juridique externe (accès contentieux
-// seul) garde son onglet Contentieux tant que ses dossiers n'ont pas migré.
+// Le contentieux étant entièrement dans Feyma, un compte qui n'a QUE l'accès
+// contentieux (collaborateur juridique externe) n'a plus rien à voir ici.
 const ECHEANCES_SEUL = CONSOLE === 'recouvrement' && !IS_SAAS;
 const META_ECHEANCES = {
   marque: 'Suivi des échéances de contrats',
@@ -215,13 +215,14 @@ export function App() {
     if (CONSOLE === 'coursier') return user.accesPlanningCoursiers;
     // La console Recouvrement admet aussi les collaborateurs juridiques externes
     // (accesContentieux), qui n'y verront QUE l'onglet Contentieux.
+    if (ECHEANCES_SEUL) return user.accesRecouvrement;
     return user.accesRecouvrement || user.accesContentieux;
   }, [user]);
 
   // Collaborateur juridique externe : accès Contentieux sans le recouvrement
   // interne. On ne lui montre que l'onglet Contentieux, ni la partie financière
   // ni l'administration.
-  const contentieuxSeul = !!user && user.accesContentieux && !user.accesRecouvrement;
+  const contentieuxSeul = !ECHEANCES_SEUL && !!user && user.accesContentieux && !user.accesRecouvrement;
 
   useEffect(() => {
     if (contentieuxSeul) setRecouvrementTab('contentieux');
