@@ -3,7 +3,7 @@ import { api, ApiError, setImpersonateOrg } from '../api/client';
 import { AbonnementInfo } from '../api/types';
 import { useResource } from '../hooks/useResource';
 import { useToast } from '../hooks/useToast';
-import { fmtDate } from '../lib/constants';
+import { fmtDate, SECTEURS_ACTIVITE } from '../lib/constants';
 
 interface OrgAdmin {
   id: string;
@@ -136,17 +136,25 @@ export function SuperAdminPanel({ onClose }: { onClose: () => void }) {
                       <td>
                         <strong>{o.raisonSociale}</strong>
                         <div style={{ fontSize: 11.5, color: 'var(--ink-soft)' }}>{o.emailProprietaire ?? '—'}</div>
-                        <input
-                          defaultValue={o.secteur ?? ''}
-                          placeholder="secteur (ex. Opticien)"
-                          list="secteurs-courants"
+                        <select
+                          value={o.secteur ?? ''}
                           disabled={busy}
-                          onBlur={(e) => {
-                            const v = e.target.value.trim();
+                          onChange={(e) => {
+                            const v = e.target.value;
                             if (v !== (o.secteur ?? '')) patch(o.id, { secteur: v }, 'Secteur mis à jour');
                           }}
-                          style={{ fontSize: 11, padding: '2px 6px', marginTop: 4, width: 160 }}
-                        />
+                          style={{ fontSize: 11, padding: '2px 6px', marginTop: 4, width: 170 }}
+                        >
+                          <option value="">— secteur —</option>
+                          {SECTEURS_ACTIVITE.map((s) => (
+                            <option key={s} value={s}>
+                              {s}
+                            </option>
+                          ))}
+                          {o.secteur && !SECTEURS_ACTIVITE.includes(o.secteur) && (
+                            <option value={o.secteur}>{o.secteur}</option>
+                          )}
+                        </select>
                       </td>
                       <td>
                         <span className="badge" data-tone={et.tone}>
@@ -342,24 +350,15 @@ function CreerConsoleProspect({ onDone }: { onDone: () => void }) {
           <label style={{ fontSize: 12 }}>
             Secteur (optionnel)
             <br />
-            <input
-              value={secteur}
-              onChange={(e) => setSecteur(e.target.value)}
-              placeholder="ex. Opticien"
-              list="secteurs-courants"
-            />
+            <select value={secteur} onChange={(e) => setSecteur(e.target.value)}>
+              <option value="">— Choisir —</option>
+              {SECTEURS_ACTIVITE.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
           </label>
-          <datalist id="secteurs-courants">
-            <option value="Opticien" />
-            <option value="Pharmacie" />
-            <option value="Clinique" />
-            <option value="Laboratoire" />
-            <option value="Cabinet médical" />
-            <option value="Distribution" />
-            <option value="BTP" />
-            <option value="Services" />
-            <option value="Assurance" />
-          </datalist>
           <button type="button" className="primary" disabled={busy} onClick={creer}>
             Créer (essai 14 j)
           </button>
