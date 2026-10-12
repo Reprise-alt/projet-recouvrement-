@@ -293,6 +293,7 @@ model AlerteCheque {
   client         Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
   clientId       String
   montantEstime  Int? // montant annoncé par le débiteur (optionnel)
+  moyen          String       @default("cheque") // cheque | virement — moyen déclaré
   message        String?
   statut         String       @default("nouvelle") // nouvelle | traitee
   createdAt      DateTime     @default(now())
