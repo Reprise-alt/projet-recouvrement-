@@ -20,6 +20,22 @@ export function SettingsModal({ onClose, onSaved }: { onClose: () => void; onSav
   const { data: reglages, loading } = useResource<ReglagePalier[]>('/api/config/paliers');
   const [lignes, setLignes] = useState<Ligne[]>([]);
   const [busy, setBusy] = useState(false);
+  const [freqBulk, setFreqBulk] = useState('ponctuelle');
+  const [freqBusy, setFreqBusy] = useState(false);
+
+  async function appliquerFreqTous() {
+    setFreqBusy(true);
+    try {
+      const r = await api.patch<{ updated: number }>('/api/clients/frequence-facturation', {
+        frequenceFacturation: freqBulk,
+      });
+      showToast(`${r.updated} client(s) mis à jour`);
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setFreqBusy(false);
+    }
+  }
 
   useEffect(() => {
     if (!reglages) return;
@@ -138,6 +154,25 @@ export function SettingsModal({ onClose, onSaved }: { onClose: () => void; onSav
             </div>
           </form>
         )}
+
+        <div style={{ borderTop: '1px solid var(--line)', marginTop: 18, paddingTop: 16 }}>
+          <h3 style={{ margin: '0 0 6px', fontSize: 14 }}>Fréquence de facturation</h3>
+          <div style={{ color: 'var(--ink-soft)', fontSize: 12, marginBottom: 10 }}>
+            Appliquer une fréquence à <strong>tous les clients</strong> en une fois — ex. « ponctuelle » pour une
+            facturation à l'acte (consultations). N'affecte pas le calcul des paliers (mensuelle et ponctuelle = ×1).
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <select value={freqBulk} onChange={(e) => setFreqBulk(e.target.value)} style={{ width: 'auto' }}>
+              <option value="ponctuelle">Ponctuelle (à l'acte)</option>
+              <option value="mensuelle">Mensuelle</option>
+              <option value="trimestrielle">Trimestrielle</option>
+              <option value="annuelle">Annuelle</option>
+            </select>
+            <button type="button" disabled={freqBusy} onClick={appliquerFreqTous}>
+              Appliquer à tous les clients
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

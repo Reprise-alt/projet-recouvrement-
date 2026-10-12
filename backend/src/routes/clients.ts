@@ -634,6 +634,25 @@ clientsRouter.post('/:id/contacts', requireRole('admin', 'manager_entite'), asyn
 
 const FREQUENCES_VALIDES = ['mensuelle', 'trimestrielle', 'annuelle', 'ponctuelle'];
 
+// Bulk : passer TOUS les clients de l'organisation à une même fréquence
+// (ex. « ponctuelle » pour un métier à l'acte). Chemin à UN segment → pas de
+// collision avec la route par id ci-dessous.
+clientsRouter.patch('/frequence-facturation', requireRole('admin', 'manager_entite'), async (req, res, next) => {
+  try {
+    const frequence = req.body?.frequenceFacturation;
+    if (typeof frequence !== 'string' || !FREQUENCES_VALIDES.includes(frequence)) {
+      return res.status(400).json({ error: `Fréquence invalide — attendu : ${FREQUENCES_VALIDES.join(', ')}` });
+    }
+    const r = await prisma.client.updateMany({
+      where: { organisationId: req.user!.organisationId },
+      data: { frequenceFacturation: frequence as any },
+    });
+    res.json({ updated: r.count, frequenceFacturation: frequence });
+  } catch (err) {
+    next(err);
+  }
+});
+
 clientsRouter.patch('/:id/frequence-facturation', requireRole('admin', 'manager_entite'), async (req, res, next) => {
   try {
     const existing = await prisma.client.findUnique({ where: { id: req.params.id } });
