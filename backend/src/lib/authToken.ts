@@ -84,3 +84,20 @@ export function verifierTokenCheque(token: string): { clientId: string; org: str
     return null;
   }
 }
+
+// Jeton PUBLIC « Espace Assureur » : lien remis à un assureur (débiteur) pour
+// consulter son relevé avec le créancier et signaler ses règlements, sans
+// authentification. Porte le client + l'organisation ; validité longue.
+export function signerTokenAssureur(clientId: string, organisationId: string): string {
+  return jwt.sign({ asr: true, org: organisationId }, secret(), { subject: clientId, expiresIn: '180d' });
+}
+
+export function verifierTokenAssureur(token: string): { clientId: string; org: string } | null {
+  try {
+    const p = jwt.verify(token, secret()) as jwt.JwtPayload;
+    if (p.asr === true && p.sub && typeof p.org === 'string') return { clientId: String(p.sub), org: p.org };
+    return null;
+  } catch {
+    return null;
+  }
+}

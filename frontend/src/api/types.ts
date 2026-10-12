@@ -37,6 +37,9 @@ export interface Organisation {
   promoFeymaRelances?: boolean;
   contentieuxAgeMinJours?: number | null;
   contentieuxMontantPlancher?: number | null;
+  // Secteur d'activité (libre) : pilote les capacités par secteur (tiers-payant
+  // → Espace Assureur à la place du contentieux).
+  secteur?: string | null;
   formule: string;
   statut: string;
 }
@@ -66,6 +69,8 @@ export interface Capacites {
   reporting: boolean;
   contentieux: boolean;
   multiEntites: boolean;
+  // Accès assureurs (secteurs tiers-payant) : espace de relevé/règlement assureur.
+  espaceAssureur: boolean;
 }
 
 export interface CurrentUser {
@@ -258,6 +263,8 @@ export interface ClientDetail {
   contentieuxExclu: boolean;
   contentieux: { eligible: boolean; motifs: string[]; bloquants: string[] };
   emetteur?: Emetteur;
+  // Présence d'un logo d'assureur (co-branding de l'Espace Assureur).
+  logoAssureur?: boolean;
 }
 
 // Identité d'émetteur pour signer les messages manuels (mot bienveillant,

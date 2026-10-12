@@ -410,6 +410,9 @@ model Client {
   email                String?
   tel                  String?
   note                 String?
+  // Logo du débiteur (ex. assureur) — co-branding de son Espace Assureur.
+  logoData             Bytes?
+  logoMime             String?
   prochaineRelance     DateTime?
   frequenceFacturation FrequenceFacturation @default(mensuelle)
   // Contentieux (règle d'éligibilité) : `resilie` = client dont on a arrêté la

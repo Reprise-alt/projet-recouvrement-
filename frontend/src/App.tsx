@@ -13,6 +13,7 @@ import { OperationsView } from './components/OperationsView';
 import { CoursierPublicView } from './components/CoursierPublicView';
 import { SalleCoursierView } from './components/SalleCoursierView';
 import { PortailDebiteurView } from './components/PortailDebiteurView';
+import { EspaceAssureurView } from './components/EspaceAssureurView';
 import { DeclarationChequeView } from './components/DeclarationChequeView';
 import { PresentationView } from './components/PresentationView';
 import { ArticlePage, BlogIndex } from './components/BlogView';
@@ -86,6 +87,12 @@ export function App() {
   if (window.location.pathname.startsWith('/portail/')) {
     const token = window.location.pathname.slice('/portail/'.length);
     return <PortailDebiteurView token={token} />;
+  }
+  // Espace assureur — lien public à token remis à un assureur (débiteur en
+  // tiers-payant) : relevé de compte + signalement de règlement, co-brandé.
+  if (window.location.pathname.startsWith('/assureur/')) {
+    const token = window.location.pathname.slice('/assureur/'.length);
+    return <EspaceAssureurView token={token} />;
   }
   // Déclaration publique « chèque disponible » (lien à token dans une relance).
   if (window.location.pathname.startsWith('/cheque/')) {
@@ -656,7 +663,9 @@ export function App() {
       {parametresOpen && (
         <ParametresEntreprisePanel
           onClose={() => setParametresOpen(false)}
-          onSaved={bumpDataVersion}
+          // refresh() recharge /api/auth/me : si le secteur a changé, les
+          // capacités (Espace Assureur / contentieux) se mettent à jour dans la nav.
+          onSaved={() => { bumpDataVersion(); refresh(); }}
           onEntreprisesChanged={refetchEntreprises}
           domaineInitial={user.email}
           canMultiEntites={canMultiEntites}

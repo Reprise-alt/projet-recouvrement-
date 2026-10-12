@@ -27,7 +27,10 @@ interface PropositionFacture {
 
 interface RemiseBancaire {
   id: string;
-  type: 'cheque' | 'virement' | 'espece';
+  type: 'cheque' | 'virement' | 'espece' | 'mobile';
+  // banque = avis bancaire synchronisé ; assureur = règlement signalé par l'assureur.
+  source?: 'banque' | 'assureur';
+  numeroCheque?: string | null;
   montant: number;
   banque: string | null;
   agence: string | null;
@@ -45,6 +48,7 @@ const TYPE_LABEL: Record<RemiseBancaire['type'], { label: string; icon: React.Re
   cheque: { label: 'Remise de chèque', icon: <Banknote size={15} /> },
   virement: { label: 'Virement reçu', icon: <Landmark size={15} /> },
   espece: { label: "Remise d'espèces", icon: <Coins size={15} /> },
+  mobile: { label: 'Mobile Money', icon: <Landmark size={15} /> },
 };
 
 export function RemisesBancairesTab({ roleOrg, onChanged }: { roleOrg?: RoleOrg | null; onChanged?: () => void }) {
@@ -208,10 +212,21 @@ function RemiseCard({ remise, onValide }: { remise: RemiseBancaire; onValide: ()
             <span style={{ color: 'var(--accent)' }}>{t.icon}</span>
             {fmtFCFA(remise.montant)}
           </div>
-          <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 3 }}>
-            {t.label}
-            {remise.banque ? ` · ${remise.banque}` : ''}
-            {remise.agence ? ` · ${remise.agence}` : ''}
+          <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 3, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <span>
+              {t.label}
+              {remise.banque ? ` · ${remise.banque}` : ''}
+              {remise.agence ? ` · ${remise.agence}` : ''}
+              {remise.numeroCheque ? ` · réf. ${remise.numeroCheque}` : ''}
+            </span>
+            {remise.source === 'assureur' && (
+              <span
+                className="badge"
+                style={{ fontSize: 10, background: 'var(--accent-soft)', color: 'var(--accent-dark)', fontWeight: 700 }}
+              >
+                Signalé par l’assureur
+              </span>
+            )}
           </div>
           <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 2 }} className="mono">
             {remise.dateCheque ? `remise ${fmtDate(remise.dateCheque)}` : ''}
