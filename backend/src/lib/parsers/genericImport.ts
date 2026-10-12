@@ -79,12 +79,21 @@ export function processImportRows(
     const montant = parseAmount(row.facture_montant);
     const echeance = toISODate(row.facture_echeance);
     if (row.facture_numero && echeance) {
-      client.factures.push({
-        numero: String(row.facture_numero),
-        montant,
-        dateEcheance: echeance,
-        statut: (row.facture_statut || 'impayee').toString().trim().toLowerCase() === 'payee' ? 'payee' : 'impayee',
-      });
+      // Un même n° de facture peut apparaître sur PLUSIEURS lignes du fichier
+      // (ex. une facture d'assureur détaillée par patient). Comme (client, numéro)
+      // est unique en base, on CUMULE les montants sur une seule facture au lieu
+      // d'en créer des doublons (qui feraient échouer l'import). On garde la plus
+      // ancienne échéance (la plus en retard).
+      const numero = String(row.facture_numero).trim();
+      const statut = (row.facture_statut || 'impayee').toString().trim().toLowerCase() === 'payee' ? 'payee' : 'impayee';
+      const existante = client.factures.find((f) => f.numero === numero);
+      if (existante) {
+        existante.montant += montant;
+        if (echeance < existante.dateEcheance) existante.dateEcheance = echeance;
+        if (statut === 'impayee') existante.statut = 'impayee';
+      } else {
+        client.factures.push({ numero, montant, dateEcheance: echeance, statut });
+      }
     }
 
     if (row.contrat_numero) {
