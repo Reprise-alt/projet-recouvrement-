@@ -37,6 +37,9 @@ export interface Organisation {
   promoFeymaRelances?: boolean;
   contentieuxAgeMinJours?: number | null;
   contentieuxMontantPlancher?: number | null;
+  // Secteur d'activité (libre) : pilote les capacités par secteur (tiers-payant
+  // → Espace Assureur à la place du contentieux).
+  secteur?: string | null;
   formule: string;
   statut: string;
 }

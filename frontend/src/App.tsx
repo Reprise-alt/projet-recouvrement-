@@ -663,7 +663,9 @@ export function App() {
       {parametresOpen && (
         <ParametresEntreprisePanel
           onClose={() => setParametresOpen(false)}
-          onSaved={bumpDataVersion}
+          // refresh() recharge /api/auth/me : si le secteur a changé, les
+          // capacités (Espace Assureur / contentieux) se mettent à jour dans la nav.
+          onSaved={() => { bumpDataVersion(); refresh(); }}
           onEntreprisesChanged={refetchEntreprises}
           domaineInitial={user.email}
           canMultiEntites={canMultiEntites}

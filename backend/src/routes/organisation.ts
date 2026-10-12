@@ -41,6 +41,9 @@ const CHAMPS = [
   'contactRecouvrement',
   'emailReponse',
   'promoFeymaRelances',
+  // Secteur d'activité : pilote les capacités par secteur (ex. tiers-payant →
+  // Espace Assureur à la place du contentieux). Éditable par le propriétaire.
+  'secteur',
 ] as const;
 
 // Vérificateur de délivrabilité e-mail : diagnostic DNS (SPF/DKIM/DMARC/MX) du

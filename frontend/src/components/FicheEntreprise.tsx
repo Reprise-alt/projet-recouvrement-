@@ -96,6 +96,7 @@ export function FicheEntreprise({
         nomDirigeant: org.nomDirigeant,
         cniDirigeant: org.cniDirigeant,
         adresse: org.adresse,
+        secteur: org.secteur ?? null,
         logoUrl: org.logoUrl,
         instructionsPaiement: org.instructionsPaiement,
         contactRecouvrement: org.contactRecouvrement,
@@ -184,6 +185,33 @@ export function FicheEntreprise({
             <div className="field">
               <label>Adresse</label>
               <input value={org.adresse ?? ''} onChange={(e) => champ('adresse', e.target.value)} />
+            </div>
+
+            <div className="field">
+              <label>Secteur d'activité</label>
+              <input
+                value={org.secteur ?? ''}
+                onChange={(e) => champ('secteur', e.target.value)}
+                list="secteurs-feyma"
+                placeholder="Ex. Médecine, Optique, Négoce, BTP…"
+              />
+              <datalist id="secteurs-feyma">
+                <option value="Médecine" />
+                <option value="Santé" />
+                <option value="Optique" />
+                <option value="Clinique" />
+                <option value="Pharmacie" />
+                <option value="Laboratoire" />
+                <option value="Dentaire" />
+                <option value="Négoce" />
+                <option value="BTP" />
+                <option value="Services" />
+                <option value="Industrie" />
+              </datalist>
+              <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 4 }}>
+                Les métiers en tiers-payant (santé, optique, clinique…) activent l'<strong>Espace Assureur</strong>
+                {' '}— vos assureurs consultent leur relevé et signalent leurs règlements — à la place du contentieux.
+              </div>
             </div>
 
             <div className="field">
