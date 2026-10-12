@@ -139,6 +139,7 @@ clientsRouter.get('/console', async (req, res, next) => {
         select: {
           id: true, nom: true, entite: true, contact: true, email: true, tel: true, note: true,
           prochaineRelance: true, frequenceFacturation: true, resilie: true, contentieuxExclu: true,
+          logoMime: true,
           contacts: { orderBy: { createdAt: 'asc' }, select: { id: true, nom: true, fonction: true, email: true, tel: true } },
           actions: { orderBy: { date: 'desc' }, take: 1, select: { label: true, date: true, palier: true } },
         },
@@ -249,6 +250,8 @@ clientsRouter.get('/console', async (req, res, next) => {
           encours,
           joursRetard,
           palier,
+          nbFactures: nbImpayees,
+          logoAssureur: !!c.logoMime,
           retardInhabituel: clientRetardInhabituel(cwf),
           contentieuxEligible,
           echeanceLaPlusAncienne: oldest?.dateEcheance ?? null,

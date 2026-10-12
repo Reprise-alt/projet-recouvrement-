@@ -7,6 +7,7 @@ import { executerRelancesTenant, destinatairesRelance, reconstruireEmailRelance,
 import {
   construireRelanceMarque,
   MODELES_DEFAUT,
+  modelesDefautPourSecteur,
   OrgIdentite,
   VARIABLES_RELANCE,
 } from '../lib/modelesRelance';
@@ -272,9 +273,12 @@ relancesRouter.post('/executer', requireRole('admin'), async (req, res, next) =>
 relancesRouter.get('/modeles', async (_req, res, next) => {
   try {
     const overrides = await chargerModelesOrg();
+    const orgId = currentOrganisationId();
+    const org = orgId ? await prisma.organisation.findUnique({ where: { id: orgId }, select: { secteur: true } }) : null;
+    const defauts = modelesDefautPourSecteur(org?.secteur);
     const modeles = PALIERS_MODIFIABLES.map((palier) => {
       const perso = overrides.get(palier);
-      const modele = perso ?? MODELES_DEFAUT[palier];
+      const modele = perso ?? defauts[palier] ?? MODELES_DEFAUT[palier];
       return {
         palier,
         label: PALIERS[palier]?.label ?? `Palier ${palier}`,
@@ -317,7 +321,9 @@ relancesRouter.delete('/modeles/:palier', requireRole('admin'), async (req, res,
     if (!PALIERS_MODIFIABLES.includes(palier)) return res.status(400).json({ error: 'Palier non modifiable' });
     const existing = await prisma.modeleRelanceOrg.findFirst({ where: { palier } });
     if (existing) await prisma.modeleRelanceOrg.delete({ where: { id: existing.id } });
-    const modele = MODELES_DEFAUT[palier];
+    const orgId = currentOrganisationId();
+    const org = orgId ? await prisma.organisation.findUnique({ where: { id: orgId }, select: { secteur: true } }) : null;
+    const modele = modelesDefautPourSecteur(org?.secteur)[palier] ?? MODELES_DEFAUT[palier];
     res.json({ palier, sujet: modele.sujet, corps: modele.corps, personnalise: false });
   } catch (err) {
     next(err);
@@ -337,7 +343,7 @@ relancesRouter.post('/modeles/:palier/apercu', async (req, res, next) => {
           select: {
             raisonSociale: true, logoUrl: true, adresse: true, identifiantFiscal: true,
             rccm: true, formeJuridique: true, capitalSocial: true, contactRecouvrement: true,
-            instructionsPaiement: true, pays: true,
+            instructionsPaiement: true, pays: true, secteur: true,
           },
         })
       : null;
@@ -348,9 +354,11 @@ relancesRouter.post('/modeles/:palier/apercu', async (req, res, next) => {
       rccm: org?.rccm, formeJuridique: org?.formeJuridique, capitalSocial: org?.capitalSocial,
       contactRecouvrement: org?.contactRecouvrement,
       instructionsPaiement: org?.instructionsPaiement, moyensPaiement, pays: org?.pays,
+      secteur: org?.secteur,
     };
-    const sujet = req.body?.sujet != null ? String(req.body.sujet) : MODELES_DEFAUT[palier].sujet;
-    const corps = req.body?.corps != null ? String(req.body.corps) : MODELES_DEFAUT[palier].corps;
+    const defaut = modelesDefautPourSecteur(org?.secteur)[palier] ?? MODELES_DEFAUT[palier];
+    const sujet = req.body?.sujet != null ? String(req.body.sujet) : defaut.sujet;
+    const corps = req.body?.corps != null ? String(req.body.corps) : defaut.corps;
     // Client fictif pour l'aperçu (échéance ~ selon le palier).
     const jours = [0, 3, 10, 20, 35, 50][palier] ?? 20;
     const exemple = {

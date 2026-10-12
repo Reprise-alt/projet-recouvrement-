@@ -172,6 +172,7 @@ export async function executerRelancesTenant(opts: OptionsExecution = {}): Promi
           pays: true,
           promoFeymaRelances: true,
           codeParrainage: true,
+          secteur: true,
         },
       })
     : null;
@@ -200,6 +201,7 @@ export async function executerRelancesTenant(opts: OptionsExecution = {}): Promi
         pays: org.pays,
         promoFeymaRelances: org.promoFeymaRelances,
         codeParrainage,
+        secteur: org.secteur,
       }
     : null;
 
@@ -315,7 +317,7 @@ export async function reconstruireEmailRelance(
           raisonSociale: true, emailReponse: true, logoUrl: true,
           adresse: true, identifiantFiscal: true, rccm: true, formeJuridique: true,
           capitalSocial: true, contactRecouvrement: true, pays: true,
-          promoFeymaRelances: true, codeParrainage: true,
+          promoFeymaRelances: true, codeParrainage: true, secteur: true,
         },
       })
     : null;
@@ -327,6 +329,7 @@ export async function reconstruireEmailRelance(
         capitalSocial: org.capitalSocial, contactRecouvrement: org.contactRecouvrement,
         instructionsPaiement: org.instructionsPaiement, moyensPaiement, pays: org.pays,
         promoFeymaRelances: org.promoFeymaRelances, codeParrainage: org.codeParrainage,
+        secteur: org.secteur,
       }
     : null;
   const modelesOrg = orgIdentite ? await chargerModelesOrg() : null;
