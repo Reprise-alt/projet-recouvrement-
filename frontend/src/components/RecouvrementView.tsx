@@ -32,7 +32,7 @@ function needsAction(c: ClientListItem): boolean {
 }
 
 export function RecouvrementView({ entityFilter, role, reloadKey, onImport, canReporting = true, onReload }: Props) {
-  const { libelle } = usePaliersConfig();
+  const { libelle, estActif } = usePaliersConfig();
   const { user } = useAuth();
   // Données d'exemple (SaaS) : état pour le bandeau « vous explorez un exemple »
   // et le bouton de chargement dans l'écran vide.
@@ -300,7 +300,19 @@ export function RecouvrementView({ entityFilter, role, reloadKey, onImport, canR
           combien partiraient maintenant à ce palier. Cliquer pour filtrer.
         </div>
         {(() => {
-          const counts = PALIERS.map((p) => ladder[p.id] ?? 0);
+          // Un palier désactivé n'est pas une destination : ses clients comptent
+          // au palier actif précédent (même logique que le moteur de relances,
+          // palierEffectif). La frise le reflète, et le rung est grisé.
+          const ladderEff: Record<number, number> = {};
+          const aRelancerEff: Record<number, number> = {};
+          PALIERS.forEach((p) => { ladderEff[p.id] = 0; aRelancerEff[p.id] = 0; });
+          PALIERS.forEach((p) => {
+            let eff = p.id;
+            while (eff > 0 && !estActif(eff)) eff--;
+            ladderEff[eff] += ladder[p.id] ?? 0;
+            aRelancerEff[eff] += ladderARelancer[p.id] ?? 0;
+          });
+          const counts = PALIERS.map((p) => ladderEff[p.id] ?? 0);
           const maxCount = Math.max(1, ...counts);
           const MIN_SIZE = 22;
           const MAX_SIZE = 54;
@@ -328,25 +340,32 @@ export function RecouvrementView({ entityFilter, role, reloadKey, onImport, canR
               <div className="ladder-gradient-rail" />
               <div className="ladder-row">
                 {PALIERS.map((p) => {
-                  const count = ladder[p.id] ?? 0;
+                  const actif = estActif(p.id);
+                  const count = actif ? (ladderEff[p.id] ?? 0) : 0;
                   const size = count === 0 ? MIN_SIZE : MIN_SIZE + (count / maxCount) * (MAX_SIZE - MIN_SIZE);
+                  const aRelancer = actif ? (aRelancerEff[p.id] ?? 0) : 0;
                   return (
                     <button
                       key={p.id}
                       className={`rung${palierFilter === p.id ? ' sel' : ''}${count === 0 ? ' ghost' : ''}`}
                       data-tone={p.tone}
-                      onClick={() => setPalierFilter((cur) => (cur === p.id ? null : p.id))}
+                      disabled={!actif}
+                      style={!actif ? { opacity: 0.4, cursor: 'default' } : undefined}
+                      title={!actif ? 'Palier désactivé — aucune relance à cette étape' : undefined}
+                      onClick={() => actif && setPalierFilter((cur) => (cur === p.id ? null : p.id))}
                     >
                       <div className="rung-circle" style={{ width: size, height: size, fontSize: size > 34 ? 15 : 12 }}>
-                        {count}
-                        {p.desc && <div className="rung-tip">{p.desc}</div>}
+                        {actif ? count : '—'}
+                        {p.desc && actif && <div className="rung-tip">{p.desc}</div>}
                       </div>
                       <div className="rung-meta">
                         <div className="rung-label">{libelle(p.id)}</div>
-                        <div className="rung-days">{p.key && kpis.data ? `J+${kpis.data.config[p.key]}` : '—'}</div>
-                        {(ladderARelancer[p.id] ?? 0) > 0 && (
+                        <div className="rung-days">
+                          {!actif ? 'désactivé' : p.key && kpis.data ? `J+${kpis.data.config[p.key]}` : '—'}
+                        </div>
+                        {aRelancer > 0 && (
                           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--amber)', marginTop: 2 }}>
-                            · {ladderARelancer[p.id]} à relancer
+                            · {aRelancer} à relancer
                           </div>
                         )}
                       </div>
