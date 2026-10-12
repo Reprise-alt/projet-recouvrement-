@@ -10,6 +10,7 @@
 import { fmtDate, fmtFCFA } from './dates';
 import { ClientWithFactures, FactureLike, clientJoursRetard, clientOldestEcheance } from './paliers';
 import { MoyenPaiementRender } from './moyensPaiement';
+import { secteurTiersPayant } from './formules';
 
 // Factures IMPAYÉES et DÉJÀ ÉCHUES (échéance ≤ aujourd'hui), de la plus ancienne
 // à la plus récente. Une relance ne réclame QUE ce qui est dû : une facture
@@ -87,6 +88,62 @@ export const MODELES_DEFAUT: Record<number, ModeleRelance> = {
   },
 };
 
+// Modèles ADAPTÉS aux secteurs en tiers-payant (santé, optique, clinique…) :
+// le « débiteur » est un ASSUREUR qui doit rembourser des bordereaux/factures.
+// Ton B2B partenarial, vocabulaire métier (bordereaux, relevé, remboursement,
+// service règlements) plutôt que « facture impayée / mesures de recouvrement ».
+// Mêmes variables que MODELES_DEFAUT ({debiteur} = l'assureur, {entreprise} = le
+// créancier, {facture} = le(s) bordereau(x), etc.).
+export const MODELES_DEFAUT_TIERS_PAYANT: Record<number, ModeleRelance> = {
+  1: {
+    sujet: 'Relevé de bordereaux échus — {facture}',
+    corps:
+      'Bonjour,\n\n' +
+      'Dans le cadre de notre convention de tiers-payant, nous vous adressons le relevé de votre compte : le(s) bordereau(x) {facture}, pour un total de {montant_du}, sont arrivés à échéance le {echeance}.\n\n' +
+      'Vous pouvez en consulter le détail et signaler votre règlement depuis votre espace assureur. Si le remboursement est déjà engagé, merci de ne pas tenir compte de ce message.\n\n' +
+      'Cordialement,\n{entreprise}',
+  },
+  2: {
+    sujet: 'Rappel de règlement — bordereaux {facture}',
+    corps:
+      'Bonjour,\n\n' +
+      'Sauf erreur de notre part, le(s) bordereau(x) {facture} de {montant_du}, échu(s) depuis le {echeance} ({jours_retard} jours), demeurent en attente de règlement.\n\n' +
+      'Nous vous remercions de bien vouloir procéder au remboursement ou de nous indiquer la date de traitement prévue : {contact}.\n\n' +
+      'Cordialement,\n{entreprise}',
+  },
+  3: {
+    sujet: 'Deuxième rappel — {facture} en attente de règlement',
+    corps:
+      'Bonjour,\n\n' +
+      'Malgré notre précédent rappel, le(s) bordereau(x) {facture} de {montant_du} restent en souffrance ({jours_retard} jours de retard).\n\n' +
+      'Afin de préserver la fluidité de notre partenariat en tiers-payant, nous vous invitons à régulariser ces remboursements dans les meilleurs délais.\n\n' +
+      'Cordialement,\n{entreprise}',
+  },
+  4: {
+    sujet: 'Dernier rappel — régularisation attendue ({facture})',
+    corps:
+      'Bonjour,\n\n' +
+      'Le(s) bordereau(x) {facture} de {montant_du} présentent un retard de règlement de {jours_retard} jours.\n\n' +
+      'Sans régularisation sous huitaine, nous serons amenés à transmettre ce dossier à votre direction / service règlements et à réexaminer les conditions de prise en charge en tiers-payant.\n\n' +
+      'Cordialement,\n{entreprise}',
+  },
+  5: {
+    sujet: 'Escalade — règlements en souffrance ({facture})',
+    corps:
+      'Bonjour,\n\n' +
+      'En l’absence de règlement du/des bordereau(x) {facture} de {montant_du} (retard de {jours_retard} jours), nous nous voyons contraints d’alerter votre direction et de suspendre, le cas échéant, la pratique du tiers-payant jusqu’à régularisation.\n\n' +
+      'Nous restons à votre disposition pour convenir d’un échéancier de remboursement : {contact}.\n\n' +
+      'Cordialement,\n{entreprise}',
+  },
+};
+
+// Jeu de modèles par défaut applicable à un secteur : tiers-payant → modèles
+// « assureur », sinon modèles génériques. Centralise le choix pour l'envoi ET
+// l'éditeur (aperçu, liste), afin que l'un reflète toujours l'autre.
+export function modelesDefautPourSecteur(secteur?: string | null): Record<number, ModeleRelance> {
+  return secteurTiersPayant(secteur) ? MODELES_DEFAUT_TIERS_PAYANT : MODELES_DEFAUT;
+}
+
 export interface OrgIdentite {
   raisonSociale: string;
   logoUrl?: string | null;
@@ -105,6 +162,9 @@ export interface OrgIdentite {
   // vrai, le palier amiable et le code présent.
   promoFeymaRelances?: boolean | null;
   codeParrainage?: string | null;
+  // Secteur d'activité : sélectionne le jeu de modèles par défaut (tiers-payant
+  // → modèles « assureur ») quand aucune surcharge tenant n'est définie.
+  secteur?: string | null;
 }
 
 // Dernier palier considéré « amiable » : Avis d'échéance (1), Relance 1 (2),
@@ -321,7 +381,8 @@ export function construireRelanceMarque(
   modele?: ModeleRelance,
   lienChequeDispo?: string | null,
 ): { sujet: string; texte: string; html: string } {
-  const tpl = modele ?? MODELES_DEFAUT[palier] ?? MODELES_DEFAUT[2];
+  const defauts = modelesDefautPourSecteur(org.secteur);
+  const tpl = modele ?? defauts[palier] ?? MODELES_DEFAUT[2];
   const vars = variablesRelance(client, org);
   const sujet = rendreVariables(tpl.sujet, vars);
   const texte = rendreVariables(tpl.corps, vars);
