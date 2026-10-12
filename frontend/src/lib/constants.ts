@@ -123,6 +123,30 @@ export const FREQUENCE_LABELS: Record<string, string> = {
   ponctuelle: 'Ponctuelle',
 };
 
+// Secteurs d'activité proposés (liste déroulante). Les premiers (★ tiers-payant)
+// activent l'Espace Assureur à la place du contentieux ; cf. lib/formules.ts
+// côté back-end (détection par mots-clés). Liste indicative, la valeur reste libre.
+export const SECTEURS_ACTIVITE: string[] = [
+  'Médecine',
+  'Santé',
+  'Optique',
+  'Clinique',
+  'Pharmacie',
+  'Laboratoire',
+  'Dentaire',
+  'Imagerie médicale',
+  'Assurance',
+  'Mutuelle',
+  'Commerce / Négoce',
+  'Industrie',
+  'BTP',
+  'Transport & logistique',
+  'Télécommunication',
+  'Communication / Digital',
+  'Services',
+  'Autre',
+];
+
 export function fmtFCFA(n: number): string {
   // Espaces insécables partout (séparateurs de milliers ET avant « FCFA ») pour
   // que le montant tienne toujours sur une seule ligne, jamais coupé.

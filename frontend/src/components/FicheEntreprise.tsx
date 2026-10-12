@@ -1,6 +1,7 @@
 import { ChangeEvent, FormEvent, useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { Organisation } from '../api/types';
+import { SECTEURS_ACTIVITE } from '../lib/constants';
 import { MoyensPaiementEditor } from './MoyensPaiementEditor';
 
 // Fiche entreprise (addendum §3, §4.3 étapes 1-2) : identité, identifiants fiscaux,
@@ -189,25 +190,17 @@ export function FicheEntreprise({
 
             <div className="field">
               <label>Secteur d'activité</label>
-              <input
-                value={org.secteur ?? ''}
-                onChange={(e) => champ('secteur', e.target.value)}
-                list="secteurs-feyma"
-                placeholder="Ex. Médecine, Optique, Négoce, BTP…"
-              />
-              <datalist id="secteurs-feyma">
-                <option value="Médecine" />
-                <option value="Santé" />
-                <option value="Optique" />
-                <option value="Clinique" />
-                <option value="Pharmacie" />
-                <option value="Laboratoire" />
-                <option value="Dentaire" />
-                <option value="Négoce" />
-                <option value="BTP" />
-                <option value="Services" />
-                <option value="Industrie" />
-              </datalist>
+              <select value={org.secteur ?? ''} onChange={(e) => champ('secteur', e.target.value)}>
+                <option value="">— Choisir —</option>
+                {SECTEURS_ACTIVITE.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+                {org.secteur && !SECTEURS_ACTIVITE.includes(org.secteur) && (
+                  <option value={org.secteur}>{org.secteur}</option>
+                )}
+              </select>
               <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 4 }}>
                 Les métiers en tiers-payant (santé, optique, clinique…) activent l'<strong>Espace Assureur</strong>
                 {' '}— vos assureurs consultent leur relevé et signalent leurs règlements — à la place du contentieux.
