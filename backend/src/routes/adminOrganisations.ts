@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { prisma } from '../db';
+import { prisma, withTenant } from '../db';
 import { requireAuth } from '../middleware/auth';
 import { requireSuperAdmin } from '../middleware/superAdmin';
 import { etatAbonnement } from '../lib/abonnement';
@@ -58,6 +58,7 @@ adminOrganisationsRouter.post('/organisations', async (req, res, next) => {
     const body = (req.body ?? {}) as Record<string, unknown>;
     const raisonSociale = String(body.raisonSociale ?? '').trim();
     const email = normaliserEmail(String(body.email ?? ''));
+    const secteur = String(body.secteur ?? '').trim();
     const formule = FORMULES.includes(String(body.formule)) ? String(body.formule) : 'pme';
     const joursEssai =
       Number.isFinite(Number(body.joursEssai)) && Number(body.joursEssai) > 0 ? Math.floor(Number(body.joursEssai)) : 14;
@@ -74,6 +75,7 @@ adminOrganisationsRouter.post('/organisations', async (req, res, next) => {
         statut: 'essai',
         dateFinEssai: new Date(Date.now() + joursEssai * 24 * 60 * 60 * 1000),
         formule: formule as any,
+        ...(secteur ? { secteur } : {}),
       },
     });
     const proprietaire = await prisma.utilisateur.create({
@@ -86,18 +88,126 @@ adminOrganisationsRouter.post('/organisations', async (req, res, next) => {
         accesRecouvrement: true,
       },
     });
+    // Auto-application du modèle de secteur (s'il existe) : une nouvelle org
+    // d'un secteur déjà paramétré démarre avec ses paliers + modèles d'e-mails.
+    let modeleApplique = false;
+    if (secteur) {
+      const modele = await prisma.modeleSecteur.findUnique({ where: { secteur } });
+      if (modele) {
+        await appliquerConfigOrg(org.id, modele.paliers as unknown as PalierSnap[], modele.modeles as unknown as ModeleSnap[]);
+        modeleApplique = true;
+      }
+    }
     console.info(
-      `[provisioning] org "${raisonSociale}" (${org.id}) créée par ${req.user!.email} — proprio ${email}, essai ${joursEssai} j`,
+      `[provisioning] org "${raisonSociale}" (${org.id}) créée par ${req.user!.email} — proprio ${email}, essai ${joursEssai} j${secteur ? `, secteur « ${secteur} »${modeleApplique ? ' (modèle appliqué)' : ''}` : ''}`,
     );
     res.status(201).json({
       id: org.id,
       raisonSociale: org.raisonSociale,
       slug: org.slug,
       statut: org.statut,
+      secteur: org.secteur,
       dateFinEssai: org.dateFinEssai,
       emailProprietaire: proprietaire.email,
       abonnement: etatAbonnement(org),
+      modeleSecteurApplique: modeleApplique,
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// --- Modèles de configuration par secteur (paliers + modèles d'e-mails) ---
+type PalierSnap = { palier: number; jours: number | null; actif: boolean; libelle: string | null };
+type ModeleSnap = { palier: number; sujet: string; corps: string };
+
+// Lit la config (paliers + modèles de relance) d'une org, dans son contexte tenant.
+async function lireConfigOrg(organisationId: string): Promise<{ paliers: PalierSnap[]; modeles: ModeleSnap[] }> {
+  return withTenant(organisationId, async () => {
+    const paliers = await prisma.palierOrg.findMany({ where: { organisationId } });
+    const modeles = await prisma.modeleRelanceOrg.findMany({ where: { organisationId } });
+    return {
+      paliers: paliers.map((p) => ({ palier: p.palier, jours: p.jours, actif: p.actif, libelle: p.libelle })),
+      modeles: modeles.map((m) => ({ palier: m.palier, sujet: m.sujet, corps: m.corps })),
+    };
+  });
+}
+
+// Applique (upsert) une config paliers + modèles à une org, dans son contexte tenant.
+async function appliquerConfigOrg(organisationId: string, paliers: PalierSnap[], modeles: ModeleSnap[]): Promise<void> {
+  await withTenant(organisationId, async () => {
+    for (const p of paliers ?? []) {
+      await prisma.palierOrg.upsert({
+        where: { organisationId_palier: { organisationId, palier: p.palier } },
+        create: { organisationId, palier: p.palier, jours: p.jours ?? null, actif: p.actif ?? true, libelle: p.libelle ?? null },
+        update: { jours: p.jours ?? null, actif: p.actif ?? true, libelle: p.libelle ?? null },
+      });
+    }
+    for (const m of modeles ?? []) {
+      await prisma.modeleRelanceOrg.upsert({
+        where: { organisationId_palier: { organisationId, palier: m.palier } },
+        create: { organisationId, palier: m.palier, sujet: m.sujet, corps: m.corps },
+        update: { sujet: m.sujet, corps: m.corps },
+      });
+    }
+  });
+}
+
+// Liste des modèles de secteur enregistrés.
+adminOrganisationsRouter.get('/secteurs/modeles', async (_req, res, next) => {
+  try {
+    const list = await prisma.modeleSecteur.findMany({ orderBy: { secteur: 'asc' } });
+    res.json(
+      list.map((m) => ({
+        secteur: m.secteur,
+        paliers: Array.isArray(m.paliers) ? (m.paliers as unknown[]).length : 0,
+        modeles: Array.isArray(m.modeles) ? (m.modeles as unknown[]).length : 0,
+        majPar: m.majPar,
+        updatedAt: m.updatedAt,
+      })),
+    );
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Enregistre la config courante d'une org comme MODÈLE de son secteur (upsert).
+adminOrganisationsRouter.post('/organisations/:id/enregistrer-modele-secteur', async (req, res, next) => {
+  try {
+    const org = await prisma.organisation.findUnique({ where: { id: req.params.id } });
+    if (!org) return res.status(404).json({ error: 'Organisation introuvable.' });
+    if (!org.secteur || !org.secteur.trim()) {
+      return res.status(400).json({ error: "Définissez d'abord le secteur de cette organisation." });
+    }
+    const secteur = org.secteur.trim();
+    const cfg = await lireConfigOrg(org.id);
+    const modele = await prisma.modeleSecteur.upsert({
+      where: { secteur },
+      create: { secteur, paliers: cfg.paliers as any, modeles: cfg.modeles as any, majPar: req.user!.email },
+      update: { paliers: cfg.paliers as any, modeles: cfg.modeles as any, majPar: req.user!.email },
+    });
+    console.info(
+      `[modele-secteur] « ${secteur} » enregistré depuis "${org.raisonSociale}" par ${req.user!.email} (${cfg.paliers.length} paliers, ${cfg.modeles.length} modèles)`,
+    );
+    res.json({ secteur, paliers: cfg.paliers.length, modeles: cfg.modeles.length, updatedAt: modele.updatedAt });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Applique le modèle du secteur de l'org À cette org (paliers + modèles d'e-mails).
+adminOrganisationsRouter.post('/organisations/:id/appliquer-modele-secteur', async (req, res, next) => {
+  try {
+    const org = await prisma.organisation.findUnique({ where: { id: req.params.id } });
+    if (!org) return res.status(404).json({ error: 'Organisation introuvable.' });
+    if (!org.secteur || !org.secteur.trim()) {
+      return res.status(400).json({ error: "Cette organisation n'a pas de secteur défini." });
+    }
+    const modele = await prisma.modeleSecteur.findUnique({ where: { secteur: org.secteur.trim() } });
+    if (!modele) return res.status(404).json({ error: `Aucun modèle pour le secteur « ${org.secteur} ».` });
+    await appliquerConfigOrg(org.id, modele.paliers as unknown as PalierSnap[], modele.modeles as unknown as ModeleSnap[]);
+    console.info(`[modele-secteur] « ${org.secteur.trim()} » appliqué à "${org.raisonSociale}" par ${req.user!.email}`);
+    res.json({ ok: true, secteur: org.secteur });
   } catch (err) {
     next(err);
   }
@@ -142,6 +252,7 @@ adminOrganisationsRouter.get('/organisations', async (_req, res, next) => {
         slug: o.slug,
         pays: o.pays,
         statut: o.statut,
+        secteur: o.secteur,
         formule: o.formule,
         optionContentieux: o.optionContentieux,
         dateFinEssai: o.dateFinEssai,
@@ -170,6 +281,9 @@ adminOrganisationsRouter.patch('/organisations/:id', async (req, res, next) => {
     if (typeof body.formule === 'string') {
       if (!FORMULES.includes(body.formule)) return res.status(400).json({ error: 'Formule invalide' });
       data.formule = body.formule;
+    }
+    if (typeof body.secteur === 'string') {
+      data.secteur = body.secteur.trim() || null;
     }
     // Option payante « contentieux » (+10 000/mois) pour Petite/PME.
     if (typeof body.optionContentieux === 'boolean') {

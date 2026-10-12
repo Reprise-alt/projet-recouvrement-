@@ -10,6 +10,7 @@ interface OrgAdmin {
   raisonSociale: string;
   pays: string;
   statut: string;
+  secteur: string | null;
   formule: string;
   optionContentieux: boolean;
   dateFinEssai: string | null;
@@ -67,6 +68,36 @@ export function SuperAdminPanel({ onClose }: { onClose: () => void }) {
     }
   }
 
+  // Enregistre la config (paliers + e-mails) de cette org comme modèle de son secteur.
+  async function enregistrerModele(o: OrgAdmin) {
+    setBusyId(o.id);
+    try {
+      const r = await api.post<{ secteur: string; paliers: number; modeles: number }>(
+        `/api/admin/organisations/${o.id}/enregistrer-modele-secteur`,
+        {},
+      );
+      showToast(`Modèle « ${r.secteur} » enregistré (${r.paliers} paliers · ${r.modeles} e-mails)`);
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  // Applique à cette org le modèle de son secteur (paliers + e-mails).
+  async function appliquerModele(o: OrgAdmin) {
+    setBusyId(o.id);
+    try {
+      await api.post(`/api/admin/organisations/${o.id}/appliquer-modele-secteur`, {});
+      showToast('Modèle de secteur appliqué');
+      refetch();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   return (
     <div className="modal-overlay open" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal" style={{ width: 'min(880px, 96%)' }}>
@@ -105,6 +136,17 @@ export function SuperAdminPanel({ onClose }: { onClose: () => void }) {
                       <td>
                         <strong>{o.raisonSociale}</strong>
                         <div style={{ fontSize: 11.5, color: 'var(--ink-soft)' }}>{o.emailProprietaire ?? '—'}</div>
+                        <input
+                          defaultValue={o.secteur ?? ''}
+                          placeholder="secteur (ex. Opticien)"
+                          list="secteurs-courants"
+                          disabled={busy}
+                          onBlur={(e) => {
+                            const v = e.target.value.trim();
+                            if (v !== (o.secteur ?? '')) patch(o.id, { secteur: v }, 'Secteur mis à jour');
+                          }}
+                          style={{ fontSize: 11, padding: '2px 6px', marginTop: 4, width: 160 }}
+                        />
                       </td>
                       <td>
                         <span className="badge" data-tone={et.tone}>
@@ -182,6 +224,22 @@ export function SuperAdminPanel({ onClose }: { onClose: () => void }) {
                           >
                             Ouvrir la console
                           </button>
+                          <button
+                            style={{ padding: '3px 9px', fontSize: 11 }}
+                            disabled={busy || !o.secteur}
+                            title={o.secteur ? `Enregistrer les paliers + e-mails comme modèle du secteur « ${o.secteur} »` : 'Définissez d\'abord le secteur'}
+                            onClick={() => enregistrerModele(o)}
+                          >
+                            Enregistrer modèle secteur
+                          </button>
+                          <button
+                            style={{ padding: '3px 9px', fontSize: 11 }}
+                            disabled={busy || !o.secteur}
+                            title={o.secteur ? `Appliquer le modèle du secteur « ${o.secteur} » à cette org` : 'Définissez d\'abord le secteur'}
+                            onClick={() => appliquerModele(o)}
+                          >
+                            Appliquer modèle secteur
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -225,6 +283,7 @@ function CreerConsoleProspect({ onDone }: { onDone: () => void }) {
   const [ouvert, setOuvert] = useState(false);
   const [raisonSociale, setRaisonSociale] = useState('');
   const [email, setEmail] = useState('');
+  const [secteur, setSecteur] = useState('');
   const [busy, setBusy] = useState(false);
 
   async function creer() {
@@ -234,10 +293,15 @@ function CreerConsoleProspect({ onDone }: { onDone: () => void }) {
     }
     setBusy(true);
     try {
-      await api.post('/api/admin/organisations', { raisonSociale: raisonSociale.trim(), email: email.trim() });
-      showToast('Console prospect créée');
+      const r = await api.post<{ modeleSecteurApplique?: boolean }>('/api/admin/organisations', {
+        raisonSociale: raisonSociale.trim(),
+        email: email.trim(),
+        secteur: secteur.trim() || undefined,
+      });
+      showToast(r?.modeleSecteurApplique ? 'Console créée — modèle de secteur appliqué' : 'Console prospect créée');
       setRaisonSociale('');
       setEmail('');
+      setSecteur('');
       setOuvert(false);
       onDone();
     } catch (err) {
@@ -275,9 +339,33 @@ function CreerConsoleProspect({ onDone }: { onDone: () => void }) {
             <br />
             <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="prospect@exemple.com" type="email" />
           </label>
+          <label style={{ fontSize: 12 }}>
+            Secteur (optionnel)
+            <br />
+            <input
+              value={secteur}
+              onChange={(e) => setSecteur(e.target.value)}
+              placeholder="ex. Opticien"
+              list="secteurs-courants"
+            />
+          </label>
+          <datalist id="secteurs-courants">
+            <option value="Opticien" />
+            <option value="Pharmacie" />
+            <option value="Clinique" />
+            <option value="Laboratoire" />
+            <option value="Cabinet médical" />
+            <option value="Distribution" />
+            <option value="BTP" />
+            <option value="Services" />
+            <option value="Assurance" />
+          </datalist>
           <button type="button" className="primary" disabled={busy} onClick={creer}>
             Créer (essai 14 j)
           </button>
+          <div style={{ flexBasis: '100%', fontSize: 11, color: 'var(--ink-soft)' }}>
+            Si un <strong>modèle de secteur</strong> existe, ses paliers et e-mails sont appliqués automatiquement à la création.
+          </div>
           <div style={{ flexBasis: '100%', fontSize: 11, color: 'var(--ink-soft)' }}>
             Crée la console + le compte propriétaire. Ensuite « Ouvrir la console » pour importer son fichier ; le prospect se
             connecte avec cet email (code reçu par mail).

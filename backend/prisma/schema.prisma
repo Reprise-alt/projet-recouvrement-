@@ -378,6 +378,22 @@ model ModeleRelanceOrg {
   @@unique([organisationId, palier])
 }
 
+// Modèle de configuration par SECTEUR d'activité (addendum provisioning) :
+// snapshot des paliers + modèles d'e-mails d'une organisation, réutilisable pour
+// configurer d'un coup une nouvelle organisation du même secteur. Global
+// (hors RLS, pas d'organisationId) : géré par le super-admin, partagé entre
+// organisations. `paliers` = [{palier, jours, actif, libelle}] ;
+// `modeles` = [{palier, sujet, corps}].
+model ModeleSecteur {
+  id        String   @id @default(cuid())
+  secteur   String   @unique
+  paliers   Json
+  modeles   Json
+  majPar    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model Client {
   id                   String               @id @default(cuid())
   // Tenant SaaS (addendum §2-3). Défaut statique sur l'organisation « socle »
