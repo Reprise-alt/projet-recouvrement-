@@ -606,11 +606,15 @@ clientsRouter.get('/:id/lien-assureur', requireRole('admin', 'manager_entite', '
     if (!existing) return res.status(404).json({ error: 'Client introuvable' });
     if (!assertEntiteInScope(req, res, existing.entite as Entite)) return;
     const token = signerTokenAssureur(existing.id, req.user!.organisationId);
+    // Le lien pointe vers le FRONT (SPA route /assureur/<token>), PAS vers l'API :
+    // l'API et le front sont sur des domaines distincts (sinon « Cannot GET »).
+    // On utilise FRONTEND_URL (comme le lien « chèque disponible ») ; en dernier
+    // recours seulement, l'origine de la requête.
     const proto = process.env.NODE_ENV === 'production' ? 'https' : req.protocol;
-    const host = req.get('host');
-    // Le lien pointe vers le front (route /assureur/<token>) ; APP_URL le fixe en
-    // prod si le front est servi sur un autre domaine que l'API.
-    const base = process.env.APP_URL?.replace(/\/$/, '') || `${proto}://${host}`;
+    const base =
+      process.env.FRONTEND_URL?.replace(/\/$/, '') ||
+      process.env.APP_URL?.replace(/\/$/, '') ||
+      `${proto}://${req.get('host')}`;
     res.json({ url: `${base}/assureur/${token}`, token });
   } catch (err) {
     next(err);
