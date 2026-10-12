@@ -276,12 +276,17 @@ relancesRouter.get('/modeles', async (_req, res, next) => {
     const orgId = currentOrganisationId();
     const org = orgId ? await prisma.organisation.findUnique({ where: { id: orgId }, select: { secteur: true } }) : null;
     const defauts = modelesDefautPourSecteur(org?.secteur);
+    // Libellés PERSONNALISÉS des paliers (mêmes que la frise), pour que l'éditeur
+    // reflète le paramétrage du client (ex. « Relance 2 — rapprochement bordereaux »)
+    // au lieu des libellés génériques.
+    const reglages = await getReglagesPaliers();
+    const libelleParPalier = new Map(reglages.map((r) => [r.palier, r.libelle]));
     const modeles = PALIERS_MODIFIABLES.map((palier) => {
       const perso = overrides.get(palier);
       const modele = perso ?? defauts[palier] ?? MODELES_DEFAUT[palier];
       return {
         palier,
-        label: PALIERS[palier]?.label ?? `Palier ${palier}`,
+        label: libelleParPalier.get(palier) || PALIERS[palier]?.label || `Palier ${palier}`,
         sujet: modele.sujet,
         corps: modele.corps,
         personnalise: !!perso,
