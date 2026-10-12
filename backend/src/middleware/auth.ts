@@ -51,6 +51,10 @@ declare global {
       // Exploitant plateforme SANS société (email SUPERADMIN_EMAILS sans compte) :
       // session « espace exploitant » autonome, posée par requireAuthOuPartenaire.
       operateur?: { email: string };
+      // Impersonation super-admin : un super-admin « ouvre la console » d'une
+      // organisation (en-tête x-impersonate-org). req.user est alors remplacé par
+      // le propriétaire de l'org cible ; ce champ garde la trace du vrai acteur.
+      impersonation?: { parSuperAdmin: string; organisationId: string; raisonSociale: string };
     }
   }
 }
@@ -81,6 +85,52 @@ function toAuthedUser(u: {
   };
 }
 
+// En-tête d'impersonation : un super-admin peut agir « en tant que » une
+// organisation pour la mettre en place (import, logo…) sans quitter son compte.
+const IMPERSONATION_HEADER = 'x-impersonate-org';
+
+// Remplace req.user par le propriétaire de l'organisation cible SI (et seulement
+// si) l'utilisateur authentifié est un super-admin. Sans super-admin valide,
+// l'en-tête est purement ignoré — jamais d'élévation de privilège possible.
+async function appliquerImpersonation(req: Request): Promise<void> {
+  const brut = req.headers[IMPERSONATION_HEADER];
+  const organisationId = Array.isArray(brut) ? brut[0] : brut;
+  if (!organisationId || !req.user) return;
+  if (!estSuperAdmin(req.user.email)) return;
+  const org = await prisma.organisation.findUnique({ where: { id: organisationId } });
+  if (!org) return;
+  const proprio =
+    (await prisma.utilisateur.findFirst({ where: { organisationId: org.id, roleOrg: 'proprietaire' } })) ??
+    (await prisma.utilisateur.findFirst({ where: { organisationId: org.id } }));
+  if (!proprio) return;
+  req.impersonation = { parSuperAdmin: req.user.email, organisationId: org.id, raisonSociale: org.raisonSociale };
+  req.user = {
+    id: proprio.id,
+    nom: proprio.nom,
+    email: proprio.email,
+    role: proprio.role as RoleUtilisateur,
+    entite: (proprio.entite as Entite | null) ?? null,
+    organisationId: proprio.organisationId,
+    roleOrg: proprio.roleOrg ?? null,
+    accesRecouvrement: proprio.accesRecouvrement,
+    roleOperations: (proprio.roleOperations as RoleOperations | null) ?? null,
+    accesPlanningCoursiers: proprio.accesPlanningCoursiers,
+    accesContentieux: proprio.accesContentieux,
+  };
+}
+
+// Point de sortie commun de requireAuth : applique l'impersonation éventuelle
+// (best-effort) avant de passer la main. Une erreur d'impersonation n'empêche
+// jamais la requête de continuer avec l'identité réelle.
+async function finaliserAuth(req: Request, _res: Response, next: NextFunction) {
+  try {
+    await appliquerImpersonation(req);
+  } catch (e) {
+    console.error('[impersonation] échec (ignoré):', e);
+  }
+  next();
+}
+
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
   // Session SaaS (OTP) : token Bearer signé par notre secret. Essayé en premier
   // et indépendant du mode SSO/Supabase — les deux systèmes cohabitent. Un JWT
@@ -92,7 +142,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       const u = await prisma.utilisateur.findUnique({ where: { id: sess.sub } });
       if (!u) return res.status(403).json({ error: 'Compte introuvable' });
       req.user = toAuthedUser(u);
-      return next();
+      return finaliserAuth(req, res, next);
     }
   }
 
@@ -127,7 +177,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     accesPlanningCoursiers: utilisateur.accesPlanningCoursiers,
     accesContentieux: utilisateur.accesContentieux,
   };
-  next();
+  return finaliserAuth(req, res, next);
 }
 
 // Authentification par le SSO du hub : le cookie olu360_session est validé par
@@ -190,7 +240,7 @@ async function requireAuthSso(req: Request, res: Response, next: NextFunction) {
     // Non réaligné depuis le socle : drapeau local (l'externe n'existe pas côté hub).
     accesContentieux: utilisateur.accesContentieux,
   };
-  next();
+  return finaliserAuth(req, res, next);
 }
 
 export function requireRole(...roles: RoleUtilisateur[]) {

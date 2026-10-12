@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { api, ApiError } from '../api/client';
+import { api, ApiError, setImpersonateOrg } from '../api/client';
 import { AbonnementInfo } from '../api/types';
 import { useResource } from '../hooks/useResource';
 import { useToast } from '../hooks/useToast';
@@ -52,6 +52,21 @@ export function SuperAdminPanel({ onClose }: { onClose: () => void }) {
     }
   }
 
+  // Ouvrir la console d'une organisation « en tant qu'elle » (impersonation) :
+  // pour la mettre en place à la place du prospect (import, logo…). Un bandeau
+  // persistant rappelle l'identité empruntée et permet de revenir.
+  async function ouvrirConsole(o: OrgAdmin) {
+    setBusyId(o.id);
+    try {
+      const r = await api.post<{ raisonSociale?: string }>(`/api/admin/organisations/${o.id}/impersonation`, {});
+      setImpersonateOrg(o.id, r?.raisonSociale ?? o.raisonSociale);
+      window.location.reload();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+      setBusyId(null);
+    }
+  }
+
   return (
     <div className="modal-overlay open" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal" style={{ width: 'min(880px, 96%)' }}>
@@ -59,6 +74,8 @@ export function SuperAdminPanel({ onClose }: { onClose: () => void }) {
         <div style={{ color: 'var(--ink-soft)', fontSize: 12.5, marginBottom: 16 }}>
           Toutes les organisations inscrites. Activez un compte après paiement, suspendez-le, ou prolongez son essai.
         </div>
+
+        <CreerConsoleProspect onDone={refetch} />
 
         {loading || !orgs ? (
           <div>Chargement…</div>
@@ -157,6 +174,14 @@ export function SuperAdminPanel({ onClose }: { onClose: () => void }) {
                           >
                             +14 j essai
                           </button>
+                          <button
+                            style={{ padding: '3px 9px', fontSize: 11 }}
+                            disabled={busy}
+                            title="Ouvrir cette console en tant que l'organisation (pour l'importer / la paramétrer)"
+                            onClick={() => ouvrirConsole(o)}
+                          >
+                            Ouvrir la console
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -190,6 +215,77 @@ interface RapportMigration {
   vide: boolean;
   apres?: { clients: number; actions: number; dossiers: number };
   orgRaisonSociale?: string;
+}
+
+// Provisioning prospect : crée une console d'essai + son compte propriétaire pour
+// un prospect qui n'a pas le temps de la paramétrer. Ensuite « Ouvrir la console »
+// (impersonation) pour importer son fichier ; le prospect se connecte par OTP.
+function CreerConsoleProspect({ onDone }: { onDone: () => void }) {
+  const { showToast } = useToast();
+  const [ouvert, setOuvert] = useState(false);
+  const [raisonSociale, setRaisonSociale] = useState('');
+  const [email, setEmail] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function creer() {
+    if (!raisonSociale.trim() || !email.trim()) {
+      showToast('Raison sociale et email requis');
+      return;
+    }
+    setBusy(true);
+    try {
+      await api.post('/api/admin/organisations', { raisonSociale: raisonSociale.trim(), email: email.trim() });
+      showToast('Console prospect créée');
+      setRaisonSociale('');
+      setEmail('');
+      setOuvert(false);
+      onDone();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ margin: '0 0 16px' }}>
+      <button type="button" onClick={() => setOuvert((v) => !v)} style={{ fontSize: 12 }}>
+        {ouvert ? '▾' : '▸'} Créer une console prospect
+      </button>
+      {ouvert && (
+        <div
+          style={{
+            display: 'flex',
+            gap: 10,
+            flexWrap: 'wrap',
+            alignItems: 'flex-end',
+            marginTop: 10,
+            padding: 12,
+            background: '#f7f7f8',
+            borderRadius: 8,
+          }}
+        >
+          <label style={{ fontSize: 12 }}>
+            Raison sociale
+            <br />
+            <input value={raisonSociale} onChange={(e) => setRaisonSociale(e.target.value)} placeholder="LCD Yeux" />
+          </label>
+          <label style={{ fontSize: 12 }}>
+            Email du prospect
+            <br />
+            <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="prospect@exemple.com" type="email" />
+          </label>
+          <button type="button" className="primary" disabled={busy} onClick={creer}>
+            Créer (essai 14 j)
+          </button>
+          <div style={{ flexBasis: '100%', fontSize: 11, color: 'var(--ink-soft)' }}>
+            Crée la console + le compte propriétaire. Ensuite « Ouvrir la console » pour importer son fichier ; le prospect se
+            connecte avec cet email (code reçu par mail).
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // Outil de migration d'un tenant : reprend TOUT l'actif d'une entité de la
