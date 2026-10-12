@@ -13,6 +13,7 @@ interface Alerte {
   clientNom: string;
   clientTel: string | null;
   montantEstime: number | null;
+  moyen?: string;
   message: string | null;
   statut: string;
   createdAt: string;
@@ -47,10 +48,10 @@ export function ChequesDeclaresPanel({ onClose, onChanged }: { onClose: () => vo
     <div className="modal-overlay open" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal" style={{ width: 'min(600px, 96%)' }}>
         <h2 style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 4 }}>
-          <FileCheck2 size={20} style={{ color: 'var(--accent)' }} /> Chèques déclarés disponibles
+          <FileCheck2 size={20} style={{ color: 'var(--accent)' }} /> Règlements déclarés
         </h2>
         <div style={{ color: 'var(--ink-soft)', fontSize: 12.5, marginBottom: 16 }}>
-          Des débiteurs ont signalé un chèque prêt depuis leur relance. Organisez l'enlèvement puis classez l'alerte.
+          Des débiteurs ont signalé un règlement (chèque à enlever ou virement émis) depuis leur relance. Traitez puis classez l'alerte.
         </div>
 
         {loading || !data ? (
@@ -89,6 +90,9 @@ function Ligne({ a, busy, traitee, onTraiter }: { a: Alerte; busy: boolean; trai
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <b style={{ fontSize: 14 }}>{a.clientNom}</b>
+          <span className="badge" data-tone={a.moyen === 'virement' ? 'accent' : 'amber'}>
+            {a.moyen === 'virement' ? 'Virement' : 'Chèque'}
+          </span>
           {a.montantEstime != null && <span className="badge" data-tone="accent">{fmtFCFA(a.montantEstime)}</span>}
         </div>
         <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 3 }}>

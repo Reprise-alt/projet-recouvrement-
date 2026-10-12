@@ -47,6 +47,7 @@ chequePublicRouter.post('/:token/declarer', async (req, res, next) => {
 
     const montantEstime = num(req.body?.montantEstime);
     const message = String(req.body?.message ?? '').trim().slice(0, 500) || null;
+    const moyen = req.body?.moyen === 'virement' ? 'virement' : 'cheque';
 
     // Évite les doublons : on met à jour l'alerte « nouvelle » existante s'il y en a.
     const existante = await prisma.alerteCheque.findFirst({
@@ -54,9 +55,9 @@ chequePublicRouter.post('/:token/declarer', async (req, res, next) => {
       select: { id: true },
     });
     if (existante) {
-      await prisma.alerteCheque.update({ where: { id: existante.id }, data: { montantEstime, message, createdAt: new Date() } });
+      await prisma.alerteCheque.update({ where: { id: existante.id }, data: { montantEstime, message, moyen, createdAt: new Date() } });
     } else {
-      await prisma.alerteCheque.create({ data: { organisationId: t.org, clientId: t.clientId, montantEstime, message } });
+      await prisma.alerteCheque.create({ data: { organisationId: t.org, clientId: t.clientId, montantEstime, message, moyen } });
     }
     res.json({ ok: true });
   } catch (err) {
@@ -86,6 +87,7 @@ chequesRouter.get('/alertes', async (req, res, next) => {
         clientNom: a.client.nom,
         clientTel: a.client.tel,
         montantEstime: a.montantEstime,
+        moyen: a.moyen,
         message: a.message,
         statut: a.statut,
         createdAt: a.createdAt,

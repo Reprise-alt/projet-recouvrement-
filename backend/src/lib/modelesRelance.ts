@@ -325,7 +325,7 @@ export function emailRelanceHtml(
   // imbriqués » selon le client mail) : une pastille nette, distincte du bouton
   // primaire « Payer en ligne ».
   const chequeBtn = lienChequeDispo
-    ? `<a href="${escapeHtml(lienChequeDispo)}" style="display:inline-block;margin-top:11px;padding:11px 18px;background:#e9f7f2;border-radius:10px;color:#0e7c5a;font-weight:700;font-size:14px;text-decoration:none">🧾 J'ai un chèque prêt — le signaler</a>`
+    ? `<a href="${escapeHtml(lienChequeDispo)}" style="display:inline-block;margin-top:11px;padding:11px 18px;background:#e9f7f2;border-radius:10px;color:#0e7c5a;font-weight:700;font-size:14px;text-decoration:none">🧾 Signaler un règlement (chèque ou virement)</a>`
     : '';
   // Bloc Mobile Money (bouton Payer) EN PREMIER — le bouton chèque s'insère dans
   // sa boîte, juste après les moyens en ligne.

@@ -508,7 +508,7 @@ export function App() {
               {IS_SAAS && <button onClick={() => { setRapprochementOnglet(undefined); setRapprochementOpen(true); }}>Rapprochement des paiements</button>}
               {IS_SAAS && (
                 <button onClick={() => setChequesOpen(true)} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                  <span>Chèques déclarés</span>
+                  <span>Règlements déclarés</span>
                   {nbChequesDeclares > 0 && (
                     <span style={{ minWidth: 18, height: 18, padding: '0 5px', borderRadius: 9, background: 'var(--danger)', color: '#fff', fontSize: 10.5, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
                       {nbChequesDeclares}
