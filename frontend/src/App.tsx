@@ -27,11 +27,12 @@ import { ParrainagePanel } from './components/ParrainagePanel';
 import { RapprochementPanel } from './components/RapprochementPanel';
 import { RecapJournee } from './components/RecapJournee';
 import { ChequesDeclaresPanel } from './components/ChequesDeclaresPanel';
+import { EspaceAssureursPanel } from './components/EspaceAssureursPanel';
 import { OffresAbonnement } from './components/OffresAbonnement';
 import { EntityLogo } from './components/EntityLogo';
 import { Entite, Entreprise } from './api/types';
 import { useResource } from './hooks/useResource';
-import { Lock } from 'lucide-react';
+import { Lock, ShieldCheck } from 'lucide-react';
 import { ContentieuxUpsell } from './components/ContentieuxUpsell';
 import { PartenaireConsole } from './components/PartenaireConsole';
 import { OperateurConsole } from './components/OperateurConsole';
@@ -128,6 +129,7 @@ export function App() {
   const [rapprochementOpen, setRapprochementOpen] = useState(false);
   const [rapprochementOnglet, setRapprochementOnglet] = useState<'integrateurs' | 'cheque' | undefined>(undefined);
   const [chequesOpen, setChequesOpen] = useState(false);
+  const [assureursOpen, setAssureursOpen] = useState(false);
   const [dataVersion, setDataVersion] = useState(0);
   // Démarrage guidé SaaS : les comptes d'organisation (roleOrg) atterrissent sur
   // la checklist tant qu'ils ne sont pas entrés dans la console.
@@ -301,10 +303,16 @@ export function App() {
     ? 'contrats'
     : recouvrementTab === 'tableau' && !(IS_SAAS && canReporting) ? 'recouvrement' : recouvrementTab;
   const canMultiEntites = !IS_SAAS || caps?.multiEntites !== false;
+  // Accès assureurs : secteurs tiers-payant (capacité pilotée par secteur). Quand
+  // il est actif, le contentieux est REMPLACÉ par l'Espace Assureur (on n'affiche
+  // ni l'onglet contentieux, ni l'écran d'activation).
+  const canEspaceAssureur = IS_SAAS && caps?.espaceAssureur === true;
   // Contentieux non inclus dans la formule (SaaS « Petite structure ») : on
   // n'efface plus l'onglet, on le présente verrouillé avec un écran d'activation
   // (option +10 000 FCFA/mois) que l'admin peut souscrire en self-service.
-  const contentieuxVerrouille = IS_SAAS && caps?.contentieux === false;
+  // Exception : dans un secteur tiers-payant, le contentieux n'est pas « à
+  // débloquer » mais remplacé → pas de verrou.
+  const contentieuxVerrouille = IS_SAAS && caps?.contentieux === false && !canEspaceAssureur;
 
   // Comptes SaaS : écran de démarrage guidé tant qu'ils n'entrent pas dans la console.
   if (user.roleOrg && !enConsole) {
@@ -435,6 +443,15 @@ export function App() {
                     )}
                   </>
                 )}
+                {/* Secteurs tiers-payant : le contentieux est remplacé par un
+                    accès « Assureurs » (relevé + signalement de règlement). */}
+                {canEspaceAssureur ? (
+                  <button onClick={() => setAssureursOpen(true)}>
+                    <ShieldCheck size={13} style={{ marginRight: 6, verticalAlign: '-2px', opacity: 0.8 }} />
+                    Assureurs
+                  </button>
+                ) : (
+                <>
                 {/* Contentieux : inclus PME / Grands comptes ; en option pour la
                     formule Petite (SaaS). Verrouillé, l'onglet reste visible et
                     mène à l'écran d'activation. */}
@@ -468,6 +485,8 @@ export function App() {
                     </span>
                   )}
                 </button>
+                </>
+                )}
               </>
             ) : CONSOLE === 'operations' ? (
               <button className="active">Opérations</button>
@@ -677,6 +696,13 @@ export function App() {
       {parrainageOpen && <ParrainagePanel onClose={() => setParrainageOpen(false)} />}
       {rapprochementOpen && <RapprochementPanel onClose={() => setRapprochementOpen(false)} onChanged={bumpDataVersion} ongletInitial={rapprochementOnglet} roleOrg={user.roleOrg} />}
       {chequesOpen && <ChequesDeclaresPanel onClose={() => setChequesOpen(false)} onChanged={bumpDataVersion} />}
+      {assureursOpen && (
+        <EspaceAssureursPanel
+          onClose={() => setAssureursOpen(false)}
+          onChanged={bumpDataVersion}
+          onOpenRapprochement={() => { setRapprochementOnglet(undefined); setRapprochementOpen(true); }}
+        />
+      )}
       {offresOpen && (
         <div className="modal-overlay open" onClick={(e) => e.target === e.currentTarget && setOffresOpen(false)}>
           <div className="modal" style={{ width: 'min(760px, 96%)' }}>

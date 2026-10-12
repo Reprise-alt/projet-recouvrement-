@@ -151,6 +151,9 @@ export interface ClientListItem {
   encours: number;
   joursRetard: number;
   palier: number;
+  nbFactures?: number;
+  // Présence d'un logo d'assureur (co-branding de l'Espace Assureur).
+  logoAssureur?: boolean;
   retardInhabituel: boolean;
   contentieuxEligible: boolean;
   echeanceLaPlusAncienne: string | null;
