@@ -38,6 +38,7 @@ assureurPortailRouter.get('/:token', async (req, res, next) => {
     if (!data) return res.status(404).json({ error: 'Lien invalide ou expiré.' });
     const { client, org } = data;
     const factures = client.factures.map((f) => ({
+      id: f.id,
       numero: f.numero,
       montant: f.montant,
       dateEcheance: f.dateEcheance,
