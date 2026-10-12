@@ -5,7 +5,7 @@ import { fmtDate, fmtFCFA } from '../lib/constants';
 
 // Réponse publique de l'Espace Assureur (GET /api/assureur-portail/:token).
 interface FactureAssureur {
-  id?: string;
+  id: string;
   numero: string;
   montant: number;
   dateEcheance: string | null;
@@ -49,6 +49,26 @@ export function EspaceAssureurView({ token }: { token: string }) {
   const [date, setDate] = useState('');
   const [envoi, setEnvoi] = useState(false);
   const [envoye, setEnvoye] = useState(false);
+  // Factures cochées par l'assureur : leur total pré-remplit le montant et elles
+  // sont transmises au créancier (rapprochement en un clic de son côté).
+  const [selection, setSelection] = useState<Set<string>>(new Set());
+
+  // Applique une nouvelle sélection et aligne le montant sur la somme cochée.
+  function appliquerSelection(next: Set<string>) {
+    setSelection(next);
+    const total = (data?.factures ?? []).filter((f) => next.has(f.id)).reduce((s, f) => s + f.montant, 0);
+    setMontant(next.size ? String(total) : '');
+  }
+  function toggleFacture(id: string) {
+    const next = new Set(selection);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    appliquerSelection(next);
+  }
+  function toggleTout() {
+    const toutes = data?.factures ?? [];
+    appliquerSelection(selection.size === toutes.length ? new Set() : new Set(toutes.map((f) => f.id)));
+  }
 
   function charger() {
     setLoading(true);
@@ -69,11 +89,13 @@ export function EspaceAssureurView({ token }: { token: string }) {
         montant: Number(montant),
         reference: reference.trim() || undefined,
         date: date || undefined,
+        factureIds: selection.size ? [...selection] : undefined,
       });
       setEnvoye(true);
       setMontant('');
       setReference('');
       setDate('');
+      setSelection(new Set());
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Échec de l'envoi.");
     } finally {
@@ -127,10 +149,21 @@ export function EspaceAssureurView({ token }: { token: string }) {
           {data.factures.length > 0 && (
             <div style={{ marginTop: 16 }}>
               <div className="section-title">Factures en attente</div>
+              <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginBottom: 6 }}>
+                Cochez la ou les factures que vous réglez : le montant se remplit automatiquement.
+              </div>
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
                   <thead>
                     <tr style={{ textAlign: 'left', color: 'var(--ink-soft)' }}>
+                      <th style={{ padding: '6px 4px', width: 28 }}>
+                        <input
+                          type="checkbox"
+                          checked={selection.size === data.factures.length && data.factures.length > 0}
+                          onChange={toggleTout}
+                          aria-label="Tout sélectionner"
+                        />
+                      </th>
                       <th style={{ padding: '6px 4px', fontWeight: 600 }}>N° facture</th>
                       <th style={{ padding: '6px 4px', fontWeight: 600 }}>Échéance</th>
                       <th style={{ padding: '6px 4px', fontWeight: 600, textAlign: 'right' }}>Retard</th>
@@ -138,19 +171,35 @@ export function EspaceAssureurView({ token }: { token: string }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {data.factures.map((f) => (
-                      <tr key={f.numero} style={{ borderTop: '1px solid var(--line-soft)' }}>
-                        <td className="mono" style={{ padding: '6px 4px' }}>{f.numero}</td>
-                        <td style={{ padding: '6px 4px' }}>{f.dateEcheance ? fmtDate(f.dateEcheance) : '—'}</td>
-                        <td style={{ padding: '6px 4px', textAlign: 'right', color: f.joursRetard > 0 ? 'var(--danger)' : 'var(--ink-soft)' }}>
-                          {f.joursRetard > 0 ? `${f.joursRetard} j` : '—'}
-                        </td>
-                        <td className="mono" style={{ padding: '6px 4px', textAlign: 'right' }}>{fmtFCFA(f.montant)}</td>
-                      </tr>
-                    ))}
+                    {data.factures.map((f) => {
+                      const coche = selection.has(f.id);
+                      return (
+                        <tr
+                          key={f.id}
+                          onClick={() => toggleFacture(f.id)}
+                          style={{ borderTop: '1px solid var(--line-soft)', cursor: 'pointer', background: coche ? 'var(--accent-soft)' : undefined }}
+                        >
+                          <td style={{ padding: '6px 4px' }}>
+                            <input type="checkbox" checked={coche} onChange={() => toggleFacture(f.id)} onClick={(e) => e.stopPropagation()} aria-label={`Sélectionner ${f.numero}`} />
+                          </td>
+                          <td className="mono" style={{ padding: '6px 4px' }}>{f.numero}</td>
+                          <td style={{ padding: '6px 4px' }}>{f.dateEcheance ? fmtDate(f.dateEcheance) : '—'}</td>
+                          <td style={{ padding: '6px 4px', textAlign: 'right', color: f.joursRetard > 0 ? 'var(--danger)' : 'var(--ink-soft)' }}>
+                            {f.joursRetard > 0 ? `${f.joursRetard} j` : '—'}
+                          </td>
+                          <td className="mono" style={{ padding: '6px 4px', textAlign: 'right' }}>{fmtFCFA(f.montant)}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
+              {selection.size > 0 && (
+                <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, fontWeight: 600 }}>
+                  <span>{selection.size} facture{selection.size > 1 ? 's' : ''} sélectionnée{selection.size > 1 ? 's' : ''}</span>
+                  <span className="mono">{fmtFCFA(data.factures.filter((f) => selection.has(f.id)).reduce((s, f) => s + f.montant, 0))}</span>
+                </div>
+              )}
             </div>
           )}
 
