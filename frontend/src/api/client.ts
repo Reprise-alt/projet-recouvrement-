@@ -20,9 +20,42 @@ export function setAuthToken(token: string | null) {
   authToken = token;
 }
 
+// Impersonation super-admin : « ouvrir la console » d'une organisation. Quand
+// elle est active, chaque requête porte l'en-tête x-impersonate-org et le back
+// répond en tant que cette org (uniquement si l'appelant est super-admin).
+// Persistée pour survivre au rechargement déclenché à l'ouverture/fermeture.
+const IMPERSONATE_KEY = 'feyma_impersonate_org';
+let impersonation: { id: string; label: string } | null = (() => {
+  try {
+    const raw = localStorage.getItem(IMPERSONATE_KEY);
+    return raw ? (JSON.parse(raw) as { id: string; label: string }) : null;
+  } catch {
+    return null;
+  }
+})();
+export function setImpersonateOrg(orgId: string | null, label = '') {
+  impersonation = orgId ? { id: orgId, label } : null;
+  try {
+    if (impersonation) localStorage.setItem(IMPERSONATE_KEY, JSON.stringify(impersonation));
+    else localStorage.removeItem(IMPERSONATE_KEY);
+  } catch {
+    /* stockage indisponible — l'impersonation durera le temps de la session mémoire */
+  }
+}
+export function getImpersonateOrg(): string | null {
+  return impersonation?.id ?? null;
+}
+export function getImpersonateLabel(): string | null {
+  return impersonation?.label || null;
+}
+function appliquerImpersonation(headers: Record<string, string>) {
+  if (impersonation) headers['x-impersonate-org'] = impersonation.id;
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = { ...(options.headers as Record<string, string>) };
   if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+  appliquerImpersonation(headers);
   if (options.body && !(options.body instanceof FormData)) {
     headers['Content-Type'] = 'application/json';
   }
@@ -52,6 +85,7 @@ export const api = {
 export async function downloadFile(path: string, filename: string): Promise<void> {
   const headers: Record<string, string> = {};
   if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+  appliquerImpersonation(headers);
   const res = await fetch(`${API_URL}${path}`, { headers, credentials: CREDENTIALS });
   if (!res.ok) throw new ApiError(res.status, `Erreur ${res.status}`);
   const blob = await res.blob();
@@ -68,6 +102,7 @@ export async function downloadFile(path: string, filename: string): Promise<void
 export async function downloadFilePost(path: string, filename: string, body: unknown): Promise<void> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+  appliquerImpersonation(headers);
   const res = await fetch(`${API_URL}${path}`, { method: 'POST', headers, credentials: CREDENTIALS, body: JSON.stringify(body ?? {}) });
   if (!res.ok) throw new ApiError(res.status, `Erreur ${res.status}`);
   const blob = await res.blob();

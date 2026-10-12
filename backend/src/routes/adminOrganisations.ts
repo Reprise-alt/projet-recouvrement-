@@ -6,6 +6,8 @@ import { requireSuperAdmin } from '../middleware/superAdmin';
 import { etatAbonnement } from '../lib/abonnement';
 import { confirmerParrainageSiActif } from '../lib/parrainage';
 import { migrerTenant } from '../lib/migrationTenant';
+import { slugify } from '../lib/tenant';
+import { normaliserEmail } from '../lib/otp';
 
 // Clients Prisma dédiés à la migration (créés à la demande, mis en cache) :
 // SOURCE = base de la console interne (SOURCE_DATABASE_URL), CIBLE = base Feyma
@@ -36,6 +38,90 @@ adminOrganisationsRouter.use(requireAuth, requireSuperAdmin);
 
 const STATUTS = ['essai', 'actif', 'coupe', 'supprime'];
 const FORMULES = ['petite', 'pme', 'grands_comptes'];
+
+async function slugUniqueOrg(nom: string): Promise<string> {
+  const base = slugify(nom);
+  for (let i = 0; i < 50; i++) {
+    const candidat = i === 0 ? base : `${base}-${i + 1}`;
+    if (!(await prisma.organisation.findUnique({ where: { slug: candidat } }))) return candidat;
+  }
+  return `${base}-${Date.now()}`;
+}
+
+// Provisioning prospect : le super-admin crée une console d'essai PRÊTE À REMPLIR
+// pour un prospect qui n'a pas le temps de la paramétrer. Crée l'organisation
+// (statut essai) + son compte propriétaire. Le super-admin « ouvre » ensuite la
+// console (impersonation) pour importer le fichier / poser le logo, et le
+// prospect se connecte simplement par OTP avec son email.
+adminOrganisationsRouter.post('/organisations', async (req, res, next) => {
+  try {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const raisonSociale = String(body.raisonSociale ?? '').trim();
+    const email = normaliserEmail(String(body.email ?? ''));
+    const formule = FORMULES.includes(String(body.formule)) ? String(body.formule) : 'pme';
+    const joursEssai =
+      Number.isFinite(Number(body.joursEssai)) && Number(body.joursEssai) > 0 ? Math.floor(Number(body.joursEssai)) : 14;
+    if (!raisonSociale) return res.status(400).json({ error: 'La raison sociale est obligatoire.' });
+    if (!email || !email.includes('@')) return res.status(400).json({ error: 'Un email propriétaire valide est obligatoire.' });
+    if (await prisma.utilisateur.findUnique({ where: { email } })) {
+      return res.status(409).json({ error: 'Cet email possède déjà un compte.' });
+    }
+
+    const org = await prisma.organisation.create({
+      data: {
+        raisonSociale,
+        slug: await slugUniqueOrg(raisonSociale),
+        statut: 'essai',
+        dateFinEssai: new Date(Date.now() + joursEssai * 24 * 60 * 60 * 1000),
+        formule: formule as any,
+      },
+    });
+    const proprietaire = await prisma.utilisateur.create({
+      data: {
+        email,
+        nom: raisonSociale,
+        organisationId: org.id,
+        role: 'admin', // rôle groupe historique requis (non nul) — non pertinent en SaaS
+        roleOrg: 'proprietaire',
+        accesRecouvrement: true,
+      },
+    });
+    console.info(
+      `[provisioning] org "${raisonSociale}" (${org.id}) créée par ${req.user!.email} — proprio ${email}, essai ${joursEssai} j`,
+    );
+    res.status(201).json({
+      id: org.id,
+      raisonSociale: org.raisonSociale,
+      slug: org.slug,
+      statut: org.statut,
+      dateFinEssai: org.dateFinEssai,
+      emailProprietaire: proprietaire.email,
+      abonnement: etatAbonnement(org),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Démarrage d'impersonation : trace (audit) l'ouverture de la console d'une org
+// par le super-admin et renvoie le résumé pour le bandeau. L'overlay réel passe
+// par l'en-tête x-impersonate-org sur chaque requête (cf. middleware/auth).
+adminOrganisationsRouter.post('/organisations/:id/impersonation', async (req, res, next) => {
+  try {
+    const org = await prisma.organisation.findUnique({ where: { id: req.params.id } });
+    if (!org) return res.status(404).json({ error: 'Organisation introuvable.' });
+    const proprio =
+      (await prisma.utilisateur.findFirst({ where: { organisationId: org.id, roleOrg: 'proprietaire' } })) ??
+      (await prisma.utilisateur.findFirst({ where: { organisationId: org.id } }));
+    if (!proprio) return res.status(409).json({ error: "Cette organisation n'a aucun compte à emprunter." });
+    console.warn(
+      `[impersonation] ${req.user!.email} ouvre la console de "${org.raisonSociale}" (${org.id}) en tant que ${proprio.email}`,
+    );
+    res.json({ organisationId: org.id, raisonSociale: org.raisonSociale, emailProprietaire: proprio.email });
+  } catch (err) {
+    next(err);
+  }
+});
 
 adminOrganisationsRouter.get('/organisations', async (_req, res, next) => {
   try {
