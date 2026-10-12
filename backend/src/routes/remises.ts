@@ -61,7 +61,9 @@ remisesRouter.get('/', requireAuth, async (req, res, next) => {
     // requête est bornée à l'organisation de l'utilisateur.
     const orgId = req.user!.organisationId;
     const remises = await prisma.cheque.findMany({
-      where: { source: 'banque', organisationId: orgId },
+      // banque = avis bancaire synchronisé ; assureur = règlement signalé par
+      // l'assureur (débiteur) depuis son Espace Assureur → tous deux « à rapprocher ».
+      where: { source: { in: ['banque', 'assureur'] }, organisationId: orgId },
       orderBy: { createdAt: 'desc' },
       include: { client: { select: { id: true, nom: true } } },
       take: 200,
@@ -80,6 +82,8 @@ remisesRouter.get('/', requireAuth, async (req, res, next) => {
       remises.map((r) => ({
         id: r.id,
         type: r.type,
+        source: r.source,
+        numeroCheque: r.numeroCheque,
         montant: r.montant,
         banque: r.banque,
         agence: r.agence,
@@ -105,7 +109,7 @@ remisesRouter.post('/:id/valider', requireAuth, requireRole('admin', 'manager_en
   try {
     const orgId = req.user!.organisationId;
     // ISOLATION : la remise DOIT appartenir à l'organisation de l'utilisateur.
-    const remise = await prisma.cheque.findFirst({ where: { id: req.params.id, source: 'banque', organisationId: orgId } });
+    const remise = await prisma.cheque.findFirst({ where: { id: req.params.id, source: { in: ['banque', 'assureur'] }, organisationId: orgId } });
     if (!remise) return res.status(404).json({ error: 'Encaissement introuvable' });
     const b = (req.body ?? {}) as Record<string, unknown>;
     const clientId = typeof b.clientId === 'string' && b.clientId.trim() ? b.clientId.trim() : null;

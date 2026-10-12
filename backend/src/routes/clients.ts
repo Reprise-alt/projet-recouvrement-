@@ -18,10 +18,17 @@ import { generateLetter } from '../lib/letters';
 import { Entite, resolveEntiteScope } from '../lib/entites';
 import { assertEntiteInScope, requireAccesRecouvrement, requireAuth, requireRole } from '../middleware/auth';
 import { fmtDate, fmtFCFA } from '../lib/dates';
+import multer from 'multer';
+import { signerTokenAssureur } from '../lib/authToken';
 
 export const clientsRouter = Router();
 import { tenantScope } from '../middleware/tenant';
 import { requireAbonnementActif } from '../middleware/abonnement';
+
+// Upload du logo d'un assureur (co-branding de l'Espace Assureur). Même
+// contraintes que le logo d'organisation : images courantes, 1 Mo max.
+const LOGO_MIMES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/svg+xml']);
+const uploadLogo = multer({ storage: multer.memoryStorage(), limits: { fileSize: 1024 * 1024 } });
 
 clientsRouter.use(requireAuth, requireAbonnementActif, requireAccesRecouvrement, tenantScope);
 
@@ -481,8 +488,12 @@ clientsRouter.get('/:id', async (req, res, next) => {
     const config = await getConfig();
     const seuils = await getContentieuxSeuils();
     const emetteur = await getEmetteurRelance(client.organisationId);
+    // On ne renvoie jamais les octets du logo dans le JSON (lourd) ; juste un
+    // drapeau de présence pour que la fiche sache l'afficher / proposer le retrait.
+    const { logoData, logoMime, ...clientSansLogo } = client;
     res.json({
-      ...client,
+      ...clientSansLogo,
+      logoAssureur: !!(logoData && logoMime),
       encours: clientEncours(client),
       joursRetard: clientJoursRetard(client),
       palier: clientPalier(client, config),
@@ -579,6 +590,58 @@ clientsRouter.patch('/:id/note', requireRole('admin', 'manager_entite', 'comptab
       data: { note: note || null },
     });
     res.json(client);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Lien tokenisé de l'Espace Assureur pour ce client (débiteur assureur) : relevé
+// en ligne + signalement de règlement, sans compte. Le front le copie/partage.
+clientsRouter.get('/:id/lien-assureur', requireRole('admin', 'manager_entite', 'comptable'), async (req, res, next) => {
+  try {
+    const existing = await prisma.client.findUnique({ where: { id: req.params.id } });
+    if (!existing) return res.status(404).json({ error: 'Client introuvable' });
+    if (!assertEntiteInScope(req, res, existing.entite as Entite)) return;
+    const token = signerTokenAssureur(existing.id, req.user!.organisationId);
+    const proto = process.env.NODE_ENV === 'production' ? 'https' : req.protocol;
+    const host = req.get('host');
+    // Le lien pointe vers le front (route /assureur/<token>) ; APP_URL le fixe en
+    // prod si le front est servi sur un autre domaine que l'API.
+    const base = process.env.APP_URL?.replace(/\/$/, '') || `${proto}://${host}`;
+    res.json({ url: `${base}/assureur/${token}`, token });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Upload/retrait du logo de l'assureur (co-branding de son espace).
+clientsRouter.post('/:id/logo-assureur', requireRole('admin', 'manager_entite'), uploadLogo.single('file'), async (req, res, next) => {
+  try {
+    const existing = await prisma.client.findUnique({ where: { id: req.params.id } });
+    if (!existing) return res.status(404).json({ error: 'Client introuvable' });
+    if (!assertEntiteInScope(req, res, existing.entite as Entite)) return;
+    const file = req.file;
+    if (!file) return res.status(400).json({ error: 'Aucun fichier reçu' });
+    if (!LOGO_MIMES.has(file.mimetype)) {
+      return res.status(400).json({ error: 'Format non supporté (PNG, JPEG, WebP, GIF ou SVG attendu)' });
+    }
+    await prisma.client.update({
+      where: { id: existing.id },
+      data: { logoData: file.buffer, logoMime: file.mimetype },
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+clientsRouter.delete('/:id/logo-assureur', requireRole('admin', 'manager_entite'), async (req, res, next) => {
+  try {
+    const existing = await prisma.client.findUnique({ where: { id: req.params.id } });
+    if (!existing) return res.status(404).json({ error: 'Client introuvable' });
+    if (!assertEntiteInScope(req, res, existing.entite as Entite)) return;
+    await prisma.client.update({ where: { id: existing.id }, data: { logoData: null, logoMime: null } });
+    res.json({ ok: true });
   } catch (err) {
     next(err);
   }

@@ -6,9 +6,9 @@ import { capacites, Capacites } from '../lib/formules';
 export async function getCapacites(organisationId: string): Promise<Capacites> {
   const org = await prisma.organisation.findUnique({
     where: { id: organisationId },
-    select: { formule: true, optionContentieux: true },
+    select: { formule: true, optionContentieux: true, secteur: true },
   });
-  return capacites(org?.formule ?? 'pme', org?.optionContentieux ?? false);
+  return capacites(org?.formule ?? 'pme', org?.optionContentieux ?? false, org?.secteur);
 }
 
 // Garde une route derrière une capacité booléenne de la formule (reporting,

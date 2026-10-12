@@ -122,7 +122,7 @@ organisationRouter.post('/option-contentieux', requireOrgRole('proprietaire', 'a
   try {
     const org = await prisma.organisation.findUnique({
       where: { id: req.user!.organisationId },
-      select: { id: true, raisonSociale: true, formule: true, optionContentieux: true },
+      select: { id: true, raisonSociale: true, formule: true, optionContentieux: true, secteur: true },
     });
     if (!org) return res.status(404).json({ error: 'Organisation introuvable' });
     // Sur PME / Grands comptes, le contentieux est déjà inclus : rien à activer.
@@ -152,7 +152,7 @@ organisationRouter.post('/option-contentieux', requireOrgRole('proprietaire', 'a
       }
     }
     // Renvoie les capacités à jour pour que le front débloque l'onglet.
-    res.json({ optionContentieux: true, capacites: capacites(org.formule, true) });
+    res.json({ optionContentieux: true, capacites: capacites(org.formule, true, org.secteur) });
   } catch (e) {
     next(e);
   }

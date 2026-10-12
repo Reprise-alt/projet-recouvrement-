@@ -7,6 +7,8 @@ import { useToast } from '../hooks/useToast';
 import { fmtDate, fmtFCFA, FREQUENCE_LABELS, PALIERS } from '../lib/constants';
 import { usePaliersConfig } from '../lib/paliersConfig';
 import { lienWhatsApp, messageMotBienveillant } from '../lib/whatsapp';
+import { useAuth } from '../auth/AuthContext';
+import { IS_SAAS } from '../auth/mode';
 
 interface Props {
   clientId: string;
@@ -17,7 +19,13 @@ interface Props {
 
 export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
   const { showToast } = useToast();
+  const { user } = useAuth();
   const { libelle } = usePaliersConfig();
+  // Accès assureurs : réservé aux secteurs tiers-payant (capacité pilotée par
+  // secteur). Le débiteur est alors un assureur qui consulte son relevé en ligne.
+  const canEspaceAssureur = IS_SAAS && user?.capacites?.espaceAssureur === true;
+  const [lienAssureurBusy, setLienAssureurBusy] = useState(false);
+  const [logoAssureurBusy, setLogoAssureurBusy] = useState(false);
   const { data: client, loading, error, refetch } = useResource<ClientDetail>(`/api/clients/${clientId}`);
   // Signal opérations -> recouvrement (cahier §8) : n'affiche rien tant que
   // le client n'a pas de fiche Opérations -- silencieux plutôt qu'un état
@@ -62,6 +70,40 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
   function afterMutation() {
     refetch();
     onChanged();
+  }
+
+  // Génère le lien tokenisé de l'Espace Assureur et le copie dans le presse-papier.
+  async function copierLienAssureur() {
+    setLienAssureurBusy(true);
+    try {
+      const r = await api.get<{ url: string }>(`/api/clients/${clientId}/lien-assureur`);
+      try {
+        await navigator.clipboard.writeText(r.url);
+        showToast('Lien assureur copié dans le presse-papier');
+      } catch {
+        // Presse-papier indisponible (contexte non sécurisé) : on affiche le lien.
+        window.prompt('Lien de l’espace assureur (copiez-le) :', r.url);
+      }
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setLienAssureurBusy(false);
+    }
+  }
+
+  async function envoyerLogoAssureur(file: File) {
+    setLogoAssureurBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      await api.upload(`/api/clients/${clientId}/logo-assureur`, fd);
+      showToast('Logo de l’assureur enregistré');
+      afterMutation();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setLogoAssureurBusy(false);
+    }
   }
 
   async function handleSaveContact(e: FormEvent<HTMLFormElement>) {
@@ -610,6 +652,42 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
               </form>
             ) : (
               client.note && <div style={{ fontSize: 13, color: 'var(--ink-soft)', whiteSpace: 'pre-wrap' }}>{client.note}</div>
+            )}
+
+            {canEspaceAssureur && (
+              <>
+                <div className="section-title">
+                  <span>Espace assureur</span>
+                </div>
+                <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginBottom: 8 }}>
+                  Lien privé permettant à cet assureur de consulter son relevé et de signaler ses règlements,
+                  sans compte. Le logo s’affiche en co-branding sur son espace.
+                </div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <button type="button" disabled={lienAssureurBusy} onClick={copierLienAssureur}>
+                    {lienAssureurBusy ? '…' : 'Copier le lien assureur'}
+                  </button>
+                  <label
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer',
+                      border: '1px solid var(--line)', borderRadius: 8, padding: '6px 10px', fontSize: 13,
+                    }}
+                  >
+                    {logoAssureurBusy ? '…' : client.logoAssureur ? 'Remplacer le logo' : '+ Logo de l’assureur'}
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+                      style={{ display: 'none' }}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) envoyerLogoAssureur(f);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                  {client.logoAssureur && <CheckCircle2 size={15} style={{ color: 'var(--accent-dark)' }} />}
+                </div>
+              </>
             )}
 
             <div className="section-title">

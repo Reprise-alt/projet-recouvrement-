@@ -51,6 +51,7 @@ authRouter.get('/me', requireAuthOuPartenaire, async (req, res, next) => {
           dateFinEssai: true,
           formule: true,
           optionContentieux: true,
+          secteur: true,
         },
       })
       .catch(() => null);
@@ -60,7 +61,7 @@ authRouter.get('/me', requireAuthOuPartenaire, async (req, res, next) => {
       logoUrl: org?.logoUrl ?? null,
       formule: org?.formule ?? null,
       // Capacités de la formule : le front masque les onglets/actions non inclus.
-      capacites: org ? capacites(org.formule, org.optionContentieux) : null,
+      capacites: org ? capacites(org.formule, org.optionContentieux, org.secteur) : null,
       // État d'abonnement (essai / actif / bloqué) : le front affiche le bandeau
       // de compte à rebours ou l'écran « essai terminé » selon ce champ.
       abonnement: org ? etatAbonnement(org) : null,
