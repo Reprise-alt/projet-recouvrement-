@@ -507,6 +507,8 @@ export interface Coursier {
   nom: string;
   token: string;
   actif: boolean;
+  // Chef d'équipe ADV (direction) : exclu des listes d'affectation côté coursier.
+  chefEquipe?: boolean;
   createdAt: string;
 }
 

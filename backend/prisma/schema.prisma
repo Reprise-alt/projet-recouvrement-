@@ -818,6 +818,10 @@ model Coursier {
   nom       String
   token     String   @unique
   actif     Boolean  @default(true)
+  // Chef d'équipe ADV (direction) : reste assignable depuis le planning admin,
+  // mais exclu des listes d'affectation des écrans coursier (salle + téléphone)
+  // — un coursier ne peut pas (ré)affecter une tâche à la direction.
+  chefEquipe Boolean @default(false)
   createdAt DateTime @default(now())
 
   taches TacheCoursier[]

@@ -47,7 +47,9 @@ sallePublicRouter.get('/:token/taches', async (req, res, next) => {
         include: { client: { select: { id: true, nom: true, entite: true } }, coursier: { select: { id: true, nom: true } } },
         orderBy: [{ coursierId: 'asc' }, { type: 'asc' }, { createdAt: 'asc' }],
       }),
-      prisma.coursier.findMany({ where: { actif: true }, select: { id: true, nom: true }, orderBy: { nom: 'asc' } }),
+      // Chefs d'équipe ADV exclus : un coursier ne peut pas dispatcher une tâche
+      // à la direction depuis l'écran de salle.
+      prisma.coursier.findMany({ where: { actif: true, chefEquipe: false }, select: { id: true, nom: true }, orderBy: { nom: 'asc' } }),
     ]);
 
     res.json({ taches, coursiers });
@@ -66,6 +68,14 @@ sallePublicRouter.patch('/:token/taches/:id', async (req, res, next) => {
     if (coursierId !== undefined) {
       if (coursierId !== null && typeof coursierId !== 'string') {
         return res.status(400).json({ error: 'coursierId invalide' });
+      }
+      // Garde-fou serveur : on n'assigne jamais une tâche à un chef d'équipe ADV
+      // depuis la salle (la direction n'est pas dispatchée par les coursiers).
+      if (coursierId) {
+        const cible = await prisma.coursier.findUnique({ where: { id: coursierId }, select: { actif: true, chefEquipe: true } });
+        if (!cible || !cible.actif || cible.chefEquipe) {
+          return res.status(400).json({ error: 'Coursier de destination invalide' });
+        }
       }
       data.coursierId = coursierId || null;
     }

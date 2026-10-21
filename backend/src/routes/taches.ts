@@ -74,12 +74,13 @@ tachesRouter.post('/coursiers', requireRole('admin', 'manager_entite'), async (r
 
 tachesRouter.patch('/coursiers/:id', requireRole('admin', 'manager_entite'), async (req, res, next) => {
   try {
-    const { nom, actif } = req.body ?? {};
+    const { nom, actif, chefEquipe } = req.body ?? {};
     const coursier = await prisma.coursier.update({
       where: { id: req.params.id },
       data: {
         nom: typeof nom === 'string' && nom.trim() ? nom.trim() : undefined,
         actif: typeof actif === 'boolean' ? actif : undefined,
+        chefEquipe: typeof chefEquipe === 'boolean' ? chefEquipe : undefined,
       },
     });
     res.json(coursier);
