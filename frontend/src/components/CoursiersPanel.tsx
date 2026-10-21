@@ -72,6 +72,19 @@ export function CoursiersPanel({ onClose }: { onClose: () => void }) {
     }
   }
 
+  async function toggleChef(c: Coursier) {
+    setBusy(true);
+    try {
+      await api.patch(`/api/taches/coursiers/${c.id}`, { chefEquipe: !c.chefEquipe });
+      showToast(!c.chefEquipe ? `${c.nom} marqué chef d'équipe ADV` : `${c.nom} repassé coursier`);
+      refetch();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function regenerer(c: Coursier) {
     setBusy(true);
     try {
@@ -117,6 +130,11 @@ export function CoursiersPanel({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="section-title">Équipe</div>
+        <div style={{ color: 'var(--ink-soft)', fontSize: 12.5, marginBottom: 10 }}>
+          Marquez les <strong>chefs d'équipe ADV</strong> (direction) : ils restent assignables depuis le planning, mais
+          n'apparaissent plus dans les listes d'affectation des écrans coursier (salle + téléphone) — un coursier ne peut
+          pas (ré)affecter une tâche à la direction.
+        </div>
         {loading || !coursiers ? (
           <div>Chargement…</div>
         ) : coursiers.length === 0 ? (
@@ -126,8 +144,13 @@ export function CoursiersPanel({ onClose }: { onClose: () => void }) {
             <div className="card-mini" key={c.id}>
               <div className="row">
                 <strong>{c.nom}</strong>
-                <span className="badge" data-tone={c.actif ? 'success' : 'danger'}>
-                  {c.actif ? 'Actif' : 'Désactivé'}
+                <span style={{ display: 'inline-flex', gap: 6 }}>
+                  {c.chefEquipe && (
+                    <span className="badge" data-tone="accent">Chef d'équipe ADV</span>
+                  )}
+                  <span className="badge" data-tone={c.actif ? 'success' : 'danger'}>
+                    {c.actif ? 'Actif' : 'Désactivé'}
+                  </span>
                 </span>
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>
@@ -139,6 +162,15 @@ export function CoursiersPanel({ onClose }: { onClose: () => void }) {
                 </button>
                 <button type="button" style={{ padding: '3px 9px', fontSize: 11 }} disabled={busy} onClick={() => toggleActif(c)}>
                   {c.actif ? 'Désactiver' : 'Réactiver'}
+                </button>
+                <button
+                  type="button"
+                  style={{ padding: '3px 9px', fontSize: 11 }}
+                  disabled={busy}
+                  title="Les chefs d'équipe ADV n'apparaissent pas dans les listes d'affectation côté coursier (salle + téléphone)."
+                  onClick={() => toggleChef(c)}
+                >
+                  {c.chefEquipe ? 'Retirer chef ADV' : 'Marquer chef ADV'}
                 </button>
               </div>
             </div>

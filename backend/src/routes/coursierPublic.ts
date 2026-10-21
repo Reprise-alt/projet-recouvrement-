@@ -42,8 +42,10 @@ coursierPublicRouter.get('/:token/taches', async (req, res, next) => {
         // création plutôt que dans un ordre arbitraire.
         orderBy: [{ ordre: 'asc' }, { createdAt: 'asc' }],
       }),
+      // Réaffectation possible uniquement vers un autre coursier — jamais vers
+      // un chef d'équipe ADV (la direction n'est pas dispatchée par les coursiers).
       prisma.coursier.findMany({
-        where: { actif: true, id: { not: coursier.id } },
+        where: { actif: true, chefEquipe: false, id: { not: coursier.id } },
         select: { id: true, nom: true },
         orderBy: { nom: 'asc' },
       }),
@@ -76,8 +78,10 @@ coursierPublicRouter.patch('/:token/taches/:id', async (req, res, next) => {
       // Une tâche ne peut être réaffectée qu'à un coursier actif -- jamais
       // vers un lien désactivé (fiche désactivée = plus surveillée par
       // personne côté ADV).
+      // …ni vers un chef d'équipe ADV : la direction n'est pas une cible de
+      // réaffectation côté coursier (garde-fou serveur, pas que côté écran).
       const cible = await prisma.coursier.findUnique({ where: { id: coursierId } });
-      if (!cible || !cible.actif) return res.status(400).json({ error: 'Coursier de destination introuvable' });
+      if (!cible || !cible.actif || cible.chefEquipe) return res.status(400).json({ error: 'Coursier de destination introuvable' });
       data.coursierId = coursierId;
     }
 
