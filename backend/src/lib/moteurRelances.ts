@@ -5,12 +5,19 @@
 // (le canal d'envoi et l'ordonnanceur sont des couches séparées) — ce qui le
 // rend pur et testable.
 import {
+  CLE_PAR_PALIER,
   ClientWithFactures,
   DEFAULT_CONFIG,
   PalierConfig,
   clientJoursRetard,
   clientPalier,
 } from './paliers';
+
+// Dernier palier dont le message part AUTOMATIQUEMENT (amiable : avis d'échéance
+// → arrêt de service). Au-delà (pénalités, commandement, judiciaire), le passage
+// en contentieux est une décision manuelle/comportementale — jamais un effet de
+// l'âge d'une facture. Source unique de vérité, réutilisée par la couche d'envoi.
+export const PALIER_AMIABLE_MAX = 5;
 
 export interface ActionLike {
   palier: number;
@@ -36,10 +43,23 @@ export interface ClientRelance extends ClientWithFactures {
   // Signaux d'arrêt du §5.2 — sources câblées plus tard (portail débiteur, Lot 3).
   enLitige?: boolean;
   opposition?: boolean;
+  // Un dossier contentieux ouvert est en cours : l'amiable automatique s'arrête
+  // (la suite est une procédure pilotée à la main). Câblé par l'appelant qui
+  // connaît les dossiers (route /dues, exécuteur).
+  enContentieux?: boolean;
 }
 
 // Pourquoi une relance NE part pas (utile pour l'aperçu / le débogage).
-export type MotifBlocage = 'a_jour' | 'deja_relance' | 'promesse_en_cours' | 'litige' | 'opposition' | 'palier_desactive';
+export type MotifBlocage =
+  | 'a_jour'
+  | 'deja_relance'
+  | 'promesse_en_cours'
+  | 'litige'
+  | 'opposition'
+  | 'palier_desactive'
+  | 'amiable_epuise'
+  | 'espacement'
+  | 'contentieux';
 
 export interface RelanceDue {
   clientId: string;
@@ -72,37 +92,92 @@ export function dejaRelanceCePalier(actions: ActionLike[] | undefined, palier: n
   return actions.some((a) => a.palier >= palier);
 }
 
-// Ramène un palier calculé au palier ACTIF le plus proche en dessous (ou égal).
-// Un palier désactivé par l'organisation est sauté : le débiteur reste au
-// dernier niveau actif atteint et reçoit son message, plutôt qu'un message d'un
-// niveau que le client a explicitement retiré de sa séquence. `undefined` =
-// tous actifs (comportement historique, aucun palier retiré).
-function palierEffectif(palier: number, paliersActifs?: Set<number>): number {
-  if (!paliersActifs) return palier;
-  let p = palier;
-  while (p > 0 && !paliersActifs.has(p)) p--;
-  return p;
+// Palier le plus haut déjà relancé (0 si jamais relancé). Détermine où en est le
+// client dans sa séquence amiable.
+export function dernierPalierRelance(actions: ActionLike[] | undefined): number {
+  if (!actions?.length) return 0;
+  return actions.reduce((max, a) => Math.max(max, a.palier), 0);
+}
+
+// Date de la dernière relance (null si aucune) — sert à cadencer la remontée.
+function derniereDateRelance(actions: ActionLike[] | undefined): Date | null {
+  if (!actions?.length) return null;
+  return actions.reduce<Date | null>((latest, a) => {
+    const d = new Date(a.date);
+    return !latest || d.getTime() > latest.getTime() ? d : latest;
+  }, null);
+}
+
+// Prochain palier ACTIF strictement au-dessus de `dernier`, borné à `max`. Un
+// palier désactivé par l'organisation est sauté (on monte au suivant actif).
+// 0 si aucun palier actif ne reste dans la plage. `undefined` = tous actifs.
+function prochainPalierActif(dernier: number, max: number, paliersActifs?: Set<number>): number {
+  for (let p = dernier + 1; p <= max; p++) {
+    if (!paliersActifs || paliersActifs.has(p)) return p;
+  }
+  return 0;
+}
+
+// Seuil (jours depuis l'échéance) associé à un palier, d'après la config de l'org.
+function seuilJoursPalier(palier: number, config: PalierConfig): number {
+  const cle = CLE_PAR_PALIER[palier];
+  return cle ? config[cle] : 0;
+}
+
+// Délai minimal entre l'envoi du palier `from` et celui du palier `to`, calqué
+// sur l'écart des seuils configurés (au moins 1 jour pour ne jamais enchaîner
+// deux envois le même jour). C'est CE délai — et non l'âge de la facture — qui
+// cadence la remontée amiable : indispensable sur un stock de factures anciennes
+// importées (échéances d'il y a 200–600 j), où l'âge ne cadence plus rien et où
+// l'on veut pourtant démarrer une séquence courtoise, pas tout envoyer d'un coup.
+function joursEntrePaliers(from: number, to: number, config: PalierConfig): number {
+  return Math.max(1, seuilJoursPalier(to, config) - seuilJoursPalier(from, config));
 }
 
 // Décision pour un client : relance due (et à quel palier) ou motif de blocage.
+//
+// La séquence est MONTANTE et part toujours de l'amiable : un débiteur jamais
+// relancé commence au palier 1 (avis courtois) puis gravit un palier à la fois,
+// quel que soit l'âge de ses factures. L'âge ne sert plus qu'à savoir s'il est
+// en retard ; il ne propulse plus un dossier directement en « contentieux ». Le
+// contentieux est désormais une décision comportementale/manuelle (cf.
+// eligibiliteContentieux et l'ouverture d'un DossierContentieux), pas un effet
+// mécanique de l'ancienneté — sans quoi une vieille facture isolée (oubli,
+// mauvais lettrage) gèlerait à tort toute relance.
 export function evaluerRelance(
   client: ClientRelance,
   config: PalierConfig = DEFAULT_CONFIG,
   now: Date = new Date(),
   paliersActifs?: Set<number>,
 ): EvaluationRelance {
-  const palierBrut = clientPalier(client, config);
-  if (palierBrut <= 0) return { due: null, motifBlocage: 'a_jour' };
-  // Ordre volontaire : opposition et litige priment sur tout (§5.2).
+  // L'âge ne décide que d'une chose : le client est-il en retard du tout ?
+  if (clientPalier(client, config) <= 0) return { due: null, motifBlocage: 'a_jour' };
+  // Ordre volontaire : opposition, litige et contentieux ouvert priment (§5.2).
   if (client.opposition) return { due: null, motifBlocage: 'opposition' };
   if (client.enLitige) return { due: null, motifBlocage: 'litige' };
+  if (client.enContentieux) return { due: null, motifBlocage: 'contentieux' };
   if (promesseEnCours(client.echeanciers, now)) return { due: null, motifBlocage: 'promesse_en_cours' };
-  // Paliers désactivés sautés : on relance au niveau actif effectif. Si aucun
-  // palier actif n'est atteint (tous ceux en dessous sont désactivés), rien ne
-  // part.
-  const palier = palierEffectif(palierBrut, paliersActifs);
+
+  const dernier = dernierPalierRelance(client.actions);
+  // Amiable épuisé : au-delà du palier 5, aucune relance automatique — le dossier
+  // relève d'une décision manuelle (bascule contentieux).
+  if (dernier >= PALIER_AMIABLE_MAX) return { due: null, motifBlocage: 'amiable_epuise' };
+
+  const palier = prochainPalierActif(dernier, PALIER_AMIABLE_MAX, paliersActifs);
   if (palier <= 0) return { due: null, motifBlocage: 'palier_desactive' };
-  if (dejaRelanceCePalier(client.actions, palier)) return { due: null, motifBlocage: 'deja_relance' };
+
+  // Cadence : le tout premier palier part dès que le client est en retard ; les
+  // suivants attendent le délai configuré depuis la dernière relance.
+  if (dernier >= 1) {
+    const derniereDate = derniereDateRelance(client.actions);
+    if (derniereDate) {
+      const joursEcoules = (now.getTime() - derniereDate.getTime()) / 86_400_000;
+      if (joursEcoules < joursEntrePaliers(dernier, palier, config)) {
+        return { due: null, motifBlocage: 'espacement' };
+      }
+    }
+  }
+
   return { due: { clientId: client.id, nom: client.nom, palier, joursRetard: clientJoursRetard(client) } };
 }
 

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { prisma, currentOrganisationId } from '../db';
 import { getConfig, getPaliersActifs, getReglagesPaliers } from '../services/configService';
-import { clientEncours, PALIERS } from '../lib/paliers';
+import { clientEncours, clientJoursRetard, clientPalier, eligibiliteContentieux, PALIERS } from '../lib/paliers';
 import { ClientRelance, dansFenetreEnvoi, relancesDues } from '../lib/moteurRelances';
 import { executerRelancesTenant, destinatairesRelance, reconstruireEmailRelance, PALIER_MAX_AUTO } from '../lib/executerRelances';
 import {
@@ -45,6 +45,8 @@ relancesRouter.get('/dues', async (_req, res, next) => {
         echeanciers: { select: { tranches: { select: { dateEcheance: true, statut: true } } } },
         // Contacts supplémentaires : mis en copie (CC) de la relance.
         contacts: { select: { email: true } },
+        // Dossier contentieux ouvert (statut ≠ clos) : coupe l'amiable automatique.
+        dossiersContentieux: { where: { statut: { not: 'clos' } }, select: { id: true } },
       },
     });
 
@@ -56,6 +58,7 @@ relancesRouter.get('/dues', async (_req, res, next) => {
       frequenceFacturation: c.frequenceFacturation,
       actions: c.actions,
       echeanciers: c.echeanciers,
+      enContentieux: c.dossiersContentieux.length > 0,
       // enLitige / opposition : sources non encore câblées (portail débiteur, Lot 3).
     }));
 
@@ -85,14 +88,28 @@ relancesRouter.get('/dues', async (_req, res, next) => {
       ? await prisma.organisation.findUnique({ where: { id: orgId }, select: { relancesActivees: true } })
       : null;
 
-    // Séparation nette : les paliers amiables (≤ PALIER_MAX_AUTO) partent en
-    // relance automatique ; les paliers contentieux (≥ 6) ne partent JAMAIS en
-    // auto — ce sont des dossiers à basculer manuellement en contentieux. On ne
-    // les mélange donc pas dans la liste des relances « à venir ».
+    // Le moteur ne propose plus que de l'amiable (≤ PALIER_MAX_AUTO) : la
+    // séquence part toujours du palier 1 et grimpe, quel que soit l'âge.
     const aEnvoyer = dues.filter((d) => d.palier <= PALIER_MAX_AUTO);
-    const contentieux = dues
-      .filter((d) => d.palier > PALIER_MAX_AUTO)
-      .map((d) => ({ clientId: d.clientId, nom: d.nom, palier: d.palier, palierLabel: d.palierLabel, joursRetard: d.joursRetard, encours: d.encours }));
+
+    // Candidats au contentieux — désormais COMPORTEMENTAL (≥ 3 impayées, échéances
+    // consécutives, client résilié + garde-fous d'âge/montant), plus jamais déduit
+    // du seul âge d'une facture. On exclut ceux déjà rattachés à un dossier ouvert
+    // (traités dans l'onglet Contentieux) pour n'afficher que ce qui reste à
+    // basculer à la main.
+    const contentieux = clients
+      .filter((c) => c.dossiersContentieux.length === 0 && eligibiliteContentieux(c, config).eligible)
+      .map((c) => {
+        const palier = clientPalier(c, config);
+        return {
+          clientId: c.id,
+          nom: c.nom,
+          palier,
+          palierLabel: libelleParPalier.get(palier) || PALIERS[palier]?.label || `Palier ${palier}`,
+          joursRetard: clientJoursRetard(c),
+          encours: encoursParClient.get(c.id) ?? 0,
+        };
+      });
 
     res.json({
       fenetreOuverte: dansFenetreEnvoi(now),
