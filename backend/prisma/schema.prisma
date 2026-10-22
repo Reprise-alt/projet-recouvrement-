@@ -421,6 +421,13 @@ model Client {
   // exclusion manuelle décidée par un agent (jamais poussé en contentieux).
   resilie              Boolean              @default(false)
   contentieuxExclu     Boolean              @default(false)
+  // Type de débiteur : 'assureur' (tiers-payant : IPM, mutuelle, assurance) ou
+  // 'patient' (particulier / cash). null = non classé. Segmente la vue
+  // recouvrement (filtre Assureurs / Patients) : renseigné à l'import (colonne
+  // « Type ») ou à la main sur la fiche. Chaîne libre plutôt qu'un enum : les
+  // intitulés métier bougent (IPM, tiers-payant, particulier…) et on ne veut
+  // pas d'une migration par variante.
+  typeDebiteur         String?
   // Données d'exemple injectées depuis l'onboarding pour laisser le prospect
   // explorer une console peuplée avant d'importer son vrai fichier. Jamais
   // comptées comme de vraies créances (checklist, écran vide) et supprimables

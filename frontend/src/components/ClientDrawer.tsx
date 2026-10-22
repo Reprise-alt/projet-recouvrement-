@@ -452,6 +452,21 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
     }
   }
 
+  // Classer le débiteur (assureur / patient) — cliquer sur un type déjà actif le
+  // remet à « non classé ».
+  async function setTypeDebiteur(type: 'assureur' | 'patient') {
+    const next = client?.typeDebiteur === type ? null : type;
+    setBusy(true);
+    try {
+      await api.patch(`/api/clients/${clientId}/type-debiteur`, { typeDebiteur: next });
+      afterMutation();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="overlay open" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="drawer">
@@ -782,6 +797,38 @@ export function ClientDrawer({ clientId, role, onClose, onChanged }: Props) {
                   </div>
                 </div>
               ))
+            )}
+
+            <div className="section-title">
+              <span>Type de débiteur</span>
+            </div>
+            {canEditContact ? (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                {(['assureur', 'patient'] as const).map((t) => {
+                  const actif = client.typeDebiteur === t;
+                  return (
+                    <button
+                      key={t}
+                      type="button"
+                      disabled={busy}
+                      onClick={() => setTypeDebiteur(t)}
+                      style={{
+                        padding: '4px 12px',
+                        fontSize: 12,
+                        background: actif ? 'var(--accent)' : 'transparent',
+                        color: actif ? '#fff' : 'var(--ink-soft)',
+                      }}
+                    >
+                      {actif ? '✓ ' : ''}{t === 'assureur' ? 'Assureur' : 'Patient'}
+                    </button>
+                  );
+                })}
+                {!client.typeDebiteur && <span style={{ fontSize: 11.5, color: 'var(--ink-soft)' }}>Non classé</span>}
+              </div>
+            ) : (
+              <div style={{ fontSize: 13 }}>
+                {client.typeDebiteur === 'assureur' ? 'Assureur' : client.typeDebiteur === 'patient' ? 'Patient' : 'Non classé'}
+              </div>
             )}
 
             <div className="section-title">

@@ -6,7 +6,7 @@ import {
   rowsToGeneric,
   buildPreview,
 } from '../src/lib/parsers/flexibleImport';
-import { processImportRows } from '../src/lib/parsers/genericImport';
+import { normalizeTypeDebiteur, processImportRows } from '../src/lib/parsers/genericImport';
 
 // Export "sauvage" d'un prospect : ligne de titre parasite, en-têtes libres
 // (accents, ponctuation), formats de montant/date hétérogènes, une ligne vide.
@@ -77,5 +77,40 @@ describe('import souple (correspondance de colonnes)', () => {
     expect(preview.fields.find((f) => f.field === 'client_nom')?.required).toBe(true);
     expect(preview.sample.length).toBeGreaterThan(0);
     expect(preview.sample[0].length).toBe(preview.headers.length);
+  });
+});
+
+describe('type de débiteur (assureur / patient)', () => {
+  it('normalise les intitulés FR et ES', () => {
+    expect(normalizeTypeDebiteur('Mutuelle')).toBe('assureur');
+    expect(normalizeTypeDebiteur('Mutua')).toBe('assureur');
+    expect(normalizeTypeDebiteur('IPM')).toBe('assureur');
+    expect(normalizeTypeDebiteur('Aseguradora')).toBe('assureur');
+    expect(normalizeTypeDebiteur('Tiers payant')).toBe('assureur');
+    expect(normalizeTypeDebiteur('Patient')).toBe('patient');
+    expect(normalizeTypeDebiteur('Paciente')).toBe('patient');
+    expect(normalizeTypeDebiteur('Particular')).toBe('patient');
+    expect(normalizeTypeDebiteur('')).toBeNull();
+    expect(normalizeTypeDebiteur('inconnu')).toBeNull();
+  });
+
+  it("classe les débiteurs depuis une colonne « Type » (en-tête libre, valeurs ES)", () => {
+    const rows = [
+      ['Raison sociale', 'N° Facture', 'Montant', "Date d'échéance", 'Tipo'],
+      ['IPM Afiyah', 'F-1', '500000', '2026-05-20', 'Mutua'],
+      ['Awa Ndiaye', 'F-2', '30000', '2026-05-20', 'Paciente'],
+      ['Garage Anonyme', 'F-3', '15000', '2026-05-20', ''],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Feuil1');
+    const extract = extractSheet(XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }));
+    const guess = guessMapping(extract.headers);
+    expect(guess.client_type).toBe('Tipo');
+    const { clients } = processImportRows(rowsToGeneric(extract.headers, extract.rows, guess));
+    const byName = Object.fromEntries(clients.map((c) => [c.nom, c.typeDebiteur]));
+    expect(byName['IPM Afiyah']).toBe('assureur');
+    expect(byName['Awa Ndiaye']).toBe('patient');
+    expect(byName['Garage Anonyme']).toBeNull(); // pas de type → non classé
   });
 });

@@ -148,6 +148,8 @@ export interface ClientListItem {
   contacts: ContactSummary[];
   resilie: boolean;
   contentieuxExclu: boolean;
+  // Type de débiteur : 'assureur' | 'patient' | null (non classé).
+  typeDebiteur: string | null;
   encours: number;
   joursRetard: number;
   palier: number;
@@ -264,6 +266,8 @@ export interface ClientDetail {
   delaiMoyenHistorique: number | null;
   resilie: boolean;
   contentieuxExclu: boolean;
+  // Type de débiteur : 'assureur' | 'patient' | null (non classé).
+  typeDebiteur: string | null;
   contentieux: { eligible: boolean; motifs: string[]; bloquants: string[] };
   emetteur?: Emetteur;
   // Présence d'un logo d'assureur (co-branding de l'Espace Assureur).

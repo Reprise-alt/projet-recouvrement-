@@ -64,6 +64,10 @@ export function RecouvrementView({ entityFilter, role, reloadKey, onImport, canR
   const [sortDir, setSortDir] = useState<1 | -1>(-1);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  // Segmentation par type de débiteur (tiers-payant vs particuliers) — utile
+  // pour un cabinet médical/optique qui mélange assureurs (IPM, mutuelles) et
+  // patients « cash » dans le même portefeuille.
+  const [typeFilter, setTypeFilter] = useState<'tous' | 'assureur' | 'patient'>('tous');
   const [onlyATraiter, setOnlyATraiter] = useState(false);
   const [onlyRetardInhabituel, setOnlyRetardInhabituel] = useState(false);
   const [bulkRelance, setBulkRelance] = useState(false);
@@ -119,10 +123,17 @@ export function RecouvrementView({ entityFilter, role, reloadKey, onImport, canR
   const pct = (n: number) => (rep && rep.total > 0 ? Math.round((n / rep.total) * 100) : 0);
   const aTraiter = list.data?.filter(needsAction) ?? [];
   const retardsInhabituels = list.data?.filter((c) => c.retardInhabituel) ?? [];
+  const nbAssureurs = list.data?.filter((c) => c.typeDebiteur === 'assureur').length ?? 0;
+  const nbPatients = list.data?.filter((c) => c.typeDebiteur === 'patient').length ?? 0;
+  // On n'affiche le filtre Assureurs/Patients que si le portefeuille est
+  // effectivement typé (import avec colonne « Type » ou classement manuel) —
+  // sinon le contrôle resterait vide et déroutant.
+  const hasTypes = nbAssureurs > 0 || nbPatients > 0;
   const filtered =
     list.data?.filter(
       (c) =>
         c.nom.toLowerCase().includes(search.trim().toLowerCase()) &&
+        (typeFilter === 'tous' || c.typeDebiteur === typeFilter) &&
         (!onlyATraiter || needsAction(c)) &&
         (!onlyRetardInhabituel || c.retardInhabituel),
     ) ?? [];
@@ -411,6 +422,32 @@ export function RecouvrementView({ entityFilter, role, reloadKey, onImport, canR
               onChange={(e) => setSearch(e.target.value)}
               style={{ width: 220 }}
             />
+            {hasTypes && (
+              <div role="group" aria-label="Filtrer par type de débiteur" style={{ display: 'inline-flex', border: '1px solid var(--line)', borderRadius: 8, overflow: 'hidden' }}>
+                {([
+                  ['tous', 'Tous'],
+                  ['assureur', `Assureurs (${nbAssureurs})`],
+                  ['patient', `Patients (${nbPatients})`],
+                ] as const).map(([val, label]) => (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => setTypeFilter(val)}
+                    style={{
+                      padding: '4px 10px',
+                      fontSize: 12,
+                      border: 'none',
+                      borderRadius: 0,
+                      cursor: 'pointer',
+                      background: typeFilter === val ? 'var(--accent)' : 'transparent',
+                      color: typeFilter === val ? '#fff' : 'var(--ink-soft)',
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
             {onlyATraiter && <button onClick={() => setOnlyATraiter(false)}>Afficher tous les clients</button>}
             {onlyRetardInhabituel && <button onClick={() => setOnlyRetardInhabituel(false)}>Afficher tous les clients</button>}
             {palierFilter !== null && <button onClick={() => setPalierFilter(null)}>Effacer le filtre</button>}

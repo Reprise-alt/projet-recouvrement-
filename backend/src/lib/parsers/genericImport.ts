@@ -12,6 +12,7 @@ export interface GenericImportRow {
   facture_montant?: unknown;
   facture_echeance?: unknown;
   facture_statut?: unknown;
+  client_type?: unknown;
   contrat_numero?: unknown;
   contrat_debut?: unknown;
   contrat_fin?: unknown;
@@ -33,6 +34,24 @@ const MAX_MONTANT_PLAUSIBLE = 1_000_000_000_000;
 function parseAmount(raw: unknown): number {
   const value = parseFloat(String(raw || '0').replace(/[^0-9,.-]/g, '').replace(',', '.')) || 0;
   return value > 0 && value <= MAX_MONTANT_PLAUSIBLE ? value : 0;
+}
+
+// Normalise la colonne « Type » du fichier vers 'assureur' | 'patient' (null si
+// inconnu). Couvre le FR et l'ES : un prospect peut exporter depuis un logiciel
+// hispanophone (« Mutua » / « Paciente » / « Particular »). Insensible aux
+// accents et à la casse.
+export function normalizeTypeDebiteur(raw: unknown): string | null {
+  const s = String(raw ?? '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .trim();
+  if (!s) return null;
+  // Tiers-payant : assureur / mutuelle / IPM (+ équivalents espagnols).
+  if (/(assureur|assurance|mutuelle|mutua|\bipm\b|tiers[ -]?payant|aseguradora|\bseguro)/.test(s)) return 'assureur';
+  // Particulier / cash (+ équivalents espagnols).
+  if (/(patient|paciente|particulier|particular|comptant|\bcash\b|client direct)/.test(s)) return 'patient';
+  return null;
 }
 
 // Parseur du modèle CSV/XLSX générique (téléchargeable via /import/template) —
@@ -70,11 +89,18 @@ export function processImportRows(
         contact: (row.client_contact || '').toString(),
         email: (row.client_email || '').toString(),
         tel: (row.client_tel || '').toString(),
+        typeDebiteur: normalizeTypeDebiteur(row.client_type),
         factures: [],
         contrats: [],
       };
     }
     const client = map[key];
+    // Un client s'étale sur plusieurs lignes : si la 1re n'a pas typé le débiteur,
+    // une ligne suivante peut le faire (on ne réécrit jamais un type déjà posé).
+    if (!client.typeDebiteur) {
+      const t = normalizeTypeDebiteur(row.client_type);
+      if (t) client.typeDebiteur = t;
+    }
 
     const montant = parseAmount(row.facture_montant);
     const echeance = toISODate(row.facture_echeance);
