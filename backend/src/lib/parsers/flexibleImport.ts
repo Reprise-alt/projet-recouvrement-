@@ -18,7 +18,8 @@ export type CanonicalField =
   | 'facture_numero'
   | 'facture_montant'
   | 'facture_echeance'
-  | 'facture_statut';
+  | 'facture_statut'
+  | 'client_type';
 
 interface FieldSpec {
   field: CanonicalField;
@@ -40,6 +41,9 @@ export const FIELD_SPECS: FieldSpec[] = [
   { field: 'client_email', label: 'Email', synonyms: ['email', 'mail', 'e mail', 'courriel', 'adresse mail', 'email client'] },
   { field: 'client_tel', label: 'Téléphone', synonyms: ['tel', 'telephone', 'phone', 'mobile', 'gsm', 'portable', 'numero de telephone', 'contact tel'] },
   { field: 'entite', label: 'Entité / établissement', synonyms: ['entite', 'etablissement', 'segment', 'agence', 'site', 'societe emettrice', 'division'] },
+  // Type de débiteur (assureur / patient). Synonymes FR + ES (le fichier source
+  // d'un prospect peut être en espagnol, ex. « Mutua » / « Paciente »).
+  { field: 'client_type', label: 'Type (assureur / patient)', synonyms: ['type', 'type client', 'type debiteur', 'categorie', 'classification', 'nature', 'tipo', 'tipo cliente', 'clasificacion'] },
 ];
 
 export function normHeader(s: unknown): string {
@@ -148,6 +152,7 @@ export function rowsToGeneric(
     facture_montant: val(row, 'facture_montant'),
     facture_echeance: val(row, 'facture_echeance'),
     facture_statut: val(row, 'facture_statut'),
+    client_type: val(row, 'client_type'),
   }));
 }
 

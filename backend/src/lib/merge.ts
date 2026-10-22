@@ -91,20 +91,26 @@ export interface ExistingContact {
   contact?: string | null;
   email?: string | null;
   tel?: string | null;
+  typeDebiteur?: string | null;
 }
 
 export interface ContactPatch {
   contact?: string;
   email?: string;
   tel?: string;
+  typeDebiteur?: string;
 }
 
 // Ne renseigne que les champs de contact actuellement vides — un contact
-// saisi à la main n'est jamais écrasé par une valeur importée.
+// saisi à la main n'est jamais écrasé par une valeur importée. Idem pour le
+// type de débiteur : un ré-import qui apporte la colonne « Type » classe les
+// fiches encore non classées, mais ne remplace jamais un type déjà posé (import
+// précédent ou classement manuel sur la fiche).
 export function planContactMerge(existing: ExistingContact, imported: ExistingContact): ContactPatch {
   const patch: ContactPatch = {};
   if (!existing.contact && imported.contact) patch.contact = imported.contact;
   if (!existing.email && imported.email) patch.email = imported.email;
   if (!existing.tel && imported.tel) patch.tel = imported.tel;
+  if (!existing.typeDebiteur && imported.typeDebiteur) patch.typeDebiteur = imported.typeDebiteur;
   return patch;
 }

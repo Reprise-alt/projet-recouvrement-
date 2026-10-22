@@ -139,7 +139,7 @@ clientsRouter.get('/console', async (req, res, next) => {
         select: {
           id: true, nom: true, entite: true, contact: true, email: true, tel: true, note: true,
           prochaineRelance: true, frequenceFacturation: true, resilie: true, contentieuxExclu: true,
-          logoMime: true,
+          typeDebiteur: true, logoMime: true,
           contacts: { orderBy: { createdAt: 'asc' }, select: { id: true, nom: true, fonction: true, email: true, tel: true } },
           actions: { orderBy: { date: 'desc' }, take: 1, select: { label: true, date: true, palier: true } },
         },
@@ -246,6 +246,7 @@ clientsRouter.get('/console', async (req, res, next) => {
           frequenceFacturation: c.frequenceFacturation,
           resilie: c.resilie,
           contentieuxExclu: c.contentieuxExclu,
+          typeDebiteur: c.typeDebiteur,
           contacts: c.contacts.map((ct) => ({ id: ct.id, nom: ct.nom, fonction: ct.fonction, email: ct.email, tel: ct.tel })),
           encours,
           joursRetard,
@@ -523,6 +524,25 @@ clientsRouter.patch('/:id/contentieux-flags', requireRole('admin', 'manager_enti
     if (typeof b.contentieuxExclu === 'boolean') data.contentieuxExclu = b.contentieuxExclu;
     if (!Object.keys(data).length) return res.status(400).json({ error: 'Aucun drapeau fourni' });
     const maj = await prisma.client.update({ where: { id: req.params.id }, data, select: { id: true, resilie: true, contentieuxExclu: true } });
+    res.json(maj);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Type de débiteur (assureur / patient) posé à la main sur la fiche — complète
+// le classement issu de l'import pour trier manuellement les fiches encore non
+// classées. null remet « non classé ».
+clientsRouter.patch('/:id/type-debiteur', requireRole('admin', 'manager_entite', 'comptable'), async (req, res, next) => {
+  try {
+    const existing = await prisma.client.findUnique({ where: { id: req.params.id } });
+    if (!existing) return res.status(404).json({ error: 'Client introuvable' });
+    if (!assertEntiteInScope(req, res, existing.entite as Entite)) return;
+    const brut = (req.body ?? {}).typeDebiteur;
+    if (brut !== null && brut !== 'assureur' && brut !== 'patient') {
+      return res.status(400).json({ error: 'Type invalide (attendu : assureur, patient ou null)' });
+    }
+    const maj = await prisma.client.update({ where: { id: req.params.id }, data: { typeDebiteur: brut }, select: { id: true, typeDebiteur: true } });
     res.json(maj);
   } catch (err) {
     next(err);

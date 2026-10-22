@@ -39,6 +39,9 @@ export interface ParsedClient {
   contact?: string;
   email?: string;
   tel?: string;
+  // Type de débiteur normalisé : 'assureur' | 'patient' (null/absent = non
+  // classé). Déduit de la colonne « Type » du fichier importé.
+  typeDebiteur?: string | null;
   factures: ParsedFacture[];
   contrats: ParsedContrat[];
 }

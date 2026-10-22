@@ -61,4 +61,11 @@ describe('planContactMerge', () => {
     const patch = planContactMerge({ contact: 'Manually Entered', email: '', tel: '' }, { contact: 'Imported', email: 'a@x.sn', tel: '' });
     expect(patch).toEqual({ email: 'a@x.sn' });
   });
+
+  it('classe un débiteur non typé au ré-import, sans écraser un type déjà posé', () => {
+    // Fiche encore « non classée » → le ré-import la classe.
+    expect(planContactMerge({ typeDebiteur: null }, { typeDebiteur: 'assureur' })).toEqual({ typeDebiteur: 'assureur' });
+    // Type déjà posé (import précédent / classement manuel) → jamais réécrit.
+    expect(planContactMerge({ typeDebiteur: 'patient' }, { typeDebiteur: 'assureur' })).toEqual({});
+  });
 });

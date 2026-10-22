@@ -129,6 +129,7 @@ export async function applyImport(clients: ParsedClient[], organisationId: strin
           contact: parsed.contact || undefined,
           email: parsed.email || undefined,
           tel: parsed.tel || undefined,
+          typeDebiteur: parsed.typeDebiteur || undefined,
         },
       });
       clientId = created.id;
