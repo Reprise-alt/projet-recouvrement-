@@ -30,23 +30,44 @@ describe('evaluerRelance', () => {
     expect(evaluerRelance(c, undefined, NOW)).toEqual({ due: null, motifBlocage: 'a_jour' });
   });
 
-  it('relance un client en retard jamais relancé', () => {
-    const c = client({ id: 'b', factures: [factureEchue(40)] }); // palier 4 (J+30..44)
+  it('démarre au palier 1 un client en retard jamais relancé, quel que soit l’âge', () => {
+    // Même échu depuis 40 j (ancien palier d'âge 4), la séquence part du palier 1.
+    const c = client({ id: 'b', factures: [factureEchue(40)] });
     const e = evaluerRelance(c, undefined, NOW);
-    expect(e.due).not.toBeNull();
-    expect(e.due?.palier).toBe(4);
+    expect(e.due?.palier).toBe(1);
     expect(e.due?.joursRetard).toBe(40);
   });
 
-  it('ne relance pas deux fois le même palier', () => {
-    const c = client({ id: 'c', factures: [factureEchue(40)], actions: [{ palier: 4, date: NOW }] });
-    expect(evaluerRelance(c, undefined, NOW).motifBlocage).toBe('deja_relance');
+  it('démarre AUSSI au palier 1 sur un stock de factures très anciennes (import)', () => {
+    // Cœur du changement : une facture de 300 j jamais relancée ne saute plus
+    // directement en contentieux — elle entame l'amiable au palier 1.
+    const c = client({ id: 'vieux', factures: [factureEchue(300)] });
+    const e = evaluerRelance(c, undefined, NOW);
+    expect(e.due?.palier).toBe(1);
   });
 
-  it('relance à nouveau quand le palier a progressé', () => {
-    // Relancé au palier 3, désormais au palier 4 → une nouvelle relance est due.
-    const c = client({ id: 'd', factures: [factureEchue(40)], actions: [{ palier: 3, date: NOW }] });
-    expect(evaluerRelance(c, undefined, NOW).due?.palier).toBe(4);
+  it('monte d’un palier une fois le délai écoulé', () => {
+    // Relancé au palier 1 il y a 7 j (écart j0→j1 = 6 j) → palier 2 dû.
+    const dateP1 = new Date(NOW.getTime() - 7 * 86_400_000);
+    const c = client({ id: 'c', factures: [factureEchue(40)], actions: [{ palier: 1, date: dateP1 }] });
+    expect(evaluerRelance(c, undefined, NOW).due?.palier).toBe(2);
+  });
+
+  it('attend le délai avant d’enchaîner deux paliers (espacement)', () => {
+    // Relancé au palier 1 il y a 2 j (< 6 j) → on patiente, rien ne part.
+    const dateP1 = new Date(NOW.getTime() - 2 * 86_400_000);
+    const c = client({ id: 'd', factures: [factureEchue(40)], actions: [{ palier: 1, date: dateP1 }] });
+    expect(evaluerRelance(c, undefined, NOW).motifBlocage).toBe('espacement');
+  });
+
+  it('arrête l’envoi automatique au-delà de l’amiable (palier 5 atteint)', () => {
+    const c = client({ id: 'max', factures: [factureEchue(300)], actions: [{ palier: 5, date: new Date(NOW.getTime() - 100 * 86_400_000) }] });
+    expect(evaluerRelance(c, undefined, NOW).motifBlocage).toBe('amiable_epuise');
+  });
+
+  it('arrête la séquence si un dossier contentieux est ouvert', () => {
+    const c = client({ id: 'cont', factures: [factureEchue(40)], enContentieux: true });
+    expect(evaluerRelance(c, undefined, NOW).motifBlocage).toBe('contentieux');
   });
 
   it('arrête la séquence en cas de litige', () => {
@@ -59,24 +80,18 @@ describe('evaluerRelance', () => {
     expect(evaluerRelance(c, undefined, NOW).motifBlocage).toBe('opposition');
   });
 
-  it('saute un palier désactivé et relance au niveau actif inférieur', () => {
-    // Client au palier brut 4, mais le palier 4 est désactivé par l'organisation
-    // → on relance au palier actif immédiatement inférieur (3).
+  it('saute un palier désactivé et monte au palier actif suivant', () => {
+    // Palier 1 désactivé par l'organisation → le premier contact se fait au
+    // palier actif suivant (2), pas en dessous.
     const c = client({ id: 'g', factures: [factureEchue(40)] });
-    const actifs = new Set([1, 2, 3, 5, 6, 7, 8]); // 4 retiré
-    expect(evaluerRelance(c, undefined, NOW, actifs).due?.palier).toBe(3);
+    const actifs = new Set([2, 3, 4, 5, 6, 7, 8]); // 1 retiré
+    expect(evaluerRelance(c, undefined, NOW, actifs).due?.palier).toBe(2);
   });
 
-  it('ne relance pas si tous les paliers atteints sont désactivés', () => {
-    // Palier brut 4, mais 1..4 tous désactivés → aucune relance.
+  it('ne relance pas si aucun palier amiable n’est actif', () => {
     const c = client({ id: 'h', factures: [factureEchue(40)] });
-    const actifs = new Set([5, 6, 7, 8]);
+    const actifs = new Set([6, 7, 8]); // aucun palier amiable (1..5)
     expect(evaluerRelance(c, undefined, NOW, actifs).motifBlocage).toBe('palier_desactive');
-  });
-
-  it('ne saute rien quand paliersActifs est omis (comportement historique)', () => {
-    const c = client({ id: 'i', factures: [factureEchue(40)] });
-    expect(evaluerRelance(c, undefined, NOW).due?.palier).toBe(4);
   });
 
   it('suspend tant qu’une promesse court, reprend une fois dépassée', () => {

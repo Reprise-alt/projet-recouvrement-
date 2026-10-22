@@ -7,7 +7,7 @@ import { getEmailProvider } from './email/provider';
 import { getConfig, getPaliersActifs } from '../services/configService';
 import { generateLetter, LetterClient } from './letters';
 import { PALIERS } from './paliers';
-import { ClientRelance, dansFenetreEnvoi, relancesDues } from './moteurRelances';
+import { ClientRelance, PALIER_AMIABLE_MAX, dansFenetreEnvoi, relancesDues } from './moteurRelances';
 import { construireRelanceMarque, OrgIdentite } from './modelesRelance';
 import { obtenirOuCreerCode } from './parrainage';
 import { chargerMoyensPaiement } from './moyensPaiement';
@@ -26,8 +26,9 @@ import { chargerModelesOrg } from '../services/modeleRelanceService';
 // pénalités, commandement de payer et contentieux (§5.1) impliquent une action
 // formelle/juridique (mise en demeure, passage en contentieux) qui reste
 // délibérément manuelle. L'envoi auto couvre l'amiable : avis d'échéance →
-// arrêt de service (paliers 1 à 5).
-export const PALIER_MAX_AUTO = 5;
+// arrêt de service (paliers 1 à 5). Aligné sur le plafond du moteur (source
+// unique de vérité) : le moteur ne propose déjà plus de palier au-delà.
+export const PALIER_MAX_AUTO = PALIER_AMIABLE_MAX;
 
 export type RaisonIgnore = 'email_manquant' | 'palier_manuel';
 
@@ -141,6 +142,8 @@ export async function executerRelancesTenant(opts: OptionsExecution = {}): Promi
       echeanciers: { select: { tranches: { select: { dateEcheance: true, statut: true } } } },
       // Contacts supplémentaires : mis en copie (CC) de la relance.
       contacts: { select: { email: true } },
+      // Dossier contentieux ouvert (statut ≠ clos) : coupe l'amiable automatique.
+      dossiersContentieux: { where: { statut: { not: 'clos' } }, select: { id: true } },
     },
   });
   const byId = new Map(clients.map((c) => [c.id, c]));
@@ -151,6 +154,7 @@ export async function executerRelancesTenant(opts: OptionsExecution = {}): Promi
     frequenceFacturation: c.frequenceFacturation,
     actions: c.actions,
     echeanciers: c.echeanciers,
+    enContentieux: c.dossiersContentieux.length > 0,
   }));
   const dues = relancesDues(entree, config, now, paliersActifs);
 

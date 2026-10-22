@@ -271,8 +271,8 @@ export function RelancesAVenirView({ reloadKey, canManage }: { reloadKey: unknow
           <div className="rv-note" style={{ borderLeft: '3px solid var(--danger)' }}>
             <Gavel size={15} />
             <span>
-              <b>{data.contentieux.length} client{data.contentieux.length > 1 ? 's ont' : ' a'} atteint le seuil contentieux.</b>{' '}
-              Ces dossiers ne partent <b>pas</b> en relance automatique (action juridique) — traitez-les dans l’onglet <b>Contentieux</b>.
+              <b>{data.contentieux.length} client{data.contentieux.length > 1 ? 's remplissent' : ' remplit'} les critères du contentieux</b>{' '}
+              (impayés répétés). La relance amiable continue, mais ces dossiers méritent peut-être une bascule en <b>Contentieux</b> — à décider dans l’onglet dédié.
             </span>
           </div>
           <table>
