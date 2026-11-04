@@ -177,6 +177,8 @@ export interface AnalyseCourseEntree extends TacheRapportEntree {
   type: string;
   dateExecution: Date | string | null;
   clientNom?: string | null;
+  motifReport?: string | null;
+  motifReportCommentaire?: string | null;
 }
 // Détail d'une course reportée, pour la lister telle quelle dans le reporting.
 export interface ReporteeDetail {
@@ -186,6 +188,8 @@ export interface ReporteeDetail {
   coursierNom: string | null;
   prevueLe: string;   // jour où elle était prévue à l'origine (dateInitiale)
   reporteeAu: string; // nouveau jour planifié (date)
+  motif: string | null;        // motif imposé (menu) choisi au report
+  commentaire: string | null;  // justification libre obligatoire saisie au report
 }
 export interface AnalyseCourses {
   global: DecompteStatuts;
@@ -196,11 +200,25 @@ export interface AnalyseCourses {
   reportees: ReporteeDetail[];
 }
 
-// Analyse croisée des courses (écran « Analyse des courses ») : mêmes décomptes
-// que le reporting mais ventilés par TYPE, par COURSIER, par JOUR et par
-// CRÉNEAU réalisé. Les filtres (type / coursier / créneau) sont appliqués en
-// amont (cf. route) ; ici on ne fait qu'agréger la liste déjà filtrée.
-export function buildAnalyseCourses(taches: AnalyseCourseEntree[]): AnalyseCourses {
+// Analyse croisée des courses (écran « Analyse des courses »), ventilée par
+// TYPE, COURSIER, JOUR et CRÉNEAU réalisé. Comptage fondé sur l'ACTIVITÉ RÉELLE
+// de la période [from, toExclusive[ :
+//   - une course FAITE compte dans la période où elle a été RÉALISÉE
+//     (dateExecution ; à défaut dateInitiale, pour les données sans heure
+//     d'exécution). Ainsi une course planifiée fin octobre mais faite en
+//     novembre remonte bien dans le reporting de novembre -- cf. demande ADV.
+//   - une course NON faite (à faire / reportée / annulée) compte dans sa
+//     période de PLANIFICATION (dateInitiale).
+// Les filtres (type / coursier / créneau) sont appliqués en amont (cf. route) ;
+// la fenêtre temporelle, elle, est tranchée ici pour appliquer cette règle.
+export function buildAnalyseCourses(
+  taches: AnalyseCourseEntree[],
+  periode: { from: Date; toExclusive: Date },
+): AnalyseCourses {
+  const { from, toExclusive } = periode;
+  const dansPeriode = (d: Date) => d >= from && d < toExclusive;
+  const jourStr = (d: Date) => d.toISOString().slice(0, 10);
+
   const global = decompteVide();
   const parType = new Map<string, DecompteStatuts>();
   const parCoursier = new Map<string, { nom: string; d: DecompteStatuts }>();
@@ -209,7 +227,23 @@ export function buildAnalyseCourses(taches: AnalyseCourseEntree[]): AnalyseCours
   const reportees: ReporteeDetail[] = [];
 
   for (const t of taches) {
-    const s = statutAffiche(t);
+    const plan = new Date(t.dateInitiale);
+    let s: StatutAffiche;
+    let jour: Date;
+    if (t.statut === 'faite') {
+      // Rattachée à la période où elle a réellement été réalisée.
+      const exec = t.dateExecution ? new Date(t.dateExecution) : null;
+      const ancre = exec ?? plan;
+      if (!dansPeriode(ancre)) continue;
+      s = 'faite';
+      jour = ancre;
+    } else {
+      // Non faite : rattachée à sa période de planification initiale.
+      if (!dansPeriode(plan)) continue;
+      s = statutAffiche(t);
+      jour = plan;
+    }
+
     accumuler(global, s);
     if (s === 'reportee') {
       reportees.push({
@@ -217,8 +251,10 @@ export function buildAnalyseCourses(taches: AnalyseCourseEntree[]): AnalyseCours
         entite: t.entite,
         clientNom: t.clientNom ?? null,
         coursierNom: t.coursierNom ?? null,
-        prevueLe: new Date(t.dateInitiale).toISOString().slice(0, 10),
+        prevueLe: jourStr(plan),
         reporteeAu: new Date(t.date).toISOString().slice(0, 10),
+        motif: t.motifReport ?? null,
+        commentaire: t.motifReportCommentaire ?? null,
       });
     }
 
@@ -229,9 +265,9 @@ export function buildAnalyseCourses(taches: AnalyseCourseEntree[]): AnalyseCours
     if (!parCoursier.has(ck)) parCoursier.set(ck, { nom: t.coursierNom ?? 'Non assignée', d: decompteVide() });
     accumuler(parCoursier.get(ck)!.d, s);
 
-    const jour = new Date(t.dateInitiale).toISOString().slice(0, 10);
-    if (!parJour.has(jour)) parJour.set(jour, decompteVide());
-    accumuler(parJour.get(jour)!, s);
+    const jstr = jourStr(jour);
+    if (!parJour.has(jstr)) parJour.set(jstr, decompteVide());
+    accumuler(parJour.get(jstr)!, s);
 
     const cr = creneauReel(t.dateExecution);
     if (!parCreneau.has(cr)) parCreneau.set(cr, decompteVide());

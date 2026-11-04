@@ -62,22 +62,16 @@ sallePublicRouter.patch('/:token/taches/:id', async (req, res, next) => {
   try {
     if (!(await checkToken(req.params.token))) return res.status(404).json({ error: 'Lien invalide' });
 
-    const { coursierId, report, motifReport } = req.body ?? {};
+    const { coursierId, report, motifReport, motifReportCommentaire } = req.body ?? {};
     const data: Record<string, unknown> = {};
 
+    // Dispatching retiré aux coursiers (demande ADV) : l'assignation/réaffectation
+    // d'une course relève désormais des équipes Recouvrement / ADV, plus de la
+    // salle. On refuse donc toute (ré)assignation depuis le lien salle -- garde-fou
+    // serveur, en plus du contrôle grisé côté écran. L'ADV assigne via ses écrans
+    // authentifiés (cf. PATCH /api/taches/:id).
     if (coursierId !== undefined) {
-      if (coursierId !== null && typeof coursierId !== 'string') {
-        return res.status(400).json({ error: 'coursierId invalide' });
-      }
-      // Garde-fou serveur : on n'assigne jamais une tâche à un chef d'équipe ADV
-      // depuis la salle (la direction n'est pas dispatchée par les coursiers).
-      if (coursierId) {
-        const cible = await prisma.coursier.findUnique({ where: { id: coursierId }, select: { actif: true, chefEquipe: true } });
-        if (!cible || !cible.actif || cible.chefEquipe) {
-          return res.status(400).json({ error: 'Coursier de destination invalide' });
-        }
-      }
-      data.coursierId = coursierId || null;
+      return res.status(403).json({ error: "Le dispatching des courses est géré par l'équipe ADV / Recouvrement." });
     }
 
     if (report !== undefined) {
@@ -91,8 +85,15 @@ sallePublicRouter.patch('/:token/taches/:id', async (req, res, next) => {
       if (typeof motifReport !== 'string' || !(motifReport in MOTIF_REPORT_LABELS)) {
         return res.status(400).json({ error: 'Motif de report requis' });
       }
+      // Justification libre OBLIGATOIRE (demande ADV) : le motif imposé ne
+      // suffit plus, il faut expliquer par écrit la raison du report.
+      const commentaire = typeof motifReportCommentaire === 'string' ? motifReportCommentaire.trim() : '';
+      if (!commentaire) {
+        return res.status(400).json({ error: 'Commentaire de report obligatoire' });
+      }
       data.date = nouvelleDate;
       data.motifReport = motifReport;
+      data.motifReportCommentaire = commentaire;
     }
 
     const tache = await prisma.tacheCoursier.update({

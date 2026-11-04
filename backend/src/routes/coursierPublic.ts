@@ -68,21 +68,16 @@ coursierPublicRouter.patch('/:token/taches/:id', async (req, res, next) => {
       return res.status(404).json({ error: 'Tâche introuvable' });
     }
 
-    const { statut, montant, modePaiement, note, report, motifReport, coursierId } = req.body ?? {};
+    const { statut, montant, modePaiement, note, report, motifReport, motifReportCommentaire, coursierId } = req.body ?? {};
     const data: Record<string, unknown> = {};
 
+    // Dispatching retiré aux coursiers (demande ADV) : la réaffectation d'une
+    // course relève désormais des équipes Recouvrement / ADV. On refuse donc
+    // toute réaffectation depuis le lien coursier -- garde-fou serveur, en plus
+    // du contrôle grisé côté écran. L'ADV réaffecte via ses écrans authentifiés
+    // (cf. PATCH /api/taches/:id).
     if (coursierId !== undefined) {
-      if (typeof coursierId !== 'string' || !coursierId) {
-        return res.status(400).json({ error: 'Coursier de destination requis' });
-      }
-      // Une tâche ne peut être réaffectée qu'à un coursier actif -- jamais
-      // vers un lien désactivé (fiche désactivée = plus surveillée par
-      // personne côté ADV).
-      // …ni vers un chef d'équipe ADV : la direction n'est pas une cible de
-      // réaffectation côté coursier (garde-fou serveur, pas que côté écran).
-      const cible = await prisma.coursier.findUnique({ where: { id: coursierId } });
-      if (!cible || !cible.actif || cible.chefEquipe) return res.status(400).json({ error: 'Coursier de destination introuvable' });
-      data.coursierId = coursierId;
+      return res.status(403).json({ error: "La réaffectation des courses est gérée par l'équipe ADV / Recouvrement." });
     }
 
     if (report !== undefined) {
@@ -96,8 +91,15 @@ coursierPublicRouter.patch('/:token/taches/:id', async (req, res, next) => {
       if (typeof motifReport !== 'string' || !(motifReport in MOTIF_REPORT_LABELS)) {
         return res.status(400).json({ error: 'Motif de report requis' });
       }
+      // Justification libre OBLIGATOIRE (demande ADV) : le motif imposé ne
+      // suffit plus, le coursier doit expliquer par écrit la raison du report.
+      const commentaire = typeof motifReportCommentaire === 'string' ? motifReportCommentaire.trim() : '';
+      if (!commentaire) {
+        return res.status(400).json({ error: 'Commentaire de report obligatoire' });
+      }
       data.date = nouvelleDate;
       data.motifReport = motifReport;
+      data.motifReportCommentaire = commentaire;
     }
 
     if (statut !== undefined) {

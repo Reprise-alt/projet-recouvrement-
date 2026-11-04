@@ -458,7 +458,18 @@ tachesRouter.get('/analyse', requireRole(...ADV_ROLES), async (req, res, next) =
     const creneauQ = typeof req.query.creneau === 'string' ? req.query.creneau : '';
     const creneauFiltre: CreneauReel | null = ['matin', 'apres_midi', 'soir', 'non_execute'].includes(creneauQ) ? (creneauQ as CreneauReel) : null;
 
-    const where: Record<string, unknown> = { dateInitiale: { gte: from, lt: toExclusive }, ...tacheEntiteFilter(entiteFilter) };
+    // Fenêtre basée sur l'ACTIVITÉ : on ramène les tâches planifiées dans la
+    // période (dateInitiale) ET les tâches faites dans la période (dateExecution),
+    // même si leur planification initiale est antérieure. Le rattachement exact
+    // (faite -> période d'exécution ; non faite -> période de planification) est
+    // tranché dans buildAnalyseCourses.
+    const where: Record<string, unknown> = {
+      ...tacheEntiteFilter(entiteFilter),
+      OR: [
+        { dateInitiale: { gte: from, lt: toExclusive } },
+        { statut: 'faite', dateExecution: { gte: from, lt: toExclusive } },
+      ],
+    };
     if (typeFiltre) where.type = typeFiltre;
     if (coursierFiltre) where.coursierId = coursierFiltre === '__non_assignee__' ? null : coursierFiltre;
 
@@ -472,6 +483,8 @@ tachesRouter.get('/analyse', requireRole(...ADV_ROLES), async (req, res, next) =
         dateExecution: true,
         entite: true,
         coursierId: true,
+        motifReport: true,
+        motifReportCommentaire: true,
         coursier: { select: { nom: true } },
         client: { select: { nom: true } },
       },
@@ -487,10 +500,12 @@ tachesRouter.get('/analyse', requireRole(...ADV_ROLES), async (req, res, next) =
       coursierId: t.coursierId,
       coursierNom: t.coursier?.nom ?? null,
       clientNom: t.client?.nom ?? null,
+      motifReport: t.motifReport ?? null,
+      motifReportCommentaire: t.motifReportCommentaire ?? null,
     }));
     if (creneauFiltre) entrees = entrees.filter((e) => creneauReel(e.dateExecution) === creneauFiltre);
 
-    res.json(buildAnalyseCourses(entrees));
+    res.json(buildAnalyseCourses(entrees, { from, toExclusive }));
   } catch (err) {
     next(err);
   }

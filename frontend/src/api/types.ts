@@ -543,6 +543,7 @@ export interface TacheCoursier {
   note: string | null;
   dateExecution: string | null;
   motifReport: MotifReport | null;
+  motifReportCommentaire: string | null;
   ordre: number | null;
   client: { id: string; nom: string; entite: Entite } | null;
   coursier: Coursier | null;
@@ -590,6 +591,8 @@ export interface ReporteeDetail {
   coursierNom: string | null;
   prevueLe: string;
   reporteeAu: string;
+  motif: MotifReport | null;
+  commentaire: string | null;
 }
 export interface AnalyseCoursesResponse {
   global: DecompteStatuts;

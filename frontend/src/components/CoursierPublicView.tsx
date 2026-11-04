@@ -41,7 +41,7 @@ export function CoursierPublicView({ token }: { token: string }) {
   const [modes, setModes] = useState<Record<string, ModePaiementCollecte>>({});
   const [reportDates, setReportDates] = useState<Record<string, string>>({});
   const [motifs, setMotifs] = useState<Record<string, MotifReport | ''>>({});
-  const [reaffectations, setReaffectations] = useState<Record<string, string>>({});
+  const [commentaires, setCommentaires] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [reorderBusy, setReorderBusy] = useState(false);
 
@@ -80,28 +80,21 @@ export function CoursierPublicView({ token }: { token: string }) {
     }
   }
 
-  async function reaffecter(t: TacheCoursierPublic) {
-    const coursierId = reaffectations[t.id];
-    if (!coursierId) return;
-    setBusyId(t.id);
-    try {
-      await api.patch(`/api/coursier-public/${token}/taches/${t.id}`, { coursierId });
-      await load();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Erreur');
-    } finally {
-      setBusyId(null);
-    }
-  }
+  // La réaffectation (dispatching) n'est plus à la main des coursiers (demande
+  // ADV) : elle relève des équipes Recouvrement / ADV. Le bloc correspondant est
+  // grisé côté écran et refusé côté serveur (cf. routes/coursierPublic.ts).
 
   async function reporter(t: TacheCoursierPublic) {
     const motifReport = motifs[t.id];
-    if (!motifReport) return;
+    const commentaire = (commentaires[t.id] ?? '').trim();
+    // Report impossible sans motif ET sans justification écrite (demande ADV).
+    if (!motifReport || !commentaire) return;
     setBusyId(t.id);
     try {
       await api.patch(`/api/coursier-public/${token}/taches/${t.id}`, {
         report: reportDates[t.id] ?? tomorrow(),
         motifReport,
+        motifReportCommentaire: commentaire,
       });
       await load();
     } catch (err) {
@@ -313,6 +306,15 @@ export function CoursierPublicView({ token }: { token: string }) {
                             ))}
                           </select>
                         </div>
+                        <div className="cm-field">
+                          <label>Commentaire (obligatoire)</label>
+                          <textarea
+                            rows={2}
+                            placeholder="Expliquez la raison du report…"
+                            value={commentaires[t.id] ?? ''}
+                            onChange={(e) => setCommentaires((prev) => ({ ...prev, [t.id]: e.target.value }))}
+                          />
+                        </div>
                         <div className="cm-row2">
                           <div className="cm-field" style={{ flex: 1 }}>
                             <label>Reporter au</label>
@@ -325,38 +327,29 @@ export function CoursierPublicView({ token }: { token: string }) {
                           <button
                             className="cm-report-btn"
                             type="button"
-                            disabled={busy || !motifs[t.id]}
+                            disabled={busy || !motifs[t.id] || !(commentaires[t.id] ?? '').trim()}
                             onClick={() => reporter(t)}
                           >
                             Reporter
                           </button>
                         </div>
-                        {data.autresCoursiers.length > 0 && (
-                          <div className="cm-row2">
-                            <div className="cm-field" style={{ flex: 1 }}>
-                              <label>Réaffecter à</label>
-                              <select
-                                value={reaffectations[t.id] ?? ''}
-                                onChange={(e) => setReaffectations((prev) => ({ ...prev, [t.id]: e.target.value }))}
-                              >
-                                <option value="">Choisir un coursier…</option>
-                                {data.autresCoursiers.map((c) => (
-                                  <option key={c.id} value={c.id}>
-                                    {c.nom}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                            <button
-                              className="cm-report-btn"
-                              type="button"
-                              disabled={busy || !reaffectations[t.id]}
-                              onClick={() => reaffecter(t)}
-                            >
-                              Réaffecter
-                            </button>
+                        {/* Dispatching retiré aux coursiers (demande ADV) : la réaffectation
+                            est désormais gérée par l'équipe Recouvrement / ADV. Bloc grisé,
+                            conservé pour mémoire ; toute réaffectation est refusée côté serveur. */}
+                        <div className="cm-row2" aria-disabled="true" style={{ opacity: 0.5, pointerEvents: 'none' }}>
+                          <div className="cm-field" style={{ flex: 1 }}>
+                            <label>Réaffecter à</label>
+                            <select value="" disabled>
+                              <option value="">Géré par l'équipe ADV</option>
+                            </select>
                           </div>
-                        )}
+                          <button className="cm-report-btn" type="button" disabled>
+                            Réaffecter
+                          </button>
+                        </div>
+                        <div className="cm-note" style={{ opacity: 0.7 }}>
+                          Le dispatching (réaffectation) est désormais géré par l'équipe Recouvrement / ADV.
+                        </div>
                       </div>
                     )}
                   </div>

@@ -29,6 +29,7 @@ export function SalleCoursierView({ token }: { token: string }) {
   const [reportOpenId, setReportOpenId] = useState<string | null>(null);
   const [reportDates, setReportDates] = useState<Record<string, string>>({});
   const [reportMotifs, setReportMotifs] = useState<Record<string, MotifReport | ''>>({});
+  const [reportCommentaires, setReportCommentaires] = useState<Record<string, string>>({});
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const load = useCallback(async () => {
@@ -64,12 +65,15 @@ export function SalleCoursierView({ token }: { token: string }) {
 
   async function reporter(tacheId: string) {
     const motifReport = reportMotifs[tacheId];
-    if (!motifReport) return;
+    const commentaire = (reportCommentaires[tacheId] ?? '').trim();
+    // Report impossible sans motif ET sans justification écrite (demande ADV).
+    if (!motifReport || !commentaire) return;
     setBusyId(tacheId);
     try {
       await api.patch(`/api/salle-public/${token}/taches/${tacheId}`, {
         report: reportDates[tacheId] ?? tomorrow(),
         motifReport,
+        motifReportCommentaire: commentaire,
       });
       setReportOpenId(null);
       await load();
@@ -113,7 +117,14 @@ export function SalleCoursierView({ token }: { token: string }) {
             </option>
           ))}
         </select>
-        <button type="button" disabled={busyId === t.id || !reportMotifs[t.id]} onClick={() => reporter(t.id)} style={{ fontSize: 12, padding: '4px 8px' }}>
+        <input
+          type="text"
+          placeholder="Commentaire obligatoire…"
+          value={reportCommentaires[t.id] ?? ''}
+          onChange={(e) => setReportCommentaires((prev) => ({ ...prev, [t.id]: e.target.value }))}
+          style={{ fontSize: 12, padding: '4px 6px', flex: '1 1 160px', minWidth: 140 }}
+        />
+        <button type="button" disabled={busyId === t.id || !reportMotifs[t.id] || !(reportCommentaires[t.id] ?? '').trim()} onClick={() => reporter(t.id)} style={{ fontSize: 12, padding: '4px 8px' }}>
           OK
         </button>
         <button type="button" onClick={() => setReportOpenId(null)} style={{ fontSize: 12, padding: '4px 8px', background: 'none' }}>
@@ -161,6 +172,7 @@ export function SalleCoursierView({ token }: { token: string }) {
           <div className="table-card" style={{ marginBottom: 22, ...(nonAssignees.length === 0 ? { opacity: 0.6 } : {}) }}>
             <div className="table-head">
               <div style={{ fontWeight: 700, fontSize: 17 }}>À dispatcher ({nonAssignees.length})</div>
+              <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>Dispatching géré par l'équipe ADV / Recouvrement</div>
             </div>
             {nonAssignees.length === 0 ? (
               <div style={{ padding: '18px 22px', fontSize: 14, color: 'var(--ink-soft)' }}>Tout est assigné.</div>
@@ -180,14 +192,16 @@ export function SalleCoursierView({ token }: { token: string }) {
                         {t.label && <div style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>{t.label}</div>}
                       </td>
                       <td style={{ width: 200 }}>
+                        {/* Dispatching retiré aux coursiers (demande ADV) : assignation grisée,
+                            refusée côté serveur. L'ADV assigne via ses écrans authentifiés. */}
                         <select
-                          style={{ fontSize: 15, padding: '8px 10px', width: '100%' }}
-                          disabled={busyId === t.id}
+                          style={{ fontSize: 15, padding: '8px 10px', width: '100%', opacity: 0.55 }}
+                          disabled
                           defaultValue=""
                           onChange={(e) => e.target.value && assigner(t.id, e.target.value)}
                         >
                           <option value="" disabled>
-                            Se l'attribuer…
+                            Géré par l'ADV
                           </option>
                           {data.coursiers.map((c) => (
                             <option key={c.id} value={c.id}>
