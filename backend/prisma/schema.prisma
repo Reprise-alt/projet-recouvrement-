@@ -901,6 +901,11 @@ model TacheCoursier {
   // tâche n'a jamais été reportée.
   motifReport MotifReport?
 
+  // Justification libre OBLIGATOIRE saisie au report (en plus du motif imposé) --
+  // demande ADV : aucun report sans explication écrite. Nul tant que la tâche
+  // n'a jamais été reportée.
+  motifReportCommentaire String?
+
   // Position dans la tournée du coursier pour la journée -- nul tant qu'il
   // n'a pas réordonné son planning (cf. routes/coursierPublic.ts), auquel
   // cas le tri retombe sur createdAt. Volontairement un simple entier plutôt

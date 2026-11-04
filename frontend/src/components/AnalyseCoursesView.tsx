@@ -9,7 +9,7 @@ import {
   Entite,
   TypeTacheCoursier,
 } from '../api/types';
-import { TACHE_TYPE_LABELS } from '../lib/constants';
+import { MOTIF_REPORT_LABELS, TACHE_TYPE_LABELS } from '../lib/constants';
 
 interface Props {
   entityFilter: Entite | 'ALL';
@@ -265,6 +265,7 @@ export function AnalyseCoursesView({ entityFilter }: Props) {
                   <th>Type</th>
                   <th>Client / entité</th>
                   <th>Coursier</th>
+                  <th>Motif / justification</th>
                 </tr>
               </thead>
               <tbody>
@@ -275,6 +276,10 @@ export function AnalyseCoursesView({ entityFilter }: Props) {
                     <td>{TACHE_TYPE_LABELS[r.type] ?? r.type}</td>
                     <td>{r.clientNom ?? <span style={{ color: 'var(--ink-soft)' }}>{r.entite}</span>}</td>
                     <td>{r.coursierNom ?? <span style={{ color: 'var(--ink-soft)' }}>Non assignée</span>}</td>
+                    <td style={{ fontSize: 12.5 }}>
+                      {r.motif ? <strong>{MOTIF_REPORT_LABELS[r.motif]}</strong> : <span style={{ color: 'var(--ink-soft)' }}>—</span>}
+                      {r.commentaire && <div style={{ color: 'var(--ink-soft)' }}>{r.commentaire}</div>}
+                    </td>
                   </tr>
                 ))}
               </tbody>

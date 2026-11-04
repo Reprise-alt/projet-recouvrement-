@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildPlanningRapport, modeleDuLe, resumeJournee, statutAffiche, TacheRapportEntree } from '../src/lib/taches';
+import { AnalyseCourseEntree, buildAnalyseCourses, buildPlanningRapport, modeleDuLe, resumeJournee, statutAffiche, TacheRapportEntree } from '../src/lib/taches';
 
 function m(jourDuMois: number, extra: { intervalleMois?: number; createdAt?: Date | string } = {}) {
   return { jourDuMois, ...extra };
@@ -162,5 +162,57 @@ describe('buildPlanningRapport', () => {
     expect(vide.reporteesParEntite).toEqual([]);
     expect(vide.reporteesTotal).toBe(0);
     expect(vide.global).toEqual({ total: 0, faites: 0, reportees: 0, aFaire: 0, annulees: 0 });
+  });
+});
+
+describe('buildAnalyseCourses (comptage par activité réelle)', () => {
+  const NOV = { from: new Date('2026-11-01T00:00:00.000Z'), toExclusive: new Date('2026-12-01T00:00:00.000Z') };
+  function ac(over: Partial<AnalyseCourseEntree> = {}): AnalyseCourseEntree {
+    return {
+      statut: 'a_faire',
+      type: 'depot_facture',
+      date: '2026-11-02',
+      dateInitiale: '2026-11-02',
+      dateExecution: null,
+      entite: 'IRIS',
+      coursierId: null,
+      coursierNom: null,
+      clientNom: null,
+      ...over,
+    };
+  }
+
+  it('compte une course faite dans le mois de son EXÉCUTION, même planifiée le mois précédent', () => {
+    const r = buildAnalyseCourses(
+      [ac({ statut: 'faite', dateInitiale: '2026-10-30', date: '2026-10-30', dateExecution: '2026-11-03', coursierId: 'c1', coursierNom: 'Mamadou' })],
+      NOV,
+    );
+    expect(r.global.total).toBe(1);
+    expect(r.global.faites).toBe(1);
+    expect(r.parCoursier.find((p) => p.coursierId === 'c1')?.faites).toBe(1);
+  });
+
+  it("n'inclut pas une course faite exécutée hors de la période", () => {
+    const r = buildAnalyseCourses(
+      [ac({ statut: 'faite', dateInitiale: '2026-11-04', date: '2026-11-04', dateExecution: '2026-12-02', coursierId: 'c1', coursierNom: 'Mamadou' })],
+      NOV,
+    );
+    expect(r.global.total).toBe(0);
+  });
+
+  it('compte une course reportée dans sa période de planification, avec motif et justification', () => {
+    const r = buildAnalyseCourses(
+      [ac({ statut: 'a_faire', dateInitiale: '2026-11-02', date: '2026-11-05', coursierId: 'c2', coursierNom: 'Awa', motifReport: 'client_absent', motifReportCommentaire: 'Portail fermé' })],
+      NOV,
+    );
+    expect(r.global.reportees).toBe(1);
+    expect(r.reportees).toHaveLength(1);
+    expect(r.reportees[0].motif).toBe('client_absent');
+    expect(r.reportees[0].commentaire).toBe('Portail fermé');
+  });
+
+  it('exclut une course non faite planifiée hors de la période', () => {
+    const r = buildAnalyseCourses([ac({ statut: 'a_faire', dateInitiale: '2026-10-29', date: '2026-10-29' })], NOV);
+    expect(r.global.total).toBe(0);
   });
 });
