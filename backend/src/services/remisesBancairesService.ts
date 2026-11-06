@@ -57,11 +57,14 @@ export interface RapportIngestion {
   nouveaux: number;
   preRapproches: number;
   ignores: number;
+  // Avis écartés car la même opération est déjà « à rapprocher » (la banque
+  // envoie plusieurs e-mails pour un même règlement).
+  doublons: number;
 }
 
 export async function ingererRemisesBancaires(organisationId: string): Promise<RapportIngestion> {
   const cred = await getConnexionAvisBancaires(organisationId);
-  if (!cred?.refreshToken) return { connecte: false, lus: 0, nouveaux: 0, preRapproches: 0, ignores: 0 };
+  if (!cred?.refreshToken) return { connecte: false, lus: 0, nouveaux: 0, preRapproches: 0, ignores: 0, doublons: 0 };
 
   // On relit depuis la dernière synchro (moins un jour de marge, au cas où un
   // avis arriverait avec un léger retard d'indexation Gmail).
@@ -82,6 +85,7 @@ export async function ingererRemisesBancaires(organisationId: string): Promise<R
   let nouveaux = 0;
   let preRapproches = 0;
   let ignores = 0;
+  let doublons = 0;
 
   for (const email of emails) {
     const avis = parseAvisBancaire(email.from, email.subject, email.text);
@@ -92,6 +96,30 @@ export async function ingererRemisesBancaires(organisationId: string): Promise<R
     // Idempotence : jamais deux fois le même message.
     const existe = await prisma.cheque.findFirst({ where: { emailMessageId: email.id, organisationId }, select: { id: true } });
     if (existe) continue;
+
+    // Dé-doublonnage MÉTIER : la banque envoie souvent plusieurs avis (e-mails
+    // distincts, donc emailMessageId différents) pour la MÊME opération. On ne
+    // recrée pas un « à rapprocher » s'il en existe déjà un équivalent non encore
+    // rapproché : même source + montant + émetteur + date d'opération + échéance.
+    // Deux règlements réels identiques à des dates différentes ne sont PAS fusionnés
+    // (dates distinctes) ; une fois un avis rapproché, un nouveau règlement identique
+    // (statut ≠ a_rapprocher pour l'ancien) repasse normalement.
+    const doublonExistant = await prisma.cheque.findFirst({
+      where: {
+        organisationId,
+        source: 'banque',
+        statut: 'a_rapprocher',
+        montant: avis.montant,
+        tireur: avis.emetteur,
+        dateCheque: avis.dateOperation,
+        echeance: avis.echeance,
+      },
+      select: { id: true },
+    });
+    if (doublonExistant) {
+      doublons++;
+      continue;
+    }
 
     const prop = proposerFactures(avis.montant, facturesPourMatch);
     // Client déduit si une seule facture est proposée (rapprochement net).
@@ -122,5 +150,5 @@ export async function ingererRemisesBancaires(organisationId: string): Promise<R
   }
 
   await prisma.integrationCredential.update({ where: { id: cred.id }, data: { derniereSync: new Date() } });
-  return { connecte: true, lus: emails.length, nouveaux, preRapproches, ignores };
+  return { connecte: true, lus: emails.length, nouveaux, preRapproches, ignores, doublons };
 }
