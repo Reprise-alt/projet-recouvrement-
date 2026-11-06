@@ -17,6 +17,7 @@
     "seed:admin": "tsx prisma/seedAdmin.ts",
     "seed:operations": "tsx prisma/seedOperations.ts",
     "migrer:tenant": "tsx scripts/migrer-tenant.ts",
+    "nettoyer:doublons-remises": "tsx scripts/nettoyer-doublons-remises.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {
